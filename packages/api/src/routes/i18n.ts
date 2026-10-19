@@ -18,9 +18,11 @@ import {
 } from '@/services/i18n-repositories.service';
 import { UnwritableKeyError } from '@/services/i18n-git.service';
 import { detect } from '@/services/i18n-detection.service';
+import { reachableRepositories } from '@/services/i18n-reachable.service';
 import { env } from '@/config/env';
 import {
   detectionQuerySchema,
+  reachableQuerySchema,
   newKeysSchema,
   newRepositorySchema,
   proposalSchema,
@@ -141,6 +143,25 @@ router.get('/detection', signedIn, async (c) => {
   }
 
   return c.json({ success: true, data: await answer(() => detect(data)) });
+});
+
+/**
+ * The repositories the installations reach, one page at a time, for the
+ * picker of the page (DB-581). `q` searches every page, not only the loaded ones.
+ */
+router.get('/installations/repositories', signedIn, async (c) => {
+  refuseANonAdmin(c);
+
+  const { data, error, success } = reachableQuerySchema.safeParse(c.req.query());
+
+  if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
+
+  return c.json({
+    success: true,
+    data: await answer(() =>
+      reachableRepositories({ page: data.page, perPage: data.perPage, q: data.q, fresh: data.fresh === '1' }),
+    ),
+  });
 });
 
 /** Writes down a repository to translate, and what it takes to read it. */

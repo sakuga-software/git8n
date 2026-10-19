@@ -1,4 +1,4 @@
-import type { Installation, Repository } from '@i18n-editor/mcp/api';
+import type { Repository } from '@i18n-editor/mcp/api';
 
 /**
  * The rules of the flow that connects a repository (DB-581), with no React,
@@ -28,51 +28,44 @@ export const setupReturnOf = (search: string): SetupReturn => {
 /** One repository that an installation reaches, and the row of the editor that holds it, if one does. */
 export interface RepositoryChoice {
   installationId: number;
+  account: string;
   owner: string;
   name: string;
+  private: boolean;
   /** The id of the row when the repository is connected already. */
   connectedId: string | null;
 }
 
+/** The key of a repository in the picker: `owner/name`, which GitHub compares whatever its case. */
+export const keyOf = (repository: Pick<RepositoryChoice, 'owner' | 'name'>): string =>
+  `${repository.owner}/${repository.name}`.toLowerCase();
+
 /**
- * The repositories the admin can pick, those not connected first.
+ * The rows of a page, and of the pages loaded before it, each once.
  *
- * The installation that GitHub just named comes before the others, so the
- * repository that was just installed is at the top of the list.
+ * A repository installed while the admin scrolls moves the rows of the next
+ * pages by one. A row can then come twice, and a list box refuses two items
+ * with one key.
  */
-export const choicesOf = (
-  installations: readonly Installation[],
+export const withPage = (
+  before: readonly RepositoryChoice[],
+  page: readonly Omit<RepositoryChoice, 'connectedId'>[],
   connected: readonly Pick<Repository, 'id' | 'owner' | 'name'>[],
-  justInstalled: number | null = null,
 ): RepositoryChoice[] => {
-  const rowOf = new Map(connected.map((row) => [`${row.owner}/${row.name}`.toLowerCase(), row.id]));
-  const seen = new Set<string>();
-  const choices: RepositoryChoice[] = [];
+  const rowOf = new Map(connected.map((row) => [keyOf(row), row.id]));
+  const seen = new Set(before.map(keyOf));
+  const added = page
+    .filter((row) => !seen.has(keyOf(row)) && seen.add(keyOf(row)))
+    .map((row) => ({ ...row, connectedId: rowOf.get(keyOf(row)) ?? null }));
 
-  for (const installation of installations) {
-    for (const repository of installation.repositories) {
-      const key = `${repository.owner}/${repository.name}`.toLowerCase();
-
-      // Two installations can reach one repository. The row would hold one of them, so the list shows it once.
-      if (seen.has(key)) continue;
-
-      seen.add(key);
-      choices.push({
-        installationId: installation.id,
-        owner: repository.owner,
-        name: repository.name,
-        connectedId: rowOf.get(key) ?? null,
-      });
-    }
-  }
-
-  const rank = (choice: RepositoryChoice) =>
-    (choice.connectedId === null ? 0 : 2) + (choice.installationId === justInstalled ? 0 : 1);
-
-  return choices.sort(
-    (a, b) => rank(a) - rank(b) || `${a.owner}/${a.name}`.localeCompare(`${b.owner}/${b.name}`, 'fr'),
-  );
+  return [...before, ...added];
 };
+
+/** How long the picker waits after the last key before it asks the API. */
+export const SEARCH_DELAY_MS = 250;
+
+/** How many repositories one page of the picker holds. */
+export const PICKER_PAGE = 30;
 
 /** `fr, en  pt-BR` → `['fr', 'en', 'pt-BR']`, each once, in the order typed. */
 export const languagesOf = (text: string): string[] => [

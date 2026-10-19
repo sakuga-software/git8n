@@ -50,6 +50,15 @@ export const newRepositorySchema = z.object({
 
 export type NewRepositoryBody = z.infer<typeof newRepositorySchema>;
 
+/** One page of the repositories that the installations reach, with a search on their name (DB-581). */
+export const reachableQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  perPage: z.coerce.number().int().min(1).max(100, 'A page holds at most 100 repositories').default(30),
+  q: z.string().max(200).optional(),
+  /** `1` drops the listing the API holds, so a repository installed a moment ago is in it. */
+  fresh: z.enum(['0', '1']).optional(),
+});
+
 /** What the page asks of a repository before it connects it (DB-581). */
 export const detectionQuerySchema = newRepositorySchema
   .pick({ installationId: true, owner: true, name: true, branch: true })

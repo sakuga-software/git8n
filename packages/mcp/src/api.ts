@@ -175,6 +175,44 @@ export interface Installation {
 
 export const installations = (config: ApiConfig) => ask<Installation[]>(config, '/i18n/installations');
 
+/** A repository that an installation reaches, with the account the App is installed on. */
+export interface ReachableRepository {
+  installationId: number;
+  account: string;
+  owner: string;
+  name: string;
+  private: boolean;
+}
+
+export interface ReachablePage {
+  rows: ReachableRepository[];
+  page: number;
+  perPage: number;
+  /** How many repositories match the search, over every page. */
+  total: number;
+  hasMore: boolean;
+}
+
+/**
+ * One page of the repositories that the installations reach. `q` searches
+ * every page. `fresh` asks the API to read GitHub again rather than the listing it holds.
+ */
+export const reachableRepositories = (
+  config: ApiConfig,
+  query: { page?: number; perPage?: number; q?: string; fresh?: boolean } = {},
+) => {
+  const params = new URLSearchParams();
+
+  if (query.page) params.set('page', String(query.page));
+  if (query.perPage) params.set('perPage', String(query.perPage));
+  if (query.q) params.set('q', query.q);
+  if (query.fresh) params.set('fresh', '1');
+
+  const search = params.toString();
+
+  return ask<ReachablePage>(config, `/i18n/installations/repositories${search ? `?${search}` : ''}`);
+};
+
 /** A folder that holds one folder for each language. */
 export interface LocalesCandidate {
   path: string;
