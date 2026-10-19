@@ -1,2 +1,3 @@
 process.env.NODE_ENV = 'test';
-process.env.KNOWN_HOSTS = process.env.KNOWN_HOSTS || 'http://localhost:5173';
+process.env.BETTER_AUTH_URL = 'http://editor.test';
+process.env.ADMIN_EMAILS = 'admin@example.test, Boss@Example.test';

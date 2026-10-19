@@ -20,12 +20,6 @@ RUN pnpm install --frozen-lockfile --filter @i18n-editor/web...
 COPY --link packages/web ./packages/web
 COPY --link packages/mcp ./packages/mcp
 
-# WARNING: Vite writes this address into the JavaScript when it builds. A
-# change of the variable at run time changes nothing: build the image again.
-# With no address, the page says that it is missing and calls nothing.
-ARG VITE_API=
-ENV VITE_API=$VITE_API
-
 # The build renders the page once, through a server that React Router starts on
 # `localhost`. In this image `localhost` resolves to ::1 first, so the server
 # binds to IPv6 only, but its client connects to 127.0.0.1 and gets

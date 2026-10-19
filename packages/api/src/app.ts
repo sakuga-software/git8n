@@ -1,5 +1,6 @@
+import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
+import { auth } from './auth';
 import { env } from './config/env';
 import { errorHandler } from './middlewares/error-handler';
 import i18nRoutes from './routes/i18n';
@@ -9,10 +10,23 @@ const app = new Hono<HonoEnv>();
 
 app.onError(errorHandler);
 
-app.use('/*', cors({ origin: env.KNOWN_HOSTS, credentials: true }));
+app.on(['GET', 'POST'], '/api/auth/*', (c) => auth().handler(c.req.raw));
 
 app.route('/i18n', i18nRoutes);
 
 app.get('/health', (c) => c.json({ status: 'ok' }));
+
+// The page and the API are on one origin, so the session cookie needs no CORS.
+const webRoot = env.WEB_ROOT;
+
+if (webRoot) {
+  app.use('/*', serveStatic({ root: webRoot }));
+  // The application is a single page: every other address opens it, and the router reads the path.
+  app.get('/*', async (c, next) => {
+    if (/^\/(api|i18n)(\/|$)/.test(c.req.path)) return c.notFound();
+
+    return serveStatic({ root: webRoot, path: 'index.html' })(c, next);
+  });
+}
 
 export default app;

@@ -15,6 +15,13 @@
       "when": 1792414678308,
       "tag": "0001_manifest_path",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792415655125,
+      "tag": "0002_auth",
+      "breakpoints": true
     }
   ]
 }

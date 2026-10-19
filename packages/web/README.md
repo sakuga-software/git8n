@@ -7,25 +7,18 @@ holds no data of its own.
 ## Run it
 
 ```sh
-VITE_API=http://localhost:8001 pnpm -F @i18n-editor/web dev
+pnpm -F @i18n-editor/web dev
 ```
 
-`VITE_API` is the address of the API. The page is a single-page application:
-the session cookie belongs to the origin of the API, so a server here could
-not read it.
-
-The local API refuses the page until its `KNOWN_HOSTS` names the origin that
-Vite prints, for example `http://localhost:5173`. Add it to `packages/api/.env`.
+Vite passes `/api` and `/i18n` to the API on port 8001, or to `API_PROXY` when
+it is set. The page and the API then share one origin, as they do in production,
+where the API serves this build.
 
 ## What the API must hold
 
-- **The origin of this application in `KNOWN_HOSTS`.** The API answers CORS
-  with credentials for the origins of that list, and better-auth trusts the
-  same list. Without it, the browser refuses every call and the page stays on
-  the sign-in.
 - **A repository**, added with `POST /i18n/repositories` (DB-210). With none,
   the API answers 503 and the page says that the tool is not set up.
-- **A grant.** A sign-in gives no language (DB-218). An account opens the
+- **A grant.** A sign-in with GitHub gives no language. An account opens the
   table if it administers, or if a row of `i18n_translators` names it. An
   admin with no row reads every language and writes none.
 
@@ -73,16 +66,10 @@ gives the format of the manifest.
 
 ## Deploy it
 
-The image is static: `packages/web/Dockerfile` builds the page, and nginx serves
-it on port 80. Build it from the root of the repository.
-
-```sh
-docker build -f packages/web/Dockerfile \
-  --build-arg VITE_API=https://i18n-api.example.com -t i18n-editor-web .
-```
-
-`VITE_API` is a build argument. Vite writes the address into the JavaScript,
-so a change of the variable on a container that runs changes nothing.
+The API serves this build on its own origin when `WEB_ROOT` names
+`build/client`, so the page needs no address of the API and no CORS. One image
+for the two is DB-572. `packages/web/Dockerfile` still builds the page alone,
+behind nginx, and that page can no longer reach an API on another origin.
 
 ## Tests
 
