@@ -10,6 +10,8 @@
   "redirect_url": "https://example.invalid/after-creation",
   "callback_urls": ["https://i18n.sakuga.dev/api/auth/callback/github"],
   "request_oauth_on_install": false,
+  "setup_url": "https://i18n.sakuga.dev/setup",
+  "setup_on_update": true,
   "default_permissions": {
     "contents": "write",
     "metadata": "read"

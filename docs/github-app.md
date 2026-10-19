@@ -41,7 +41,8 @@ not included in the list »). Add it by hand after the creation, at step 5.
 
 1. Change `name` if the name is taken: the name of an App is unique on GitHub.
    Change `callback_urls` to the address of your deployment, followed by
-   `/api/auth/callback/github`. Change `redirect_url` to a page that you
+   `/api/auth/callback/github`, and `setup_url` to the same address followed
+   by `/setup`. Change `redirect_url` to a page that you
    control. GitHub sends the browser there with a `code` after the creation.
 2. Send the manifest to GitHub from a browser. GitHub accepts it only as a form
    field, so save this page as `create-app.html` and open it:
@@ -90,13 +91,33 @@ not included in the list »). Add it by hand after the creation, at step 5.
      the account gets no address;
    - nobody is an admin, because no address is verified for `ADMIN_EMAILS`.
 
+6. If the App was created before its manifest held `setup_url`, open
+   **General** in its settings. Under **Post installation**, set **Setup URL**
+   to `https://<host>/setup` and tick **Redirect on update**. Save.
+
+   **Without it, GitHub does not come back to the editor** after an
+   installation. The admin then opens the editor again and clicks « Ajouter un
+   dépôt ».
+
 ## Connect a repository
 
-1. Install the App on the repository, from `https://github.com/apps/<slug>`.
-2. `GET /i18n/installations` gives the installation and the repositories it
-   reaches.
-3. `POST /i18n/repositories` adds the repository. `docs/repositories.md` gives
-   the fields.
+An admin does it from the page:
+
+1. « Brancher un dépôt » (or « Ajouter un dépôt » beside the open one) opens
+   `https://github.com/apps/<slug>/installations/new` in the same tab.
+   `GITHUB_APP_SLUG` gives the slug.
+2. After the installation, GitHub sends the browser to the Setup URL,
+   `/setup?installation_id=…&setup_action=install`. The page lists the
+   repositories that the installations reach.
+3. The admin picks one. `GET /i18n/detection` reads its default branch, the
+   folders that hold one folder per language, and the manifest beside them.
+   The form starts from that answer, and every field stays editable.
+4. « Brancher ce dépôt » sends `POST /i18n/repositories`, then the table of the
+   repository opens. `docs/repositories.md` gives the fields.
+
+The routes stay open to a script: `GET /i18n/installations`, then
+`POST /i18n/repositories`. Sent twice, the POST answers the row that is there
+with `created: false`, and writes nothing.
 
 **A protected branch refuses the publications.** If the base branch requires a
 pull request or a review, add the App to the list of actors that can bypass

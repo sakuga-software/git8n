@@ -32,6 +32,11 @@ const schema = z.object({
   COMMIT_EMAIL_DOMAIN: z.string().min(1).default('users.noreply.invalid'),
   /** The folder of the built web application. The API serves it when it is set. */
   WEB_ROOT: z.string().optional(),
+  /** The name of the GitHub App in its address, `github.com/apps/<slug>`. The page links to its installation. */
+  GITHUB_APP_SLUG: z
+    .string()
+    .regex(/^[a-z0-9-]+$/, 'A slug is the name of the App in its address, such as i18n-editor')
+    .default('i18n-editor'),
   I18N_GITHUB_APP_ID: z.string().optional(),
   I18N_GITHUB_PRIVATE_KEY: z.string().optional(),
 });

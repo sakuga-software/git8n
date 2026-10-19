@@ -231,6 +231,7 @@ describe('POST /i18n/repositories', () => {
 
     // A path that ends in a slash would double in a URL.
     expect(body.data.localesPath).toBe('src/locales');
+    expect((body.data as { created?: boolean }).created).toBe(true);
     expect(body.data.source).toBe('fr');
     expect(body.data.targets).toEqual(['en']);
   });
@@ -303,10 +304,12 @@ describe('POST /i18n/repositories', () => {
         }),
       });
 
-    const first = (await (await send()).json()) as { data: { id: string } };
-    const second = (await (await send()).json()) as { data: { id: string } };
+    const first = (await (await send()).json()) as { data: { id: string; created: boolean } };
+    const second = (await (await send()).json()) as { data: { id: string; created: boolean } };
 
     expect(second.data.id).toBe(first.data.id);
+    // The page reads it to say « already connected » rather than « connected ».
+    expect([first.data.created, second.data.created]).toEqual([true, false]);
     expect(await db().select().from(i18nRepositories)).toHaveLength(1);
   });
 
@@ -493,12 +496,143 @@ describe('GET /i18n/installations', () => {
   });
 });
 
+/**
+ * What a repository holds before an admin connects it (DB-581).
+ *
+ * The App reaches `acme/acme-app` through installation 42 alone, as the mock
+ * at the top of this file says.
+ */
+describe('GET /i18n/detection', () => {
+  const TREE = [
+    { path: 'README.md', type: 'blob' },
+    { path: 'src', type: 'tree' },
+    { path: 'src/locales/manifest.json', type: 'blob' },
+    { path: 'src/locales/en/common.json', type: 'blob' },
+    { path: 'src/locales/fr/common.json', type: 'blob' },
+    { path: 'src/locales/fr/tutorial.json', type: 'blob' },
+    { path: 'docs/examples/de/common.json', type: 'blob' },
+  ];
+
+  /** GitHub, for one repository whose default branch is `trunk`. */
+  const repositoryOnGithub = (options: { manifest?: unknown } = {}) =>
+    vi.fn(async (url: string) => {
+      const path = new URL(url).pathname;
+
+      if (path === '/repos/acme/acme-app') return ok({ default_branch: 'trunk' });
+      if (path === '/repos/acme/acme-app/git/trees/trunk') return ok({ tree: TREE, truncated: false });
+      if (path.startsWith('/repos/acme/acme-app/git/trees/')) {
+        return { ok: false, status: 404, json: async () => ({ message: 'Not Found' }) };
+      }
+      if (path === '/repos/acme/acme-app/contents/src/locales/manifest.json') {
+        return ok({ content: base64(options.manifest ?? { source: 'fr', files: {} }), encoding: 'base64' });
+      }
+
+      return { ok: false, status: 404, json: async () => ({ message: `no ${path}` }) };
+    });
+
+  const detection = async (query: string, headers?: Record<string, string>) =>
+    app.request(`/i18n/detection?${query}`, { headers: headers ?? (await signedInAdmin()).headers });
+
+  it('finds the default branch, the folders of the languages and the source of the manifest', async () => {
+    vi.stubGlobal('fetch', repositoryOnGithub());
+
+    const res = await detection('installationId=42&owner=acme&name=acme-app');
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { data: unknown }).data).toEqual({
+      defaultBranch: 'trunk',
+      branch: 'trunk',
+      truncated: false,
+      candidates: [
+        { path: 'src/locales', languages: ['en', 'fr'] },
+        { path: 'docs/examples', languages: ['de'] },
+      ],
+      localesPath: 'src/locales',
+      manifestPath: 'src/locales/manifest.json',
+      source: 'fr',
+      languages: ['fr', 'en'],
+    });
+  });
+
+  it('answers the folder that the admin chose, with no manifest beside it', async () => {
+    vi.stubGlobal('fetch', repositoryOnGithub());
+
+    const res = await detection('installationId=42&owner=acme&name=acme-app&localesPath=docs/examples/');
+
+    expect(((await res.json()) as { data: unknown }).data).toMatchObject({
+      localesPath: 'docs/examples',
+      manifestPath: null,
+      source: null,
+      languages: ['de'],
+    });
+  });
+
+  /** A manifest that names no source leaves the order to the admin. */
+  it('keeps the languages in their order when the manifest names no source', async () => {
+    vi.stubGlobal('fetch', repositoryOnGithub({ manifest: { files: {} } }));
+
+    const res = await detection('installationId=42&owner=acme&name=acme-app');
+
+    expect(((await res.json()) as { data: unknown }).data).toMatchObject({ source: null, languages: ['en', 'fr'] });
+  });
+
+  it('answers 400 for a branch the repository does not hold', async () => {
+    vi.stubGlobal('fetch', repositoryOnGithub());
+
+    const res = await detection('installationId=42&owner=acme&name=acme-app&branch=nope');
+
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain('nope');
+  });
+
+  it('answers 400 for an installation that is not installed', async () => {
+    vi.stubGlobal('fetch', repositoryOnGithub());
+
+    expect((await detection('installationId=99&owner=acme&name=acme-app')).status).toBe(400);
+  });
+
+  it('refuses a repository the installation does not reach', async () => {
+    vi.stubGlobal('fetch', repositoryOnGithub());
+
+    const res = await detection('installationId=42&owner=somebody-else&name=private-thing');
+
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain('acme/acme-app');
+  });
+
+  it('refuses a query that names no repository', async () => {
+    expect((await detection('installationId=42')).status).toBe(400);
+  });
+
+  it('refuses a locales path that climbs out of the repository', async () => {
+    expect((await detection('installationId=42&owner=acme&name=acme-app&localesPath=../x')).status).toBe(400);
+  });
+
+  it('refuses a translator who is no admin', async () => {
+    const { headers } = await translator(['en'], 'reviewer');
+
+    expect((await detection('installationId=42&owner=acme&name=acme-app', headers)).status).toBe(403);
+  });
+});
+
 describe('GET /i18n/me', () => {
   it('tells an admin that they translate nothing', async () => {
     const admin = await signedInAdmin();
     const res = await app.request('/i18n/me', { headers: admin.headers });
 
     expect(await res.json()).toMatchObject({ data: { admin: true, rights: null } });
+  });
+
+  /** The first step of connecting a repository is to install the App (DB-581). */
+  it('gives an admin the address that installs the App, and nobody else', async () => {
+    const admin = await signedInAdmin();
+    const { headers } = await translator(['en']);
+    const of = async (sent: Record<string, string>) =>
+      ((await (await app.request('/i18n/me', { headers: sent })).json()) as { data: { installUrl: string | null } })
+        .data.installUrl;
+
+    expect(await of(admin.headers)).toBe(`https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`);
+    expect(await of(headers)).toBeNull();
   });
 
   it('tells a reviewer their languages and their role', async () => {
