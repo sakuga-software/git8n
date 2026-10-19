@@ -1,26 +1,14 @@
 import { Button } from '@heroui/react/button';
 import { Input } from '@heroui/react/input';
 import { useEffect, useRef, useState } from 'react';
-import {
-  addRepository,
-  detection as readDetection,
-  installations as readInstallations,
-  type Detection,
-  type Repository,
-} from '@i18n-editor/mcp/api';
+import { addRepository, detection as readDetection, type Detection, type Repository } from '@i18n-editor/mcp/api';
 import { api } from '~/utils/api';
-import { Branch, Github, Info, Plus, Repository as RepositoryIcon, Wrench } from './icons';
-import {
-  bodyOf,
-  choicesOf,
-  problemsOf,
-  type ConnectField,
-  type ConnectForm,
-  type RepositoryChoice,
-} from './connect-flow';
+import { Branch, Github, Info, Plus, Wrench } from './icons';
+import { bodyOf, problemsOf, type ConnectField, type ConnectForm, type RepositoryChoice } from './connect-flow';
+import { RepositoryPicker, useReachable } from './repository-picker';
 import { Blocked, Failure, Loading } from './states';
 import { Busy } from './ui';
-import { readErrorOf, useRead, type ReadError } from './use-read';
+import { readErrorOf, type ReadError } from './use-read';
 
 interface Props {
   /** Where GitHub installs the App. The API gives it to an admin alone. */
@@ -43,7 +31,8 @@ interface Props {
  * 3. The form starts from what the API detects in it, and every field stays editable.
  */
 export function ConnectRepository({ installUrl, connected, justInstalled, onConnected, onCancel }: Props) {
-  const [installations, reloadInstallations] = useRead('installations', () => readInstallations(api));
+  const reachable = useReachable(connected);
+  const { listing, load } = reachable;
   const [picked, setPicked] = useState<RepositoryChoice | null>(null);
 
   const header = (
@@ -62,38 +51,39 @@ export function ConnectRepository({ installUrl, connected, justInstalled, onConn
     </div>
   );
 
-  if (installations.state === 'loading') {
+  // The first page, with no search, says whether the App reaches anything at all.
+  const firstPage = listing.query === '' && listing.rows.length === 0;
+
+  if (firstPage && listing.status === 'loading') {
     return (
       <Section>
         {header}
-        <Loading>Lecture des installations de l'App…</Loading>
+        <Loading>Lecture des dépôts que l'App atteint…</Loading>
       </Section>
     );
   }
 
-  if (installations.state === 'failed') {
+  if (firstPage && listing.status === 'failed' && listing.error) {
     return (
       <Section>
         {header}
-        {installations.error.status === 503 ? (
+        {listing.error.status === 503 ? (
           <Blocked icon={<Wrench size={18} />}>
             <p className="text-sm leading-normal">La GitHub App de l'éditeur n'est pas encore configurée.</p>
-            <p className="text-muted max-w-xl font-mono text-xs break-words">{installations.error.message}</p>
+            <p className="text-muted max-w-xl font-mono text-xs break-words">{listing.error.message}</p>
           </Blocked>
         ) : (
           <Failure
-            title="Les installations de l'App n'ont pas pu être lues."
-            error={installations.error}
-            onRetry={reloadInstallations}
+            title="Les dépôts que l'App atteint n'ont pas pu être lus."
+            error={listing.error}
+            onRetry={() => void load('', 1)}
           />
         )}
       </Section>
     );
   }
 
-  const choices = choicesOf(installations.value, connected, justInstalled);
-
-  if (choices.length === 0) {
+  if (firstPage && listing.status === 'idle') {
     return (
       <Section>
         {header}
@@ -114,42 +104,18 @@ export function ConnectRepository({ installUrl, connected, justInstalled, onConn
     <Section>
       {header}
       <Step number={1} title="Choisir le dépôt">
-        <ul aria-label="Dépôts que l'App atteint" className="flex flex-col gap-2">
-          {choices.map((choice) => {
-            const id = `${choice.owner}/${choice.name}`;
-            const isPicked = picked !== null && `${picked.owner}/${picked.name}` === id;
-
-            return (
-              <li key={id}>
-                <button
-                  type="button"
-                  aria-pressed={isPicked}
-                  onClick={() => (choice.connectedId ? onConnected(choice.connectedId) : setPicked(choice))}
-                  className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg border px-4 py-3 text-left ${
-                    isPicked ? 'border-signal bg-panel' : 'border-line-strong hover:bg-hover'
-                  }`}
-                >
-                  <span className="flex min-w-0 items-center gap-2.5">
-                    <RepositoryIcon size={16} className="text-muted" />
-                    <span className="truncate font-mono text-[13px]">{id}</span>
-                  </span>
-                  <span className="text-muted text-xs whitespace-nowrap">
-                    {choice.connectedId ? 'Déjà branché · Ouvrir' : isPicked ? 'Choisi' : 'Choisir'}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-        <p className="text-sub flex items-start gap-2 text-[13px] leading-normal">
-          <Info size={15} className="text-muted mt-0.5" />
-          <span>
-            Le dépôt n'est pas dans la liste ?{' '}
-            <a href={installUrl} className="text-signal hover:underline">
-              Installer sur d'autres dépôts
-            </a>
-          </span>
-        </p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <RepositoryPicker reachable={reachable} picked={picked} onPick={setPicked} onOpen={onConnected} />
+          <a href={installUrl} className="text-signal text-[13px] whitespace-nowrap hover:underline">
+            Installer sur d'autres dépôts
+          </a>
+        </div>
+        {justInstalled !== null && !picked && (
+          <p className="text-sub flex items-start gap-2 text-[13px] leading-normal">
+            <Info size={15} className="text-muted mt-0.5" />
+            L'App est installée. Choisissez le dépôt à traduire.
+          </p>
+        )}
       </Step>
 
       {picked && (
