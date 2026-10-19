@@ -1,0 +1,23 @@
+# Automatic review of pull requests by Sakuga Review (GLM-5.3 through OpenRouter), and its commands
+# in a comment: `@sakuga-review review [lite|balanced|heavy]`, `@sakuga-review resolve`.
+# See https://github.com/sakuga-software/sakuga-review.
+name: Sakuga Review
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+  issue_comment:
+    types: [created]
+
+# The review posts with a token of the GitHub App, which the shared workflow asks for. The token of
+# this workflow is not used, so it gets no permission.
+permissions: {}
+
+jobs:
+  review:
+    # `stable` is the release of sakuga-review: a release moves it, and only its admins can move it
+    # (see the README of sakuga-review). The secrets below go to the code at that tag.
+    uses: sakuga-software/sakuga-review/.github/workflows/review.yml@stable
+    secrets:
+      PR_AGENT_APP_PRIVATE_KEY: ${{ secrets.PR_AGENT_APP_PRIVATE_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

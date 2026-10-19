@@ -13,6 +13,7 @@
   "dependencies": {
     "@hono/node-server": "^2.1.1",
     "@i18n-editor/db": "workspace:*",
+    "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
     "hono": "^4.13.8",
     "jsonwebtoken": "^9.0.3",

@@ -1,0 +1,42 @@
+{
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "plugins": ["typescript", "react", "import"],
+  "rules": {
+    "no-unused-vars": [
+      "warn",
+      {
+        "args": "all",
+        "argsIgnorePattern": "^_",
+        "caughtErrors": "all",
+        "caughtErrorsIgnorePattern": "^_",
+        "destructuredArrayIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "ignoreRestSiblings": true
+      }
+    ],
+    "no-shadow": "off",
+    "no-unused-expressions": "off",
+    "no-useless-escape": "warn",
+    "no-extraneous-class": "off",
+    "no-cond-assign": "warn",
+    "no-unsafe-optional-chaining": "warn",
+    "no-useless-catch": "warn",
+    "no-unassigned-vars": "warn",
+    "block-scoped-var": "off",
+    "no-func-assign": "off",
+    "typescript/no-explicit-any": "off",
+    "typescript/no-empty-object-type": "off",
+    "react/exhaustive-deps": "warn",
+    "react/react-in-jsx-scope": "off",
+    "react/no-this-in-sfc": "off",
+    "react/jsx-key": "warn",
+    "react/iframe-missing-sandbox": "warn",
+    "import/no-named-as-default": "off",
+    "import/no-named-as-default-member": "off",
+    "import/no-unassigned-import": "off"
+  },
+  "ignorePatterns": ["dist", "build", ".react-router", "node_modules"]
+}

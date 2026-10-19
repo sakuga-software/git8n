@@ -197,7 +197,10 @@ describe('the catalogue', () => {
   });
 
   it('reads the manifest at the path that the repository names', async () => {
-    const files = { fr: { common: { hello: 'Bonjour' }, guide: { title: 'Le carnet' } }, en: { common: { hello: 'Hello' } } };
+    const files = {
+      fr: { common: { hello: 'Bonjour' }, guide: { title: 'Le carnet' } },
+      en: { common: { hello: 'Hello' } },
+    };
     const elsewhere = github(files);
     const fetch = vi.fn(async (url: string, init?: RequestInit) =>
       String(url).includes('/contents/config/i18n.json?')

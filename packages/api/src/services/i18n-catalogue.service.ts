@@ -210,9 +210,7 @@ export const manifestOf = async (repository: I18nRepository, token: string, ref:
   // alone can they be compared. If they differ, every state is read against
   // the wrong language.
   if (parsed.data.source !== undefined && parsed.data.source !== source) {
-    throw new Error(
-      `${path} names ${parsed.data.source} as its source, and the repository names ${source}`,
-    );
+    throw new Error(`${path} names ${parsed.data.source} as its source, and the repository names ${source}`);
   }
 
   // The source is what the others are translated from, so no manifest can

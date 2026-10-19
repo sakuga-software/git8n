@@ -13,9 +13,7 @@ describe('the pages of GitHub the editor links to', () => {
   it('names the repository, its branch and a commit', () => {
     expect(repositoryUrl(repository)).toBe('https://github.com/acme/acme-app');
     expect(branchUrl(repository)).toBe('https://github.com/acme/acme-app/tree/main');
-    expect(commitUrl(repository, COMMIT)).toBe(
-      `https://github.com/acme/acme-app/commit/${COMMIT}`,
-    );
+    expect(commitUrl(repository, COMMIT)).toBe(`https://github.com/acme/acme-app/commit/${COMMIT}`);
   });
 
   /** The branch moves. A link to it would show a text the table did not read. */
@@ -26,9 +24,7 @@ describe('the pages of GitHub the editor links to', () => {
   });
 
   it('keeps the slashes of a branch, and of a path of the locales', () => {
-    expect(branchUrl({ ...repository, branch: 'i18n/en' })).toBe(
-      'https://github.com/acme/acme-app/tree/i18n/en',
-    );
+    expect(branchUrl({ ...repository, branch: 'i18n/en' })).toBe('https://github.com/acme/acme-app/tree/i18n/en');
     expect(fileUrl({ ...repository, localesPath: 'locales/' }, COMMIT, 'fr', 'letters')).toBe(
       `https://github.com/acme/acme-app/blob/${COMMIT}/locales/fr/letters.json`,
     );

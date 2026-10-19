@@ -6,10 +6,25 @@
     "dev": "pnpm -r --parallel --filter @i18n-editor/api --filter @i18n-editor/web dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "oxfmt": "0.45.0",
+    "oxlint": "1.60.0",
     "typescript": "catalog:"
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs,jsx,ts,tsx}": [
+      "oxfmt --no-error-on-unmatched-pattern",
+      "oxlint"
+    ],
+    "*.{json,md,css,yml,yaml}": "oxfmt --no-error-on-unmatched-pattern"
   },
   "engines": {
     "node": "24.x"

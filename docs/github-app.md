@@ -7,8 +7,8 @@ private key that the API signs with.
 
 ## What it may do
 
-| Permission | Access | Why                                                                                 |
-| ---------- | ------ | ----------------------------------------------------------------------------------- |
+| Permission | Access | Why                                                                                  |
+| ---------- | ------ | ------------------------------------------------------------------------------------ |
 | Contents   | write  | Read the locale files and the manifest. Write the branches of proposals and publish. |
 | Metadata   | read   | List the repositories that an installation reaches. GitHub always grants it.         |
 
@@ -57,10 +57,10 @@ ID and its private key in one step.
 
 4. Give the two values to the API:
 
-   | Variable                  | Value                       |
-   | ------------------------- | --------------------------- |
-   | `I18N_GITHUB_APP_ID`      | `id` of the answer          |
-   | `I18N_GITHUB_PRIVATE_KEY` | `pem` of the answer         |
+   | Variable                  | Value               |
+   | ------------------------- | ------------------- |
+   | `I18N_GITHUB_APP_ID`      | `id` of the answer  |
+   | `I18N_GITHUB_PRIVATE_KEY` | `pem` of the answer |
 
    The answer also holds a client secret and a webhook secret. The editor does
    not use them. Keep the private key out of the repository.

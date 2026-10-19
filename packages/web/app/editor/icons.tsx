@@ -171,15 +171,6 @@ export const Wrench = (props: IconProps) => (
   </Stroke>
 );
 
-export const Unlinked = (props: IconProps) => (
-  <Stroke {...props}>
-    <path d="M9 17H7A5 5 0 0 1 7 7h2" />
-    <path d="M15 7h2a5 5 0 0 1 4 8" />
-    <path d="M8 12h4" />
-    <path d="m2 2 20 20" />
-  </Stroke>
-);
-
 export const Github = (props: IconProps) => (
   <Stroke {...props}>
     <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
