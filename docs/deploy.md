@@ -1,19 +1,41 @@
 # Deploy the editor
 
-The root `Dockerfile` builds one image with two targets:
+A deployment has two images. Build both from the root of the repository: pnpm
+needs the workspace files.
 
-| Target     | What it runs                                                                                             |
-| ---------- | -------------------------------------------------------------------------------------------------------- |
-| `app`      | The API on `PORT`. It also serves the built page, so the page and the API have one origin.               |
-| `migrator` | `drizzle-kit migrate` on `DATABASE_URL`. It applies the migrations that are not applied yet, then stops. |
+| Image      | Dockerfile                | What it runs                                                                                          |
+| ---------- | ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `app`      | `packages/api/Dockerfile` | The API on `PORT`. It also serves the built page, so the page and the API have one origin.            |
+| `migrator` | `packages/db/Dockerfile`  | `dist/migrate.mjs` on `DATABASE_URL`. It applies the migrations that are not applied yet, then stops. |
 
 ```sh
-docker build --target app -t i18n-editor .
-docker build --target migrator -t i18n-editor-migrator .
+docker build -f packages/api/Dockerfile -t i18n-editor .
+docker build -f packages/db/Dockerfile -t i18n-editor-migrator .
 ```
 
-The `app` image runs as the user `node`, listens on port 8001, and has a
-`HEALTHCHECK` on `/health`.
+- The `app` image runs as the user `node`, listens on port 8001, and has a
+  `HEALTHCHECK` on `/health`.
+- The `migrator` image holds one bundle and the SQL files, on a distroless
+  Node image, as a user that is not root. It has no shell, no pnpm and no
+  drizzle-kit.
+
+The migrator keeps the journal of drizzle-kit: the table
+`drizzle.__drizzle_migrations`, with the `when` of `meta/_journal.json` and the
+same hash of each file. A database that `drizzle-kit migrate` updated gets only
+the migrations that came after.
+
+## Dokploy
+
+Two applications from the same repository and branch, with the build type
+**Dockerfile** and no build stage:
+
+| Application | Dockerfile path           | Docker context path | Watch paths                        |
+| ----------- | ------------------------- | ------------------- | ---------------------------------- |
+| `app`       | `packages/api/Dockerfile` | `.`                 | none: every push deploys it        |
+| `migrator`  | `packages/db/Dockerfile`  | `.`                 | `packages/db/**`, `pnpm-lock.yaml` |
+
+The `migrator` has no domain, and its restart policy is « none »: it stops
+after it applies the migrations.
 
 ## Order of a deployment
 

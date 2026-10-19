@@ -1,10 +1,8 @@
-# One image for the editor, with two targets:
+# The editor: the API, which also serves the built page on the same origin.
+# Build from the root of the repository: pnpm needs the workspace files to
+# resolve the `catalog:` versions, and the page imports the client of `packages/mcp`.
 #
-# - `app`: the API, which also serves the built page on the same origin.
-# - `migrator`: applies the migrations of `packages/db` to `DATABASE_URL`, then stops.
-#
-# Build from the root of the repository: pnpm needs the workspace files to resolve
-# the `catalog:` versions.
+#   docker build -f packages/api/Dockerfile -t i18n-editor .
 
 # Keep NODE_VERSION equal to `.node-version`, which the workflows read.
 ARG NODE_VERSION=24.21.0
@@ -12,20 +10,18 @@ ARG NODE_VERSION=24.21.0
 FROM node:${NODE_VERSION}-slim AS base
 ARG PNPM_VERSION=11.17.0
 RUN npm install -g pnpm@$PNPM_VERSION
-# The `prepare` script installs the git hooks. An image has no git repository.
+# The `prepare` script of the root installs the git hooks. An image has no git repository.
 ENV HUSKY=0
 WORKDIR /app
 
-FROM base AS deps
+FROM base AS build
 COPY --link package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY --link packages/api/package.json ./packages/api/
 COPY --link packages/db/package.json ./packages/db/
 COPY --link packages/mcp/package.json ./packages/mcp/
 COPY --link packages/web/package.json ./packages/web/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
-
-FROM deps AS build
+    pnpm install --frozen-lockfile --filter @i18n-editor/api... --filter @i18n-editor/web...
 COPY --link packages ./packages
 # React Router renders the page once, through a server on `localhost`. In this
 # image `localhost` resolves to ::1 first, and the client then connects to
@@ -44,23 +40,7 @@ COPY --link packages/db/package.json ./packages/db/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --prod --ignore-scripts --filter @i18n-editor/api...
 
-# drizzle-kit and the driver it migrates with, and nothing of the other packages.
-FROM base AS migrator-deps
-COPY --link package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY --link packages/db/package.json ./packages/db/
-RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter @i18n-editor/db
-
-FROM base AS migrator
-ENV NODE_ENV=production
-COPY --from=migrator-deps --link /app/node_modules ./node_modules
-COPY --from=migrator-deps --link /app/packages/db/node_modules ./packages/db/node_modules
-COPY --link package.json pnpm-workspace.yaml ./
-COPY --link packages/db ./packages/db
-USER node
-CMD ["pnpm", "--filter", "@i18n-editor/db", "run", "migrate"]
-
-FROM node:${NODE_VERSION}-slim AS app
+FROM node:${NODE_VERSION}-slim
 ENV NODE_ENV=production \
     PORT=8001 \
     WEB_ROOT=/app/web

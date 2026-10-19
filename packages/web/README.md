@@ -68,7 +68,7 @@ gives the format of the manifest.
 
 The API serves this build on its own origin when `WEB_ROOT` names
 `build/client`, so the page needs no address of the API and no CORS. The root
-`Dockerfile` builds the page and the API into one image: see
+`packages/api/Dockerfile` builds the page and the API into one image: see
 [`docs/deploy.md`](../../docs/deploy.md).
 
 ## Tests

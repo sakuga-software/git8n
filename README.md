@@ -55,7 +55,7 @@ reads.
 
 In production, the API serves the built page itself: set `WEB_ROOT` to
 `packages/web/build/client`. The page and the API then have one origin, and
-the browser needs no CORS. The root `Dockerfile` builds that image, and
+the browser needs no CORS. `packages/api/Dockerfile` builds that image, and
 [docs/deploy.md](docs/deploy.md) gives the order of a deployment and every
 variable.
 
