@@ -1,0 +1,71 @@
+import { sql } from 'drizzle-orm';
+import { bigint, boolean, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+
+export const I18N_ROLES = ['translator', 'reviewer'] as const;
+
+export type I18nRole = (typeof I18N_ROLES)[number];
+
+/** What an account may do with the translations: propose, or publish (DB-210). */
+export const i18nRole = pgEnum('i18n_role', I18N_ROLES);
+
+/**
+ * A repository the editor translates, and how to read it (DB-210).
+ *
+ * **The configuration of a repository is not the configuration of a
+ * deployment.** The branch, the path of the locales and the languages are
+ * properties of the repository itself: they belong beside it, not in an
+ * environment variable that a deployment has to carry. Adding a language then
+ * costs a row, not a release.
+ *
+ * `installationId` is what the GitHub App answers for this repository. It is
+ * what mints the token, and it is what makes a second repository free: install
+ * the App on it, add a row.
+ *
+ * Only the two secrets of the App itself stay in the environment, because a
+ * private key belongs in neither a table nor a repository.
+ */
+export const i18nRepositories = pgTable(
+  'i18n_repositories',
+  {
+    id: text('id').primaryKey(),
+    /** The installation of the GitHub App that reads and writes this repository. */
+    installationId: bigint('installation_id', { mode: 'number' }).notNull(),
+    owner: text('owner').notNull(),
+    name: text('name').notNull(),
+    branch: text('branch').notNull().default('main'),
+    /** Where the locale directories live: `<path>/<language>/<file>.json`. */
+    localesPath: text('locales_path').notNull(),
+    /** The languages, **the source first** — the one the others translate. */
+    languages: text('languages').array().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  // One row per repository: two would each answer for it, with a branch of
+  // their own, and nothing would say which one the editor reads.
+  (table) => [uniqueIndex('i18n_repositories_owner_name_idx').on(table.owner, table.name)],
+);
+
+/**
+ * Who may write which language of the translations (DB-210).
+ *
+ * **The text is not here.** It lives in the JSON files of the repository, which
+ * stay the truth of what is published. This table answers one question: what a
+ * signed-in account is allowed to do to them.
+ *
+ * An account with no row is not a translator. `languages` empty is a row that
+ * grants nothing, which is how a translator is suspended without losing the
+ * history of what they approved.
+ */
+export const i18nTranslators = pgTable('i18n_translators', {
+  userId: text('user_id').primaryKey(),
+  /** The languages this account may write. Never the source language. */
+  languages: text('languages').array().notNull().default(sql.raw(`'{}'::text[]`)),
+  role: i18nRole('role').notNull().default('translator'),
+  /**
+   * Whether this account may write the source language (DB-238).
+   *
+   * It is a right of its own, and no language of `languages` gives it. A
+   * translator of English does not write the French that English answers.
+   */
+  writesSource: boolean('writes_source').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});

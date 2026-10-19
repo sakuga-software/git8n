@@ -1,0 +1,424 @@
+/*
+ * HeroUI v3 gives the controls (DB-266). The parts of `@heroui/styles` in use are
+ * named one by one, as the admin of the game does in `heroui.css`: the bundle
+ * then holds the components of the editor and no other.
+ *
+ * The editor owns its document, so the theme of HeroUI goes on `:root`.
+ */
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@heroui/styles/base/base.css' layer(base);
+@import '@heroui/styles/themes/default' layer(theme);
+@import '@heroui/styles/utilities';
+@import '@heroui/styles/variants';
+
+@import '@heroui/styles/components/label.css' layer(components);
+@import '@heroui/styles/components/description.css' layer(components);
+@import '@heroui/styles/components/close-button.css' layer(components);
+@import '@heroui/styles/components/surface.css' layer(components);
+@import '@heroui/styles/components/popover.css' layer(components);
+@import '@heroui/styles/components/list-box.css' layer(components);
+@import '@heroui/styles/components/list-box-item.css' layer(components);
+@import '@heroui/styles/components/select.css' layer(components);
+@import '@heroui/styles/components/button.css' layer(components);
+@import '@heroui/styles/components/toggle-button.css' layer(components);
+@import '@heroui/styles/components/toggle-button-group.css' layer(components);
+@import '@heroui/styles/components/input.css' layer(components);
+@import '@heroui/styles/components/textarea.css' layer(components);
+@import '@heroui/styles/components/search-field.css' layer(components);
+@import '@heroui/styles/components/checkbox.css' layer(components);
+@import '@heroui/styles/components/alert.css' layer(components);
+@import '@heroui/styles/components/spinner.css' layer(components);
+@import '@heroui/styles/components/menu.css' layer(components);
+@import '@heroui/styles/components/menu-item.css' layer(components);
+@import '@heroui/styles/components/dropdown.css' layer(components);
+@import '@heroui/styles/components/modal.css' layer(components);
+
+/*
+ * The colours and the fonts of the editor. HeroUI names `accent`, `danger`,
+ * `surface`, `muted`, `field` and `success` itself, so the editor names its own
+ * `signal`, `alarm`, `panel` and `edge`, and gives the others as tokens of
+ * HeroUI below.
+ */
+@theme {
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --color-ink: #15171c;
+  --color-ink-hover: #2b2e36;
+  --color-sub: #3f4450;
+  --color-line: #e3e5ea;
+  --color-line-strong: #d5d8de;
+  --color-line-soft: #edeef1;
+  /* The edge of a field. It holds 3:1 on white, which a line of the page does not need. */
+  --color-edge: #868c98;
+  --color-quiet: #f3f4f6;
+  --color-panel: #f6f7f9;
+  /* The side panel: a step off the white of the page. */
+  --color-side: #f8f9fa;
+  /* The entry of the side panel that is chosen. */
+  --color-chosen: #e8ebf0;
+  --color-hover: #eef0f3;
+  --color-signal: #2f5bd3;
+  --color-off: #eceef1;
+  --color-off-ink: #7a808c;
+
+  --color-missing: #fdf1de;
+  --color-missing-line: #f0cf98;
+  --color-missing-ink: #7a4100;
+  --color-proposed: #e6eefd;
+  --color-proposed-line: #b7caf5;
+  --color-proposed-ink: #1e44a8;
+  --color-published: #e3f3e9;
+  --color-published-line: #a9d8ba;
+  --color-published-ink: #125c32;
+
+  --color-alarm: #fdecea;
+  --color-alarm-line: #f3b8b1;
+  --color-alarm-soft: #f3d3cf;
+  --color-alarm-ink: #8a1c14;
+  --color-alarm-strong: #a01f17;
+  --color-alarm-code: #3f2522;
+
+  /* HeroUI rounds a button with this step. The editor is square at the corners, as its fields are. */
+  --radius-3xl: 0.4375rem;
+}
+
+/*
+ * The tokens of HeroUI, mapped on the colours of the editor. A component of
+ * HeroUI then draws the editor, not the default theme: a primary button is ink,
+ * a field has an edge that holds 3:1, and the ring of the keyboard is the blue.
+ */
+@layer theme {
+  :root {
+    color-scheme: light;
+
+    --radius: 0.4375rem;
+    --field-radius: 6px;
+    --field-border-width: 1px;
+    /* `@theme inline` writes no custom property, and the fields read this name raw. */
+    --border-width-field: 1px;
+    --ring-offset-width: 1px;
+
+    --background: #fff;
+    --foreground: #15171c;
+    --muted: #5f6572;
+    --border: #d5d8de;
+    --separator: #e3e5ea;
+
+    --surface: #fff;
+    --surface-foreground: #15171c;
+    --overlay: #fff;
+    --overlay-foreground: #15171c;
+
+    --accent: #15171c;
+    --accent-foreground: #fff;
+    --focus: #2f5bd3;
+    --link: #2f5bd3;
+
+    --default: #eef0f3;
+    --default-foreground: #15171c;
+
+    --danger: #a01f17;
+    --danger-foreground: #fff;
+    --success: #146c3a;
+    --success-foreground: #fff;
+
+    --field-background: #fff;
+    --field-foreground: #15171c;
+    --field-placeholder: #5f6572;
+    --field-border: #868c98;
+    --field-border-hover: #5f6572;
+    --field-border-focus: #2f5bd3;
+    --field-hover: #fff;
+    --field-focus: #fff;
+    --field-shadow: none;
+  }
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background: #fff;
+  }
+
+  a {
+    color: var(--color-ink);
+  }
+
+  a:hover {
+    color: var(--color-signal);
+  }
+
+  /* The parts the browser draws: the selection, the caret, the ring of the keyboard. */
+  ::selection {
+    background: var(--color-proposed-line);
+    color: var(--color-ink);
+  }
+
+  textarea,
+  input {
+    caret-color: var(--color-signal);
+  }
+
+  a:focus-visible,
+  summary:focus-visible {
+    outline: 2px solid var(--color-signal);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+}
+
+/* What the editor asks of a control of HeroUI, and its own marks. */
+@layer components {
+  /* A field of the table is dense: one line for a label, and the size of the text around it. */
+  .textarea {
+    display: block;
+    width: 100%;
+    min-height: 0;
+    resize: vertical;
+    padding: 8px 10px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* A text that is typed and not proposed. The ring says it without the colour. */
+  .textarea.is-edited {
+    border-color: var(--color-ink);
+    box-shadow: inset 0 0 0 1px var(--color-ink);
+  }
+
+  .textarea:read-only {
+    background: var(--color-quiet);
+    color: #4b5160;
+    border-color: var(--color-line);
+    cursor: not-allowed;
+  }
+
+  .input {
+    font-size: 14px;
+  }
+
+  /*
+   * The tabs of the table. The one that is open is bold over a line of the
+   * accent, so it reads without the colour. The line covers the edge of the bar.
+   */
+  .tabs {
+    gap: 4px;
+    margin-bottom: -1px;
+    border-radius: 0;
+    background: none;
+  }
+
+  .tabs .toggle-button {
+    height: 46px;
+    gap: 8px;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    padding: 0 12px;
+    font-weight: 500;
+    color: var(--color-sub);
+    background: none;
+  }
+
+  .tabs .toggle-button::before,
+  .tabs .toggle-button::after {
+    display: none;
+  }
+
+  .tabs .toggle-button:hover {
+    color: var(--color-ink);
+    background: none;
+  }
+
+  .tabs .toggle-button[data-selected='true'] {
+    border-bottom-color: var(--color-signal);
+    font-weight: 600;
+    color: var(--color-ink);
+    background: none;
+  }
+
+  /* The switch between the two views: a frame of two segments, the open one in ink. */
+  .switch {
+    gap: 2px;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 8px;
+    padding: 2px;
+    background: #fff;
+  }
+
+  .switch .toggle-button {
+    height: 30px;
+    gap: 6px;
+    border-radius: 6px;
+    padding: 0 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-sub);
+    background: none;
+  }
+
+  .switch .toggle-button::before,
+  .switch .toggle-button::after,
+  .segments .toggle-button::before,
+  .segments .toggle-button::after {
+    display: none;
+  }
+
+  .switch .toggle-button[data-selected='true'] {
+    font-weight: 600;
+    color: #fff;
+    background: var(--color-ink);
+  }
+
+  /* The states of the list of the view of one key: a rail, and the open segment raised on it. */
+  .segments {
+    display: flex;
+    width: 100%;
+    gap: 2px;
+    border-radius: 8px;
+    padding: 3px;
+    background: #f3f4f6;
+  }
+
+  .segments .toggle-button {
+    flex: 1;
+    height: 30px;
+    gap: 6px;
+    border-radius: 6px;
+    padding: 0 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-sub);
+    background: none;
+  }
+
+  .segments .toggle-button[data-selected='true'] {
+    font-weight: 600;
+    color: var(--color-ink);
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(21, 23, 28, 0.12);
+  }
+
+  /* The field of the view of one key: the text is read in large. */
+  .textarea.open-field {
+    min-height: 112px;
+    border-radius: 9px;
+    padding: 14px 18px;
+    font-size: 17px;
+    line-height: 1.55;
+  }
+
+  /* The edge of a box holds 3:1 on white, as the edge of a field does. */
+  .checkbox__control {
+    border-color: var(--color-edge);
+  }
+
+  .link {
+    cursor: pointer;
+    color: var(--color-sub);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .link:hover {
+    color: var(--color-signal);
+  }
+
+  .kbd {
+    border: 1px solid var(--color-line-strong);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 0 4px;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--color-sub);
+    background: #fff;
+  }
+
+  /* The missing part of a progress bar. The hatch reads with no colour. */
+  .hatched {
+    background: repeating-linear-gradient(135deg, #b86a00 0 2px, var(--color-missing) 2px 6px);
+  }
+}
+
+/*
+ * Motion (DB-240). It says one thing: where a row went. A row that a write
+ * takes out of the list closes, and the count of the tab that receives it
+ * marks itself. Everything else is feedback that lasts 150 ms.
+ */
+@layer components {
+  .link {
+    transition: color 120ms ease-out;
+  }
+
+  .shut {
+    display: grid;
+    grid-template-rows: 1fr;
+  }
+
+  .shut:last-of-type [role='row'] {
+    border-bottom-width: 0;
+  }
+
+  /* The duration is LEAVE_MS in screen.tsx. A way out is quicker than a way in. */
+  .shut[data-leaving] {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+      grid-template-rows 200ms cubic-bezier(0.4, 0, 0.6, 1),
+      opacity 140ms linear;
+  }
+
+  .count {
+    border-radius: 999px;
+    padding: 1px 8px;
+  }
+
+  .count-changed {
+    animation: mark 900ms ease-out;
+  }
+
+  .arrive {
+    animation: arrive 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .appear {
+    animation: appear 150ms ease-out;
+  }
+}
+
+@keyframes mark {
+  from {
+    background: var(--color-signal);
+    color: #fff;
+    opacity: 1;
+  }
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Reduced motion keeps what confirms an action, and drops what moves. */
+@media (prefers-reduced-motion: reduce) {
+  .arrive {
+    animation-name: appear;
+  }
+
+  .shut[data-leaving] {
+    transition: none;
+  }
+}
