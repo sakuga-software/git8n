@@ -31,13 +31,13 @@ The files of one language are in one directory, under a path that you choose:
 An admin adds a repository with `POST /i18n/repositories`. Install the GitHub
 App on the repository first: [github-app.md](github-app.md) tells how.
 
-| Field            | Required | What it is                                                                     |
-| ---------------- | -------- | ------------------------------------------------------------------------------ |
-| `installationId` | yes      | The installation of the App, from `GET /i18n/installations`.                   |
-| `owner`, `name`  | yes      | The repository, for example `acme` and `acme-app`.                             |
-| `localesPath`    | yes      | The directory that holds the directories of the languages.                     |
-| `languages`      | yes      | The languages, **the source language first**.                                  |
-| `branch`         | no       | The base branch, which the editor reads and publishes to. The default is `main`. |
+| Field            | Required | What it is                                                                                   |
+| ---------------- | -------- | -------------------------------------------------------------------------------------------- |
+| `installationId` | yes      | The installation of the App, from `GET /i18n/installations`.                                 |
+| `owner`, `name`  | yes      | The repository, for example `acme` and `acme-app`.                                           |
+| `localesPath`    | yes      | The directory that holds the directories of the languages.                                   |
+| `languages`      | yes      | The languages, **the source language first**.                                                |
+| `branch`         | no       | The base branch, which the editor reads and publishes to. The default is `main`.             |
 | `manifestPath`   | no       | The manifest, from the root of the repository. The default is `<localesPath>/manifest.json`. |
 
 ```sh
@@ -68,11 +68,11 @@ in each language.
 }
 ```
 
-| State       | What the application does                        | What the editor does                                       |
-| ----------- | ------------------------------------------------ | ---------------------------------------------------------- |
-| `available` | It loads the file.                               | It lists the keys, and a translator writes them.            |
+| State       | What the application does                             | What the editor does                                              |
+| ----------- | ----------------------------------------------------- | ----------------------------------------------------------------- |
+| `available` | It loads the file.                                    | It lists the keys, and a translator writes them.                  |
 | `partial`   | It does not load the file yet. Users read the source. | It lists the keys, and a remark says that the file is not loaded. |
-| `disabled`  | The file has no version in this language.        | It lists no key, and it refuses a write to the file.        |
+| `disabled`  | The file has no version in this language.             | It lists no key, and it refuses a write to the file.              |
 
 - A file or a language that the manifest does not name is `available`.
 - The source language is always `available`. The manifest cannot change it.

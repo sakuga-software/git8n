@@ -3,11 +3,7 @@
     "correctness": "error",
     "suspicious": "warn"
   },
-  "plugins": [
-    "typescript",
-    "react",
-    "import"
-  ],
+  "plugins": ["typescript", "react", "import"],
   "rules": {
     "no-unused-vars": [
       "warn",
@@ -42,10 +38,5 @@
     "import/no-named-as-default-member": "off",
     "import/no-unassigned-import": "off"
   },
-  "ignorePatterns": [
-    "dist",
-    "build",
-    ".react-router",
-    "node_modules"
-  ]
+  "ignorePatterns": ["dist", "build", ".react-router", "node_modules"]
 }

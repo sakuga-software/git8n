@@ -681,9 +681,7 @@ describe('publishing', () => {
     );
 
     expect(published.published.map((row) => row.file)).toEqual(['common']);
-    expect(published.refused).toEqual([
-      { file: 'guide', key: 'title', commit: proposal.commit, reason: 'disabled' },
-    ]);
+    expect(published.refused).toEqual([{ file: 'guide', key: 'title', commit: proposal.commit, reason: 'disabled' }]);
     expect(repo.filesAt(repo.refs.get('main')!).has(`${LOCALES}/en/guide.json`)).toBe(false);
   });
 

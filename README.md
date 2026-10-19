@@ -13,12 +13,12 @@ The editor keeps no text of its own. Its database holds three things:
 
 ## Packages
 
-| Package         | What it is                                                                                    |
-| --------------- | --------------------------------------------------------------------------------------------- |
-| `packages/web`  | The page: React Router as a single-page application, Tailwind v4 and HeroUI v3.                |
-| `packages/api`  | The API: Hono on Node. It holds the routes `/i18n/*`, the catalogue, the proposals and the GitHub App. |
-| `packages/mcp`  | The typed client of the API, which the page also uses, and an MCP server for agents.           |
-| `packages/db`   | The Drizzle schema of the tables, and their migrations.                                        |
+| Package        | What it is                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------ |
+| `packages/web` | The page: React Router as a single-page application, Tailwind v4 and HeroUI v3.                        |
+| `packages/api` | The API: Hono on Node. It holds the routes `/i18n/*`, the catalogue, the proposals and the GitHub App. |
+| `packages/mcp` | The typed client of the API, which the page also uses, and an MCP server for agents.                   |
+| `packages/db`  | The Drizzle schema of the tables, and their migrations.                                                |
 
 ## Run it locally
 
@@ -56,20 +56,20 @@ In production, the API serves the built page itself: set `WEB_ROOT` to
 `packages/web/build/client`. The page and the API then have one origin, and
 the browser needs no CORS.
 
-| Variable                  | Package | What it is                                                                                  |
-| ------------------------- | ------- | ------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`            | api, db | The PostgreSQL server.                                                                      |
-| `DATABASE_TLS`            | api     | `true` to connect with TLS when the URL does not say so.                                    |
-| `PORT`                    | api     | The port of the API. The default is 8001.                                                   |
-| `BETTER_AUTH_URL`         | api     | The address of the editor, as the browser reads it. The default is `http://localhost:5173`. |
-| `BETTER_AUTH_SECRET`      | api     | At least 32 characters. It signs the sessions and encrypts the GitHub tokens. Required in production. |
-| `GITHUB_CLIENT_ID`        | api     | The client ID of the OAuth App of the sign-in.                                              |
-| `GITHUB_CLIENT_SECRET`    | api     | The client secret of that OAuth App.                                                        |
-| `ADMIN_EMAILS`            | api     | The addresses of the admins, separated by commas. See [Accounts and rights](#accounts-and-rights). |
-| `WEB_ROOT`                | api     | The folder of the built page. When it is set, the API serves the page.                      |
+| Variable                  | Package | What it is                                                                                             |
+| ------------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`            | api, db | The PostgreSQL server.                                                                                 |
+| `DATABASE_TLS`            | api     | `true` to connect with TLS when the URL does not say so.                                               |
+| `PORT`                    | api     | The port of the API. The default is 8001.                                                              |
+| `BETTER_AUTH_URL`         | api     | The address of the editor, as the browser reads it. The default is `http://localhost:5173`.            |
+| `BETTER_AUTH_SECRET`      | api     | At least 32 characters. It signs the sessions and encrypts the GitHub tokens. Required in production.  |
+| `GITHUB_CLIENT_ID`        | api     | The client ID of the OAuth App of the sign-in.                                                         |
+| `GITHUB_CLIENT_SECRET`    | api     | The client secret of that OAuth App.                                                                   |
+| `ADMIN_EMAILS`            | api     | The addresses of the admins, separated by commas. See [Accounts and rights](#accounts-and-rights).     |
+| `WEB_ROOT`                | api     | The folder of the built page. When it is set, the API serves the page.                                 |
 | `COMMIT_EMAIL_DOMAIN`     | api     | The domain of the address a commit gives its author. See [docs/repositories.md](docs/repositories.md). |
-| `I18N_GITHUB_APP_ID`      | api     | The ID of the GitHub App that reads and writes the repositories.                            |
-| `I18N_GITHUB_PRIVATE_KEY` | api     | The private key of that App, in PEM format.                                                 |
+| `I18N_GITHUB_APP_ID`      | api     | The ID of the GitHub App that reads and writes the repositories.                                       |
+| `I18N_GITHUB_PRIVATE_KEY` | api     | The private key of that App, in PEM format.                                                            |
 
 ## Accounts and rights
 

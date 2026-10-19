@@ -257,10 +257,7 @@ describe('when the App cannot answer', () => {
         answered += 1;
 
         return answered === 1
-          ? page(
-              [{ id: 42, account: { login: 'acme' } }],
-              'https://evil.example.com/app/installations?page=2',
-            )
+          ? page([{ id: 42, account: { login: 'acme' } }], 'https://evil.example.com/app/installations?page=2')
           : page([]);
       }),
     );
