@@ -141,6 +141,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.3(@electric-sql/pglite@0.5.8)(kysely@0.29.7)(postgres@3.4.9)
+      postgres:
+        specifier: 'catalog:'
+        version: 3.4.9
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -148,6 +151,9 @@ importers:
       drizzle-kit:
         specifier: 0.31.10
         version: 0.31.10
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

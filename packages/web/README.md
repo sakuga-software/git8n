@@ -25,7 +25,7 @@ where the API serves this build.
 ## What it is built with
 
 React Router in framework mode, as a single-page application (`ssr: false`):
-nginx serves it as static files. Tailwind v4, and the components of **HeroUI v3**
+the API serves it as static files. Tailwind v4, and the components of **HeroUI v3**
 for every control — buttons, tabs, selects, fields, boxes, alerts.
 
 `app/app.css` names the parts of `@heroui/styles` in use one by one, as the admin
@@ -67,9 +67,9 @@ gives the format of the manifest.
 ## Deploy it
 
 The API serves this build on its own origin when `WEB_ROOT` names
-`build/client`, so the page needs no address of the API and no CORS. One image
-for the two is DB-572. `packages/web/Dockerfile` still builds the page alone,
-behind nginx, and that page can no longer reach an API on another origin.
+`build/client`, so the page needs no address of the API and no CORS. The root
+`packages/api/Dockerfile` builds the page and the API into one image: see
+[`docs/deploy.md`](../../docs/deploy.md).
 
 ## Tests
 

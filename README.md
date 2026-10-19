@@ -22,12 +22,13 @@ The editor keeps no text of its own. Its database holds three things:
 
 ## Run it locally
 
-You need Node 24 (see `.node-version`), pnpm 11, a PostgreSQL server, and two
-things on GitHub:
+You need Node 24 (see `.node-version`), pnpm 11, a PostgreSQL server, and one
+thing on GitHub:
 
-- **An OAuth App**, for the sign-in. Its callback URL is
+- **A GitHub App**, which signs a person in and reads and writes the
+  repositories. For local work, create a second App whose callback URL is
   `http://localhost:5173/api/auth/callback/github`.
-- **A GitHub App**, which reads and writes the repositories.
+  [docs/github-app.md](docs/github-app.md) says how.
 
 ```sh
 pnpm install
@@ -37,8 +38,8 @@ DATABASE_URL=postgres://user:password@localhost:5432/i18n pnpm -F @i18n-editor/d
 
 # Start the API on port 8001.
 DATABASE_URL=postgres://user:password@localhost:5432/i18n \
-GITHUB_CLIENT_ID=<client ID of the OAuth App> \
-GITHUB_CLIENT_SECRET=<client secret of the OAuth App> \
+GITHUB_CLIENT_ID=<client ID of the GitHub App> \
+GITHUB_CLIENT_SECRET=<client secret of the GitHub App> \
 ADMIN_EMAILS=you@example.com \
 I18N_GITHUB_APP_ID=<id of the GitHub App> \
 I18N_GITHUB_PRIVATE_KEY="$(cat app.private-key.pem)" \
@@ -54,7 +55,9 @@ reads.
 
 In production, the API serves the built page itself: set `WEB_ROOT` to
 `packages/web/build/client`. The page and the API then have one origin, and
-the browser needs no CORS.
+the browser needs no CORS. `packages/api/Dockerfile` builds that image, and
+[docs/deploy.md](docs/deploy.md) gives the order of a deployment and every
+variable.
 
 | Variable                  | Package | What it is                                                                                             |
 | ------------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
@@ -63,8 +66,8 @@ the browser needs no CORS.
 | `PORT`                    | api     | The port of the API. The default is 8001.                                                              |
 | `BETTER_AUTH_URL`         | api     | The address of the editor, as the browser reads it. The default is `http://localhost:5173`.            |
 | `BETTER_AUTH_SECRET`      | api     | At least 32 characters. It signs the sessions and encrypts the GitHub tokens. Required in production.  |
-| `GITHUB_CLIENT_ID`        | api     | The client ID of the OAuth App of the sign-in.                                                         |
-| `GITHUB_CLIENT_SECRET`    | api     | The client secret of that OAuth App.                                                                   |
+| `GITHUB_CLIENT_ID`        | api     | The client ID of the GitHub App, for the sign-in.                                                      |
+| `GITHUB_CLIENT_SECRET`    | api     | The client secret of that GitHub App.                                                                  |
 | `ADMIN_EMAILS`            | api     | The addresses of the admins, separated by commas. See [Accounts and rights](#accounts-and-rights).     |
 | `WEB_ROOT`                | api     | The folder of the built page. When it is set, the API serves the page.                                 |
 | `COMMIT_EMAIL_DOMAIN`     | api     | The domain of the address a commit gives its author. See [docs/repositories.md](docs/repositories.md). |
