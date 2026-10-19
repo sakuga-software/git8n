@@ -14,7 +14,10 @@ concurrency:
 
 jobs:
   lint:
-    runs-on: ${{ github.repository_owner == 'sakuga-software' && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    # A private repository runs on our self-hosted runners. A public repository
+    # or a fork runs on GitHub-hosted runners: a pull request from a fork must
+    # never run on our machines, and the runner group refuses public repositories.
+    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted","sakuga-linux-arm"]') || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -38,9 +41,8 @@ jobs:
         run: pnpm format:check
 
   checks:
-    # A fork or a copy of the repository outside sakuga-software has no
-    # Blacksmith runner. A label that no runner serves queues the job for ever.
-    runs-on: ${{ github.repository_owner == 'sakuga-software' && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    # The same rule as `lint`.
+    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted","sakuga-linux"]') || 'ubuntu-latest' }}
     steps:
       # `pnpm install` runs the lifecycle scripts of the pull request. The
       # checkout keeps no token, so these scripts get none.
