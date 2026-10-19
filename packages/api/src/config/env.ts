@@ -9,7 +9,7 @@ const schema = z.object({
   BETTER_AUTH_URL: z.url().default('http://localhost:5173'),
   /** The key that signs the session cookies and encrypts the GitHub tokens. */
   BETTER_AUTH_SECRET: z.string().min(32).optional(),
-  /** The OAuth App of GitHub that signs a person in. Not the GitHub App that writes the repositories. */
+  /** The client of the GitHub App, for the sign-in. `I18N_GITHUB_APP_ID` is the same App, for the repositories. */
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   /** The addresses of the admins, separated by commas. Case does not count. */
@@ -55,7 +55,7 @@ export function i18nAppConfig(data: { I18N_GITHUB_APP_ID?: string; I18N_GITHUB_P
   };
 }
 
-/** The OAuth App of the sign-in, or nothing when one of its two values is absent. */
+/** The client of the sign-in, or nothing when one of its two values is absent. */
 export function githubSignIn(data: { GITHUB_CLIENT_ID?: string; GITHUB_CLIENT_SECRET?: string }) {
   if (!data.GITHUB_CLIENT_ID || !data.GITHUB_CLIENT_SECRET) return undefined;
 

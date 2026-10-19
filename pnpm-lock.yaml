@@ -148,6 +148,9 @@ importers:
       drizzle-kit:
         specifier: 0.31.10
         version: 0.31.10
+      postgres:
+        specifier: 'catalog:'
+        version: 3.4.9
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
