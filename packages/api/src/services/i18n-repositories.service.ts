@@ -92,13 +92,50 @@ export interface NewRepository {
 }
 
 /**
+ * Refuses a repository that the installation does not reach.
+ *
+ * The installation gives the right to read, and the caller chooses it.
+ * Without this check, an admin writes down any repository beside one of our
+ * installations. Every read of it then fails at GitHub with a bare 404.
+ */
+export const ensureReachable = async (installationId: number, owner: string, name: string): Promise<void> => {
+  const reachable = await repositoriesOf(installationId).catch((error: unknown) => {
+    // An installation nobody holds is the caller's mistake: GitHub refuses to
+    // mint its token. Here alone. The same refusal on GET /i18n/installations
+    // is our App failing, and stays a server error.
+    if (error instanceof GithubError && [401, 403, 404].includes(error.status)) {
+      throw new UnknownRepositoryError(
+        `No installation ${installationId} this App can use. Read GET /i18n/installations for the ones that exist.`,
+      );
+    }
+
+    throw error;
+  });
+
+  if (!reachable.some((row) => row.owner === owner && row.name === name)) {
+    throw new UnknownRepositoryError(
+      `Installation ${installationId} does not reach ${owner}/${name}. It reaches: ${
+        reachable.map((row) => `${row.owner}/${row.name}`).join(', ') || 'nothing'
+      }`,
+    );
+  }
+};
+
+/** A repository written down, and whether this call wrote it. */
+export interface Added {
+  repository: I18nRepository;
+  /** False when the row was already there. The page then says so, and opens it. */
+  created: boolean;
+}
+
+/**
  * Writes a repository down, or answers the one that is already there.
  *
  * Adding the same repository twice is an operator pressing a button again, not
  * an error. It must not make a second row: two rows would each answer for it
  * with a branch of their own.
  */
-export const addRepository = async (input: NewRepository): Promise<I18nRepository> => {
+export const addRepository = async (input: NewRepository): Promise<Added> => {
   if (input.languages.length === 0) {
     throw new Error('A repository needs at least its source language.');
   }
@@ -109,31 +146,9 @@ export const addRepository = async (input: NewRepository): Promise<I18nRepositor
     .where(and(eq(i18nRepositories.owner, input.owner), eq(i18nRepositories.name, input.name)))
     .limit(1);
 
-  if (existing) return existing;
+  if (existing) return { repository: existing, created: false };
 
-  // The installation gives the right to read, and the caller chooses it.
-  // Without this check, an admin writes down any repository beside one of our
-  // installations. Every read of it then fails at GitHub with a bare 404.
-  const reachable = await repositoriesOf(input.installationId).catch((error: unknown) => {
-    // An installation nobody holds is the caller's mistake: GitHub refuses to
-    // mint its token. Here alone. The same refusal on GET /i18n/installations
-    // is our App failing, and stays a server error.
-    if (error instanceof GithubError && [401, 403, 404].includes(error.status)) {
-      throw new UnknownRepositoryError(
-        `No installation ${input.installationId} this App can use. Read GET /i18n/installations for the ones that exist.`,
-      );
-    }
-
-    throw error;
-  });
-
-  if (!reachable.some((row) => row.owner === input.owner && row.name === input.name)) {
-    throw new UnknownRepositoryError(
-      `Installation ${input.installationId} does not reach ${input.owner}/${input.name}. It reaches: ${
-        reachable.map((row) => `${row.owner}/${row.name}`).join(', ') || 'nothing'
-      }`,
-    );
-  }
+  await ensureReachable(input.installationId, input.owner, input.name);
 
   const [created] = await db()
     .insert(i18nRepositories)
@@ -150,5 +165,5 @@ export const addRepository = async (input: NewRepository): Promise<I18nRepositor
     })
     .returning();
 
-  return created;
+  return { repository: created, created: true };
 };

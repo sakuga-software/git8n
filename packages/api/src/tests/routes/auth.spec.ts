@@ -10,6 +10,8 @@ import { useTestDb } from '../db/test-db';
 
 const { db } = useTestDb();
 
+const INSTALL_URL = `https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new`;
+
 const EDITOR = 'http://editor.test';
 
 const me = async (headers: Record<string, string> = {}) => {
@@ -63,7 +65,10 @@ describe('who a session is', () => {
   it('opens nothing to an account with no row and no admin address', async () => {
     const userId = await insertAccount();
 
-    expect(await me(await authHeaders(userId))).toEqual({ status: 200, body: { admin: false, rights: null } });
+    expect(await me(await authHeaders(userId))).toEqual({
+      status: 200,
+      body: { admin: false, rights: null, installUrl: null },
+    });
   });
 
   it('gives a translator the languages of its row', async () => {
@@ -74,6 +79,7 @@ describe('who a session is', () => {
     expect((await me(await authHeaders(userId))).body).toEqual({
       admin: false,
       rights: { languages: ['en'], role: 'translator', writesSource: false },
+      installUrl: null,
     });
   });
 
@@ -97,13 +103,13 @@ describe('who a session is', () => {
     const userId = await insertAccount({ email: 'BOSS@example.test' });
 
     expect(env.ADMIN_EMAILS.has('boss@example.test')).toBe(true);
-    expect((await me(await authHeaders(userId))).body).toEqual({ admin: true, rights: null });
+    expect((await me(await authHeaders(userId))).body).toEqual({ admin: true, rights: null, installUrl: INSTALL_URL });
   });
 
   it('makes no admin of an address of ADMIN_EMAILS that GitHub did not verify', async () => {
     const userId = await insertAccount({ email: ADMIN_EMAIL, emailVerified: false });
 
-    expect((await me(await authHeaders(userId))).body).toEqual({ admin: false, rights: null });
+    expect((await me(await authHeaders(userId))).body).toEqual({ admin: false, rights: null, installUrl: null });
   });
 });
 
@@ -182,7 +188,10 @@ describe('the sign-in with GitHub', () => {
     expect(new URL(answer.authorizeUrl).searchParams.get('redirect_uri')).toBe(`${EDITOR}/api/auth/callback/github`);
     expect(answer.status).toBe(302);
     expect(answer.location).toBe(`${EDITOR}/`);
-    expect(await me({ cookie: answer.cookie })).toEqual({ status: 200, body: { admin: true, rights: null } });
+    expect(await me({ cookie: answer.cookie })).toEqual({
+      status: 200,
+      body: { admin: true, rights: null, installUrl: INSTALL_URL },
+    });
   });
 
   it('reads the address of GitHub again at each sign-in', async () => {
@@ -193,6 +202,6 @@ describe('the sign-in with GitHub', () => {
     expect(await db().select({ email: users.email, verified: users.emailVerified }).from(users)).toEqual([
       { email: ADMIN_EMAIL, verified: false },
     ]);
-    expect((await me({ cookie: second.cookie })).body).toEqual({ admin: false, rights: null });
+    expect((await me({ cookie: second.cookie })).body).toEqual({ admin: false, rights: null, installUrl: null });
   });
 });

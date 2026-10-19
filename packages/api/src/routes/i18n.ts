@@ -17,7 +17,15 @@ import {
   UnknownRepositoryError,
 } from '@/services/i18n-repositories.service';
 import { UnwritableKeyError } from '@/services/i18n-git.service';
-import { newKeysSchema, newRepositorySchema, proposalSchema, publicationSchema } from '@/schemas/i18n';
+import { detect } from '@/services/i18n-detection.service';
+import { env } from '@/config/env';
+import {
+  detectionQuerySchema,
+  newKeysSchema,
+  newRepositorySchema,
+  proposalSchema,
+  publicationSchema,
+} from '@/schemas/i18n';
 
 const router = new Hono<HonoEnv>();
 
@@ -116,6 +124,25 @@ router.get('/installations', signedIn, async (c) => {
   });
 });
 
+/**
+ * How a repository of an installation holds its locales, before an admin
+ * connects it (DB-581): its branch, the folders that hold languages, and the
+ * manifest beside them. The page fills its form with it.
+ */
+router.get('/detection', signedIn, async (c) => {
+  refuseANonAdmin(c);
+
+  const { data, error, success } = detectionQuerySchema.safeParse(c.req.query());
+
+  if (!success) {
+    throw new HTTPException(400, {
+      message: `A detection needs installationId, owner and name. ${JSON.stringify(error.issues)}`,
+    });
+  }
+
+  return c.json({ success: true, data: await answer(() => detect(data)) });
+});
+
 /** Writes down a repository to translate, and what it takes to read it. */
 router.post('/repositories', signedIn, async (c) => {
   refuseANonAdmin(c);
@@ -130,9 +157,9 @@ router.post('/repositories', signedIn, async (c) => {
     });
   }
 
-  const created = await answer(() => addRepository(data));
+  const { repository, created } = await answer(() => addRepository(data));
 
-  return c.json({ success: true, data: { ...created, ...languagesOf(created) } });
+  return c.json({ success: true, data: { ...repository, ...languagesOf(repository), created } });
 });
 
 /** Every key of the source, beside what one language says about it. */
@@ -299,7 +326,17 @@ router.post('/keys', signedIn, async (c) => {
 router.get('/me', signedIn, async (c) => {
   const user = getUser(c);
 
-  return c.json({ success: true, data: { admin: user.admin === true, rights: await rightsOf(user.id) } });
+  const admin = user.admin === true;
+
+  return c.json({
+    success: true,
+    data: {
+      admin,
+      rights: await rightsOf(user.id),
+      // Installing the App is the first step of connecting a repository, which is for an admin alone.
+      installUrl: admin ? `https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new` : null,
+    },
+  });
 });
 
 export default router;

@@ -67,6 +67,7 @@ address from that header. Without the header, all the clients share one limit.
 | `I18N_GITHUB_PRIVATE_KEY` | yes      | The private key of the GitHub App, in PEM format. Write the newlines as they are, or as `\n`.                      | `-----BEGIN RSA PRIVATE KEY-----\n…`               |
 | `ADMIN_EMAILS`            | yes      | The addresses of the admins, separated by commas. GitHub must say that each address is verified.                   | `alice@example.com,bob@example.com`                |
 | `COMMIT_EMAIL_DOMAIN`     | no       | The domain of the address a commit gives its author. The default is `users.noreply.invalid`.                       | `users.noreply.example.com`                        |
+| `GITHUB_APP_SLUG`         | no       | The name of the GitHub App in its address, `github.com/apps/<slug>`. The page links to its installation page.      | `i18n-editor`                                      |
 | `PORT`                    | no       | The port of the API. The image sets 8001.                                                                          | `8001`                                             |
 | `WEB_ROOT`                | no       | The folder of the built page. The image sets `/app/web`.                                                           | `/app/web`                                         |
 

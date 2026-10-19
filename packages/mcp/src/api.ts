@@ -105,6 +105,8 @@ export interface Repository {
 
 export interface Rights {
   admin: boolean;
+  /** Where an admin installs the GitHub App. Null for any other account, and absent from an API older than DB-581. */
+  installUrl?: string | null;
   rights: {
     languages: string[];
     role: 'translator' | 'reviewer';
@@ -162,6 +164,68 @@ const ask = async <T>(config: ApiConfig, path: string, body?: unknown): Promise<
 export const repositories = (config: ApiConfig) => ask<Repository[]>(config, '/i18n/repositories');
 
 export const rightsOf = (config: ApiConfig) => ask<Rights>(config, '/i18n/me');
+
+/** One installation of the GitHub App, and the repositories it reaches. For an admin. */
+export interface Installation {
+  id: number;
+  /** The organisation or the person the App is installed on. */
+  account: string;
+  repositories: Array<{ owner: string; name: string }>;
+}
+
+export const installations = (config: ApiConfig) => ask<Installation[]>(config, '/i18n/installations');
+
+/** A folder that holds one folder for each language. */
+export interface LocalesCandidate {
+  path: string;
+  languages: string[];
+}
+
+/** How a repository holds its locales, read before an admin connects it (DB-581). */
+export interface Detection {
+  defaultBranch: string;
+  branch: string;
+  /** GitHub cut the listing of a large repository: a folder deep in it can be absent. */
+  truncated: boolean;
+  candidates: LocalesCandidate[];
+  localesPath: string | null;
+  manifestPath: string | null;
+  /** The source that the manifest names, or null. */
+  source: string | null;
+  /** The source first when it is known. */
+  languages: string[];
+}
+
+export const detection = (
+  config: ApiConfig,
+  query: { installationId: number; owner: string; name: string; branch?: string; localesPath?: string },
+) => {
+  const params = new URLSearchParams({
+    installationId: String(query.installationId),
+    owner: query.owner,
+    name: query.name,
+  });
+
+  if (query.branch) params.set('branch', query.branch);
+  if (query.localesPath) params.set('localesPath', query.localesPath);
+
+  return ask<Detection>(config, `/i18n/detection?${params}`);
+};
+
+export interface NewRepository {
+  installationId: number;
+  owner: string;
+  name: string;
+  branch?: string;
+  localesPath: string;
+  manifestPath?: string;
+  /** The source first. */
+  languages: string[];
+}
+
+/** Connects a repository. `created` is false when it was connected already: the API answers that row. */
+export const addRepository = (config: ApiConfig, repository: NewRepository) =>
+  ask<Repository & { created?: boolean }>(config, '/i18n/repositories', repository);
 
 export const catalogue = (config: ApiConfig, repository: string, language: string) =>
   ask<Catalogue>(

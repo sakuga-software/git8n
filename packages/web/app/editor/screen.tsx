@@ -18,7 +18,9 @@ import {
 } from '@i18n-editor/mcp/api';
 import { api } from '~/utils/api';
 import { signOut, useSession } from '~/utils/auth-client';
-import { ChevronDown, Info, KeyView, Lock, Published, Repository, TableView, Wrench } from '~/editor/icons';
+import { ChevronDown, Info, KeyView, Lock, Plus, Published, Repository, TableView, Wrench } from '~/editor/icons';
+import { ConnectRepository } from '~/editor/connect';
+import { SETUP_PATH, setupReturnOf } from '~/editor/connect-flow';
 import { branchUrl, commitUrl, fileUrl, repositoryUrl } from '~/editor/github';
 import { NewKey } from '~/editor/new-key';
 import { Busy, Choice } from '~/editor/ui';
@@ -469,6 +471,9 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
   const [repositories, reloadRepositories] = useRead('repositories', () => readRepositories(api));
   const [repositoryId, setRepositoryId] = useState<string | null>(null);
   const [language, setLanguage] = useState<string | null>(null);
+  // GitHub sends the browser back to `/setup` after an installation of the App (DB-581).
+  const [connecting, setConnecting] = useState(() => window.location.pathname === SETUP_PATH);
+  const [justInstalled] = useState(() => setupReturnOf(window.location.search).installationId);
 
   const repository =
     repositories.state === 'done'
@@ -608,10 +613,36 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
     return <AccountFailure error={repositories.error} onRetry={reloadRepositories} />;
   if (me.state === 'loading' || repositories.state === 'loading') return <Loading>Lecture du compte…</Loading>;
 
+  const installUrl = me.value.admin ? me.value.installUrl : null;
+
+  /** Leaves `/setup` for the address of the editor, so a reload opens the table and not the flow again. */
+  const closeConnect = () => {
+    setConnecting(false);
+
+    if (window.location.pathname === SETUP_PATH) window.history.replaceState(null, '', '/');
+  };
+
+  if (installUrl && (connecting || !repository)) {
+    return (
+      <ConnectRepository
+        installUrl={installUrl}
+        connected={repositories.value}
+        justInstalled={justInstalled}
+        onConnected={(id) => {
+          setRepositoryId(id);
+          closeConnect();
+          reloadRepositories();
+        }}
+        onCancel={repository ? closeConnect : undefined}
+      />
+    );
+  }
+
   if (!repository) {
     return (
       <Blocked icon={<Repository size={18} />}>
         <p className="text-sm leading-normal">Aucun dépôt n'est configuré pour la traduction.</p>
+        <p className="text-sub text-sm leading-normal">Demandez à un admin de brancher un dépôt.</p>
       </Blocked>
     );
   }
@@ -831,6 +862,17 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
                 <Repository size={14} className="text-muted" />
                 {repository.name}
               </Outside>
+            )}
+            {installUrl && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onPress={() => mayLeave(changed.length) && setConnecting(true)}
+                className="text-sub text-[13px]"
+              >
+                <Plus size={14} />
+                Ajouter un dépôt
+              </Button>
             )}
             {/* The window: a translator must know which state of the repository this is. */}
             <span title="La branche et le commit lus par cette page" className="text-muted font-mono text-xs">

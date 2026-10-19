@@ -50,6 +50,11 @@ export const newRepositorySchema = z.object({
 
 export type NewRepositoryBody = z.infer<typeof newRepositorySchema>;
 
+/** What the page asks of a repository before it connects it (DB-581). */
+export const detectionQuerySchema = newRepositorySchema
+  .pick({ installationId: true, owner: true, name: true, branch: true })
+  .extend({ localesPath: newRepositorySchema.shape.localesPath.optional() });
+
 /**
  * A file of the locales is a name such as `common`, never a path.
  *
