@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Installation } from '@i18n-editor/mcp/api';
-import { bodyOf, choicesOf, languagesOf, problemsOf, setupReturnOf, type ConnectForm } from './connect-flow';
+import { bodyOf, languagesOf, problemsOf, setupReturnOf, withPage, type ConnectForm } from './connect-flow';
 
 describe('setupReturnOf', () => {
   it('reads the installation and the action that GitHub sends back', () => {
@@ -17,43 +16,25 @@ describe('setupReturnOf', () => {
   });
 });
 
-describe('choicesOf', () => {
-  const installations: Installation[] = [
-    {
-      id: 1,
-      account: 'acme',
-      repositories: [
-        { owner: 'acme', name: 'web' },
-        { owner: 'acme', name: 'app' },
-      ],
-    },
-    {
-      id: 2,
-      account: 'beta',
-      repositories: [
-        { owner: 'beta', name: 'site' },
-        { owner: 'acme', name: 'web' },
-      ],
-    },
-  ];
+describe('withPage', () => {
+  const row = (owner: string, name: string) => ({ installationId: 1, account: owner, owner, name, private: false });
 
-  it('puts the repositories that are not connected first, and shows a repository once', () => {
-    expect(choicesOf(installations, [{ id: 'r1', owner: 'acme', name: 'app' }])).toEqual([
-      { installationId: 1, owner: 'acme', name: 'web', connectedId: null },
-      { installationId: 2, owner: 'beta', name: 'site', connectedId: null },
-      { installationId: 1, owner: 'acme', name: 'app', connectedId: 'r1' },
+  it('appends the rows of a page and marks the ones the editor holds', () => {
+    expect(withPage([], [row('acme', 'web'), row('acme', 'app')], [{ id: 'r1', owner: 'Acme', name: 'App' }])).toEqual([
+      { ...row('acme', 'web'), connectedId: null },
+      { ...row('acme', 'app'), connectedId: 'r1' },
     ]);
   });
 
-  it('puts the installation that GitHub just named before the others', () => {
-    expect(choicesOf(installations, [], 2).map((choice) => choice.name)).toEqual(['site', 'app', 'web']);
-  });
+  /** A repository installed while the admin scrolls moves the next pages by one. */
+  it('keeps each repository once when two pages overlap', () => {
+    const first = withPage([], [row('acme', 'a'), row('acme', 'b')], []);
 
-  it('knows a connected repository whatever the case of its name', () => {
-    expect(choicesOf(installations, [{ id: 'r', owner: 'Acme', name: 'Web' }])[2]).toMatchObject({
-      name: 'web',
-      connectedId: 'r',
-    });
+    expect(withPage(first, [row('acme', 'B'), row('acme', 'c'), row('acme', 'c')], []).map((r) => r.name)).toEqual([
+      'a',
+      'b',
+      'c',
+    ]);
   });
 });
 
@@ -102,7 +83,7 @@ describe('problemsOf', () => {
 });
 
 describe('bodyOf', () => {
-  const choice = { installationId: 9, owner: 'acme', name: 'web', connectedId: null };
+  const choice = { installationId: 9, account: 'acme', owner: 'acme', name: 'web', private: true, connectedId: null };
 
   it('sends no manifest when the field is empty, and no slash at the end of the folder', () => {
     expect(bodyOf(choice, form({ localesPath: 'src/locales/ ' }))).toEqual({

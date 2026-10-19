@@ -178,7 +178,7 @@ describe('what the App can reach', () => {
   it('names the repositories of one installation', async () => {
     vi.stubGlobal('fetch', github());
 
-    expect(await repositoriesOf(42)).toEqual([{ owner: 'acme', name: 'acme-app' }]);
+    expect(await repositoriesOf(42)).toEqual([{ owner: 'acme', name: 'acme-app', private: false }]);
   });
 
   /**
@@ -222,7 +222,7 @@ describe('what the App can reach', () => {
         }
 
         if (path.includes('page=2')) {
-          return page({ repositories: [{ name: 'later', owner: { login: 'acme' } }] });
+          return page({ repositories: [{ name: 'later', owner: { login: 'acme' }, private: true }] });
         }
 
         if (path.includes('/installation/repositories')) {
@@ -237,8 +237,9 @@ describe('what the App can reach', () => {
     );
 
     expect(await repositoriesOf(42)).toEqual([
-      { owner: 'acme', name: 'acme-app' },
-      { owner: 'acme', name: 'later' },
+      { owner: 'acme', name: 'acme-app', private: false },
+      // The picker of the page shows a badge for a private repository.
+      { owner: 'acme', name: 'later', private: true },
     ]);
   });
 });

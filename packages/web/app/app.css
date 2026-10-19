@@ -21,6 +21,8 @@
 @import '@heroui/styles/components/list-box.css' layer(components);
 @import '@heroui/styles/components/list-box-item.css' layer(components);
 @import '@heroui/styles/components/select.css' layer(components);
+@import '@heroui/styles/components/combo-box.css' layer(components);
+@import '@heroui/styles/components/chip.css' layer(components);
 @import '@heroui/styles/components/button.css' layer(components);
 @import '@heroui/styles/components/toggle-button.css' layer(components);
 @import '@heroui/styles/components/toggle-button-group.css' layer(components);
