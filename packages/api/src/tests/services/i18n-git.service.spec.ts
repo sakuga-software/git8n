@@ -28,21 +28,22 @@ vi.mock('@/services/github-app.service', async (original) => ({
  * and the two ways a publication must refuse.
  */
 
-const LOCALES = 'apps/app/src/assets/locales';
+const LOCALES = 'src/locales';
 
 const repository: I18nRepository = {
   id: 'repo-1',
   installationId: 42,
-  owner: 'sakuga-software',
-  name: 'detectivebox-front',
+  owner: 'acme',
+  name: 'acme-app',
   branch: 'main',
   localesPath: LOCALES,
+  manifestPath: null,
   languages: ['fr', 'en'],
   createdAt: new Date('2026-09-24T00:00:00Z'),
 };
 
-const translator = { name: 'Camille', email: 'camille@users.noreply.detectivebox.com' };
-const reviewer = { name: 'Dominique', email: 'dominique@users.noreply.detectivebox.com' };
+const translator = { name: 'Camille', email: 'camille@users.noreply.invalid' };
+const reviewer = { name: 'Dominique', email: 'dominique@users.noreply.invalid' };
 
 const parsed = (repo: FakeRepo, ref: string, path: string) =>
   JSON.parse(repo.filesAt(ref).get(path) ?? '{}') as Record<string, unknown>;
@@ -206,7 +207,7 @@ describe('proposing', () => {
         ([, scope]) =>
           JSON.stringify(scope) ===
           JSON.stringify({
-            repository: 'detectivebox-front',
+            repository: 'acme-app',
             permissions: { contents: 'write' },
           }),
       ),
@@ -255,9 +256,9 @@ describe('proposing', () => {
    */
   it('refuses a file the manifest disables, and writes nothing', async () => {
     start({
-      [`${LOCALES}/manifest.json`]: { files: { illusion: { en: 'disabled' } } },
+      [`${LOCALES}/manifest.json`]: { files: { guide: { en: 'disabled' } } },
       [`${LOCALES}/fr/common.json`]: { hello: 'Bonjour' },
-      [`${LOCALES}/fr/illusion.json`]: { title: 'Le carnet' },
+      [`${LOCALES}/fr/guide.json`]: { title: 'Le carnet' },
       [`${LOCALES}/en/common.json`]: { hello: 'Hello' },
     });
 
@@ -269,12 +270,12 @@ describe('proposing', () => {
         'en',
         [
           { file: 'common', key: 'hello', value: 'Hi' },
-          { file: 'illusion', key: 'title', value: 'The notebook' },
+          { file: 'guide', key: 'title', value: 'The notebook' },
         ],
         translator,
         readCommit(),
       ),
-    ).rejects.toThrow(/illusion has no en version/);
+    ).rejects.toThrow(/guide has no en version/);
 
     expect(repo.commits.size).toBe(before);
     expect(repo.refs.has('i18n/en')).toBe(false);
@@ -282,19 +283,19 @@ describe('proposing', () => {
 
   it('writes a file the manifest says is partial', async () => {
     start({
-      [`${LOCALES}/manifest.json`]: { files: { illusion: { en: 'partial' } } },
-      [`${LOCALES}/fr/illusion.json`]: { title: 'Le carnet' },
+      [`${LOCALES}/manifest.json`]: { files: { guide: { en: 'partial' } } },
+      [`${LOCALES}/fr/guide.json`]: { title: 'Le carnet' },
     });
 
     const proposal = await propose(
       repository,
       'en',
-      [{ file: 'illusion', key: 'title', value: 'The notebook' }],
+      [{ file: 'guide', key: 'title', value: 'The notebook' }],
       translator,
       readCommit(),
     );
 
-    expect(parsed(repo, proposal.commit, `${LOCALES}/en/illusion.json`)).toEqual({ title: 'The notebook' });
+    expect(parsed(repo, proposal.commit, `${LOCALES}/en/guide.json`)).toEqual({ title: 'The notebook' });
   });
 
   it('refuses a language the repository does not translate into', async () => {
@@ -652,7 +653,7 @@ describe('publishing', () => {
   it('refuses a key of a file that was disabled after the proposal', async () => {
     start({
       [`${LOCALES}/fr/common.json`]: { hello: 'Bonjour' },
-      [`${LOCALES}/fr/illusion.json`]: { title: 'Le carnet' },
+      [`${LOCALES}/fr/guide.json`]: { title: 'Le carnet' },
       [`${LOCALES}/en/common.json`]: { hello: 'Hello' },
     });
 
@@ -661,36 +662,36 @@ describe('publishing', () => {
       'en',
       [
         { file: 'common', key: 'hello', value: 'Hi' },
-        { file: 'illusion', key: 'title', value: 'The notebook' },
+        { file: 'guide', key: 'title', value: 'The notebook' },
       ],
       translator,
       readCommit(),
     );
 
-    repo.moveBranch('main', { [`${LOCALES}/manifest.json`]: { files: { illusion: { en: 'disabled' } } } });
+    repo.moveBranch('main', { [`${LOCALES}/manifest.json`]: { files: { guide: { en: 'disabled' } } } });
 
     const published = await publish(
       repository,
       'en',
       [
         { file: 'common', key: 'hello', commit: proposal.commit },
-        { file: 'illusion', key: 'title', commit: proposal.commit },
+        { file: 'guide', key: 'title', commit: proposal.commit },
       ],
       reviewer,
     );
 
     expect(published.published.map((row) => row.file)).toEqual(['common']);
     expect(published.refused).toEqual([
-      { file: 'illusion', key: 'title', commit: proposal.commit, reason: 'disabled' },
+      { file: 'guide', key: 'title', commit: proposal.commit, reason: 'disabled' },
     ]);
-    expect(repo.filesAt(repo.refs.get('main')!).has(`${LOCALES}/en/illusion.json`)).toBe(false);
+    expect(repo.filesAt(repo.refs.get('main')!).has(`${LOCALES}/en/guide.json`)).toBe(false);
   });
 
   /** The branch of a language is written by translators. It must not decide what they may write. */
   it('reads the manifest on the base branch, not on the branch of the language', async () => {
     start({
-      [`${LOCALES}/manifest.json`]: { files: { illusion: { en: 'disabled' } } },
-      [`${LOCALES}/fr/illusion.json`]: { title: 'Le carnet' },
+      [`${LOCALES}/manifest.json`]: { files: { guide: { en: 'disabled' } } },
+      [`${LOCALES}/fr/guide.json`]: { title: 'Le carnet' },
       [`${LOCALES}/fr/common.json`]: { hello: 'Bonjour' },
     });
 
@@ -698,8 +699,8 @@ describe('publishing', () => {
     repo.moveBranch('i18n/en', { [`${LOCALES}/manifest.json`]: { files: {} } });
 
     await expect(
-      propose(repository, 'en', [{ file: 'illusion', key: 'title', value: 'The notebook' }], translator, readCommit()),
-    ).rejects.toThrow(/illusion has no en version/);
+      propose(repository, 'en', [{ file: 'guide', key: 'title', value: 'The notebook' }], translator, readCommit()),
+    ).rejects.toThrow(/guide has no en version/);
   });
 
   it('refuses to publish a language with no branch at all', async () => {
@@ -842,7 +843,7 @@ describe('the keys that wait on a branch', () => {
   it('leaves out the keys of a file the manifest disables', async () => {
     start({
       [`${LOCALES}/fr/common.json`]: { hello: 'Bonjour' },
-      [`${LOCALES}/fr/illusion.json`]: { title: 'Le carnet' },
+      [`${LOCALES}/fr/guide.json`]: { title: 'Le carnet' },
       [`${LOCALES}/en/common.json`]: { hello: 'Hello' },
     });
 
@@ -851,12 +852,12 @@ describe('the keys that wait on a branch', () => {
       'en',
       [
         { file: 'common', key: 'hello', value: 'Hi' },
-        { file: 'illusion', key: 'title', value: 'The notebook' },
+        { file: 'guide', key: 'title', value: 'The notebook' },
       ],
       translator,
       readCommit(),
     );
-    repo.moveBranch('main', { [`${LOCALES}/manifest.json`]: { files: { illusion: { en: 'disabled' } } } });
+    repo.moveBranch('main', { [`${LOCALES}/manifest.json`]: { files: { guide: { en: 'disabled' } } } });
 
     expect((await proposedKeys(repository, 'en')).map((row) => row.file)).toEqual(['common']);
   });
@@ -912,7 +913,7 @@ describe('what is waiting on a branch', () => {
  * never changes: a source text is what every translation of it answers.
  */
 describe('creating keys in the source', () => {
-  const writer = { name: 'Morgane', email: 'morgane@users.noreply.detectivebox.com' };
+  const writer = { name: 'Morgane', email: 'morgane@users.noreply.invalid' };
   const files = () => ({
     [`${LOCALES}/fr/common.json`]: { hello: 'Bonjour', buttons: { back: 'Retour' } },
     [`${LOCALES}/fr/admin.json`]: {},
@@ -1069,6 +1070,6 @@ describe('creating keys in the source', () => {
     start(files());
     await createKeys(repository, [{ file: 'common', key: 'bye', value: 'Au revoir' }], writer);
 
-    expect(asked).toContainEqual([42, { repository: 'detectivebox-front', permissions: { contents: 'write' } }]);
+    expect(asked).toContainEqual([42, { repository: 'acme-app', permissions: { contents: 'write' } }]);
   });
 });

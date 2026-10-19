@@ -42,9 +42,9 @@ describe('the structure of the translations', () => {
 
   /** The manifest disables a file for a language: it has no key there, and it still exists (DB-225). */
   it('keeps a file that holds no key', () => {
-    const illusion = treeOf(rows, ['illusion']).find((found) => found.name === 'illusion');
+    const guide = treeOf(rows, ['guide']).find((found) => found.name === 'guide');
 
-    expect(illusion).toMatchObject({ total: 0, children: [] });
+    expect(guide).toMatchObject({ total: 0, children: [] });
   });
 
   it('puts the sections before the keys, each by name', () => {

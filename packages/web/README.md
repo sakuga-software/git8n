@@ -67,11 +67,9 @@ One row per key of the source, the missing keys first, then the proposed, then
 the published. « Proposed » comes from `GET /i18n/proposals/keys`: a key that
 the base branch already says is published, whatever its batch says.
 
-A file that `manifest.json` disables for the language has no row, and the page
-says that it has no version (DB-225).
-
-The Tarot, Ciao Bella and Beaurecueil write their texts in TypeScript
-catalogues. They are not in the locale files, so they are not here.
+A file that the manifest disables for the language has no row, and the page
+says that it has no version (DB-225). [`docs/repositories.md`](../../docs/repositories.md)
+gives the format of the manifest.
 
 ## Deploy it
 
@@ -80,41 +78,11 @@ it on port 80. Build it from the root of the repository.
 
 ```sh
 docker build -f packages/web/Dockerfile \
-  --build-arg VITE_API=https://api.detectivebox.sakuga.dev -t i18n-editor .
+  --build-arg VITE_API=https://i18n-api.example.com -t i18n-editor-web .
 ```
 
 `VITE_API` is a build argument. Vite writes the address into the JavaScript,
 so a change of the variable on a container that runs changes nothing.
-
-On Dokploy, the staging application is `i18n`, in the project `DetectiveBox`:
-
-| Setting        | Value                                                                                           |
-| -------------- | ----------------------------------------------------------------------------------------------- |
-| Build type     | `dockerfile`                                                                                    |
-| Dockerfile     | `packages/web/Dockerfile`                                                                          |
-| Docker context | `.`                                                                                             |
-| Build path     | `/`                                                                                             |
-| Build argument | `VITE_API=https://api.detectivebox.sakuga.dev`                                                  |
-| Watch paths    | `packages/web/**`, `packages/mcp/**`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` |
-| Domain         | `i18n.detectivebox.sakuga.dev`, port **80**, Let's Encrypt                                      |
-
-The domain is on the same site as the API, so the session cookie is sent as
-it is to the game front.
-
-**The API must name the origin.** `KNOWN_HOSTS` of the API must hold
-`https://i18n.detectivebox.sakuga.dev`. The image of the API takes this
-variable as a build argument too, so set it in both lists of Dokploy and
-deploy the API again. To check, ask for a preflight:
-
-```sh
-curl -s -o /dev/null -D - -X OPTIONS \
-  -H 'Origin: https://i18n.detectivebox.sakuga.dev' \
-  -H 'Access-Control-Request-Method: GET' \
-  https://api.detectivebox.sakuga.dev/i18n/me | grep -i allow-origin
-```
-
-An origin the API refuses still answers 204, with
-`access-control-allow-credentials` and no `access-control-allow-origin`.
 
 ## Tests
 

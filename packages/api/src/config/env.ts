@@ -15,6 +15,11 @@ const schema = z.object({
         .map((host) => host.trim())
         .filter(Boolean),
     ),
+  /**
+   * The domain of the address that a commit gives to its author. The default
+   * is reserved by RFC 2606, so no mailbox and no GitHub account has it.
+   */
+  COMMIT_EMAIL_DOMAIN: z.string().min(1).default('users.noreply.invalid'),
   I18N_GITHUB_APP_ID: z.string().optional(),
   I18N_GITHUB_PRIVATE_KEY: z.string().optional(),
 });

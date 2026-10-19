@@ -39,7 +39,7 @@ export interface CatalogueEntry {
    * `translated` or `missing`.
    *
    * An empty value counts as missing. i18next falls back on it instead of
-   * drawing a blank line, and `apps/app` treats it as missing since DB-209.
+   * drawing a blank line.
    */
   state: 'translated' | 'missing';
 }
@@ -169,6 +169,10 @@ export const contentOf = async (
 /** Says what a language is for a file. */
 export type StateOf = (file: string, language: string) => FileState;
 
+/** Where the manifest of a repository lives, from the root of the repository. */
+export const manifestPathOf = (repository: Pick<I18nRepository, 'localesPath' | 'manifestPath'>): string =>
+  repository.manifestPath ?? `${repository.localesPath}/manifest.json`;
+
 /**
  * The manifest of the locales at one revision, as a question (DB-225).
  *
@@ -177,9 +181,10 @@ export type StateOf = (file: string, language: string) => FileState;
  * that it disabled.
  */
 export const manifestOf = async (repository: I18nRepository, token: string, ref: string): Promise<StateOf> => {
-  const { owner, name, localesPath } = repository;
+  const { owner, name } = repository;
+  const path = manifestPathOf(repository);
   const answer = await ask<ContentsEntry>(
-    `/repos/${insideRepository(owner, name)}/contents/${insideRepository(localesPath, 'manifest.json')}?ref=${ref}`,
+    `/repos/${insideRepository(owner, name)}/contents/${insideRepository(path)}?ref=${ref}`,
     token,
   ).catch((error: unknown) => {
     if (error instanceof GithubError && error.status === 404) return null;
@@ -190,13 +195,13 @@ export const manifestOf = async (repository: I18nRepository, token: string, ref:
   if (answer === null) return () => 'available';
 
   if (!answer.content || answer.encoding !== 'base64') {
-    throw new Error(`${localesPath}/manifest.json came back without content`);
+    throw new Error(`${path} came back without content`);
   }
 
   const parsed = localeManifestSchema.safeParse(JSON.parse(Buffer.from(answer.content, 'base64').toString('utf8')));
 
   if (!parsed.success) {
-    throw new Error(`${localesPath}/manifest.json is not a manifest: ${JSON.stringify(parsed.error.issues)}`);
+    throw new Error(`${path} is not a manifest: ${JSON.stringify(parsed.error.issues)}`);
   }
 
   const { source } = languagesOf(repository);
@@ -206,7 +211,7 @@ export const manifestOf = async (repository: I18nRepository, token: string, ref:
   // the wrong language.
   if (parsed.data.source !== undefined && parsed.data.source !== source) {
     throw new Error(
-      `${localesPath}/manifest.json names ${parsed.data.source} as its source, and the repository names ${source}`,
+      `${path} names ${parsed.data.source} as its source, and the repository names ${source}`,
     );
   }
 

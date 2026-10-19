@@ -41,7 +41,7 @@ export function SignIn() {
     <div className="bg-panel flex min-h-screen items-start justify-center px-4 py-24">
       <main className="border-line flex w-full max-w-[400px] flex-col gap-6 rounded-xl border bg-white px-8 pt-9 pb-8">
         <div className="flex flex-col gap-1.5">
-          <span className="text-muted font-mono text-xs">Detective Box</span>
+          <span className="text-muted font-mono text-xs">i18n-editor</span>
           <h1 className="text-[26px] font-semibold tracking-[-0.015em]">Traductions</h1>
           <p className="text-sub text-sm leading-normal">
             Les textes de l'application, du français vers les autres langues.

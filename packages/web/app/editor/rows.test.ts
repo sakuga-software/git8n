@@ -33,7 +33,7 @@ const catalogue: Catalogue = {
     { file: 'admin', key: 'title', source: 'Titre', value: null, state: 'missing' },
     { file: 'admin', key: 'save', source: 'Enregistrer', value: 'Save', state: 'translated' },
   ],
-  files: { admin: 'available', common: 'partial', illusion: 'disabled' },
+  files: { admin: 'available', common: 'partial', guide: 'disabled' },
 };
 
 const proposal = (file: string, key: string, value: string): ProposedKey => ({
@@ -84,7 +84,7 @@ describe('the rows of the table', () => {
   });
 
   it('names the files the manifest holds back', () => {
-    expect(filesIn(catalogue, 'disabled')).toEqual(['illusion']);
+    expect(filesIn(catalogue, 'disabled')).toEqual(['guide']);
     expect(filesIn(catalogue, 'partial')).toEqual(['common']);
     expect(filesIn({ ...catalogue, files: undefined }, 'disabled')).toEqual([]);
   });

@@ -6,7 +6,7 @@ import { withAuth } from '@/auth';
 import { authorAddressOf, mayPropose, mayPublish, mayWriteSource, rightsOf } from '@/services/i18n-rights.service';
 import { createKeys, propose, proposedKeys, publish, waiting, type Author } from '@/services/i18n-git.service';
 import { GithubAppNotConfiguredError, installations, repositoriesOf } from '@/services/github-app.service';
-import { forgetCatalogues, getCatalogue } from '@/services/i18n-catalogue.service';
+import { forgetCatalogues, getCatalogue, manifestPathOf } from '@/services/i18n-catalogue.service';
 import { forgetProgress, progressOf } from '@/services/i18n-progress.service';
 import {
   addRepository,
@@ -88,6 +88,7 @@ router.get('/repositories', signedIn, async (c) => {
       name: row.name,
       branch: row.branch,
       localesPath: row.localesPath,
+      manifestPath: manifestPathOf(row),
       ...languagesOf(row),
     })),
   });

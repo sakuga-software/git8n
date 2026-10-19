@@ -86,6 +86,7 @@ export interface NewRepository {
   name: string;
   branch?: string;
   localesPath: string;
+  manifestPath?: string;
   /** The source language first. */
   languages: string[];
 }
@@ -144,6 +145,7 @@ export const addRepository = async (input: NewRepository): Promise<I18nRepositor
       branch: input.branch || 'main',
       // A path that ends in a slash would double in a URL.
       localesPath: input.localesPath.replace(/\/+$/, ''),
+      manifestPath: input.manifestPath ?? null,
       languages: input.languages,
     })
     .returning();

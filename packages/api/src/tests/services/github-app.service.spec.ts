@@ -47,8 +47,8 @@ const github = (options: { expiresAt?: string } = {}) => {
 
     if (path.includes('/app/installations?')) {
       return page([
-        { id: 42, account: { login: 'sakuga-software' } },
-        { id: 43, account: { login: 'Detective-Box' } },
+        { id: 42, account: { login: 'acme' } },
+        { id: 43, account: { login: 'acme-labs' } },
       ]);
     }
 
@@ -57,7 +57,7 @@ const github = (options: { expiresAt?: string } = {}) => {
     }
 
     if (path.includes('/installation/repositories')) {
-      return page({ repositories: [{ name: 'detectivebox-front', owner: { login: 'sakuga-software' } }] });
+      return page({ repositories: [{ name: 'acme-app', owner: { login: 'acme' } }] });
     }
 
     throw new Error(`the test answers no ${path}`);
@@ -107,13 +107,13 @@ describe('the installation token', () => {
 
     vi.stubGlobal('fetch', calls);
 
-    await installationToken(42, { repository: 'detectivebox-front', permissions: { contents: 'read' } });
+    await installationToken(42, { repository: 'acme-app', permissions: { contents: 'read' } });
 
     const [, options] = calls.mock.calls[0] as unknown as [string, { body: string }];
 
     // The name, not `owner/name`: the owner is the one of the installation.
     expect(JSON.parse(options.body)).toEqual({
-      repositories: ['detectivebox-front'],
+      repositories: ['acme-app'],
       permissions: { contents: 'read' },
     });
   });
@@ -170,15 +170,15 @@ describe('what the App can reach', () => {
     vi.stubGlobal('fetch', github());
 
     expect(await installations()).toEqual([
-      { id: 42, account: 'sakuga-software' },
-      { id: 43, account: 'Detective-Box' },
+      { id: 42, account: 'acme' },
+      { id: 43, account: 'acme-labs' },
     ]);
   });
 
   it('names the repositories of one installation', async () => {
     vi.stubGlobal('fetch', github());
 
-    expect(await repositoriesOf(42)).toEqual([{ owner: 'sakuga-software', name: 'detectivebox-front' }]);
+    expect(await repositoriesOf(42)).toEqual([{ owner: 'acme', name: 'acme-app' }]);
   });
 
   /**
@@ -195,7 +195,7 @@ describe('what the App can reach', () => {
         if (path.includes('page=2')) return page([{ id: 44, account: { login: 'third' } }]);
         if (path.includes('/app/installations?')) {
           return page(
-            [{ id: 42, account: { login: 'sakuga-software' } }],
+            [{ id: 42, account: { login: 'acme' } }],
             'https://api.github.com/app/installations?per_page=100&page=2',
           );
         }
@@ -205,7 +205,7 @@ describe('what the App can reach', () => {
     );
 
     expect(await installations()).toEqual([
-      { id: 42, account: 'sakuga-software' },
+      { id: 42, account: 'acme' },
       { id: 44, account: 'third' },
     ]);
   });
@@ -222,12 +222,12 @@ describe('what the App can reach', () => {
         }
 
         if (path.includes('page=2')) {
-          return page({ repositories: [{ name: 'later', owner: { login: 'sakuga-software' } }] });
+          return page({ repositories: [{ name: 'later', owner: { login: 'acme' } }] });
         }
 
         if (path.includes('/installation/repositories')) {
           return page(
-            { repositories: [{ name: 'detectivebox-front', owner: { login: 'sakuga-software' } }] },
+            { repositories: [{ name: 'acme-app', owner: { login: 'acme' } }] },
             'https://api.github.com/installation/repositories?per_page=100&page=2',
           );
         }
@@ -237,8 +237,8 @@ describe('what the App can reach', () => {
     );
 
     expect(await repositoriesOf(42)).toEqual([
-      { owner: 'sakuga-software', name: 'detectivebox-front' },
-      { owner: 'sakuga-software', name: 'later' },
+      { owner: 'acme', name: 'acme-app' },
+      { owner: 'acme', name: 'later' },
     ]);
   });
 });
@@ -258,7 +258,7 @@ describe('when the App cannot answer', () => {
 
         return answered === 1
           ? page(
-              [{ id: 42, account: { login: 'sakuga-software' } }],
+              [{ id: 42, account: { login: 'acme' } }],
               'https://evil.example.com/app/installations?page=2',
             )
           : page([]);
@@ -277,7 +277,7 @@ describe('when the App cannot answer', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
-        page([{ id: 42, account: { login: 'sakuga-software' } }], 'https://api.github.com/app/installations?page=2'),
+        page([{ id: 42, account: { login: 'acme' } }], 'https://api.github.com/app/installations?page=2'),
       ),
     );
 

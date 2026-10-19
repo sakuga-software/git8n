@@ -16,13 +16,13 @@ vi.mock('@/services/github-app.service', async (original) => {
   return {
     ...real,
     installationToken: async () => 'installation-token',
-    installations: async () => [{ id: 42, account: 'sakuga-software' }],
+    installations: async () => [{ id: 42, account: 'acme' }],
     // GitHub answers 404 for an installation nobody holds: its token cannot
     // be minted.
     repositoriesOf: async (installationId: number) => {
       if (installationId !== 42) throw new real.GithubError('GitHub answered 404 — Not Found', 404);
 
-      return [{ owner: 'sakuga-software', name: 'detectivebox-front' }];
+      return [{ owner: 'acme', name: 'acme-app' }];
     },
   };
 });
@@ -66,10 +66,10 @@ async function repository() {
     .values({
       id: newId(),
       installationId: 42,
-      owner: 'sakuga-software',
-      name: 'detectivebox-front',
+      owner: 'acme',
+      name: 'acme-app',
       branch: 'main',
-      localesPath: 'apps/app/src/assets/locales',
+      localesPath: 'src/locales',
       languages: ['fr', 'en'],
     } as never)
     .returning();
@@ -186,8 +186,8 @@ describe('GET /i18n/catalogue', () => {
       .values({
         id: newId(),
         installationId: 42,
-        owner: 'sakuga-software',
-        name: 'detectivebox-front',
+        owner: 'acme',
+        name: 'acme-app',
         branch: 'main',
         localesPath: '../../../../user/repos',
         languages: ['fr', 'en'],
@@ -218,9 +218,9 @@ describe('POST /i18n/repositories', () => {
       headers: { ...admin.headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         installationId: 42,
-        owner: 'sakuga-software',
-        name: 'detectivebox-front',
-        localesPath: 'apps/app/src/assets/locales/',
+        owner: 'acme',
+        name: 'acme-app',
+        localesPath: 'src/locales/',
         languages: ['fr', 'en'],
       }),
     });
@@ -230,9 +230,61 @@ describe('POST /i18n/repositories', () => {
     const body = (await res.json()) as { data: { localesPath: string; source: string; targets: string[] } };
 
     // A path that ends in a slash would double in a URL.
-    expect(body.data.localesPath).toBe('apps/app/src/assets/locales');
+    expect(body.data.localesPath).toBe('src/locales');
     expect(body.data.source).toBe('fr');
     expect(body.data.targets).toEqual(['en']);
+  });
+
+  it('keeps the path of a manifest that is not beside the languages', async () => {
+    const admin = await signedInAdmin();
+    const add = (manifestPath?: string) =>
+      app.request('/i18n/repositories', {
+        method: 'POST',
+        headers: { ...admin.headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          installationId: 42,
+          owner: 'acme',
+          name: 'acme-app',
+          localesPath: 'src/locales',
+          languages: ['fr', 'en'],
+          manifestPath,
+        }),
+      });
+
+    expect((await add('../secrets.json')).status).toBe(400);
+    expect((await add('config/i18n.yaml')).status).toBe(400);
+
+    const res = await add('config/i18n.json');
+
+    expect(res.status).toBe(200);
+
+    const listed = (await (await app.request('/i18n/repositories', { headers: admin.headers })).json()) as {
+      data: Array<{ manifestPath: string }>;
+    };
+
+    expect(listed.data.map((row) => row.manifestPath)).toEqual(['config/i18n.json']);
+  });
+
+  it('reads the manifest beside the languages when the repository names none', async () => {
+    const admin = await signedInAdmin();
+
+    await app.request('/i18n/repositories', {
+      method: 'POST',
+      headers: { ...admin.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        installationId: 42,
+        owner: 'acme',
+        name: 'acme-app',
+        localesPath: 'src/locales',
+        languages: ['fr', 'en'],
+      }),
+    });
+
+    const listed = (await (await app.request('/i18n/repositories', { headers: admin.headers })).json()) as {
+      data: Array<{ manifestPath: string }>;
+    };
+
+    expect(listed.data.map((row) => row.manifestPath)).toEqual(['src/locales/manifest.json']);
   });
 
   /** An operator pressing a button again is not an error, and must not make a second row. */
@@ -244,8 +296,8 @@ describe('POST /i18n/repositories', () => {
         headers: { ...admin.headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           installationId: 42,
-          owner: 'sakuga-software',
-          name: 'detectivebox-front',
+          owner: 'acme',
+          name: 'acme-app',
           localesPath: 'a/b',
           languages: ['fr', 'en'],
         }),
@@ -281,8 +333,8 @@ describe('POST /i18n/repositories', () => {
       headers: { ...admin.headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         installationId: 42,
-        owner: 'sakuga-software',
-        name: 'detectivebox-front',
+        owner: 'acme',
+        name: 'acme-app',
         localesPath: 'c',
         languages: 'fr',
       }),
@@ -314,8 +366,8 @@ describe('POST /i18n/repositories', () => {
       headers: { ...admin.headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         installationId: 42,
-        owner: 'sakuga-software',
-        name: 'detectivebox-front',
+        owner: 'acme',
+        name: 'acme-app',
         localesPath: '../../../../user/repos',
         languages: ['fr'],
       }),
@@ -333,10 +385,10 @@ describe('POST /i18n/repositories', () => {
       headers: { ...admin.headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         installationId: 42,
-        owner: 'sakuga-software',
-        name: 'detectivebox-front',
+        owner: 'acme',
+        name: 'acme-app',
         branch: '../../../../user',
-        localesPath: 'apps/app/src/assets/locales',
+        localesPath: 'src/locales',
         languages: ['fr'],
       }),
     });
@@ -352,9 +404,9 @@ describe('POST /i18n/repositories', () => {
       headers: { ...admin.headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         installationId: 42,
-        owner: 'sakuga-software',
-        name: 'detectivebox-front',
-        localesPath: 'apps/app/src/assets/locales',
+        owner: 'acme',
+        name: 'acme-app',
+        localesPath: 'src/locales',
         languages: ['fr', '../../../../installation/repositories'],
       }),
     });
@@ -375,8 +427,8 @@ describe('POST /i18n/repositories', () => {
       headers: { ...admin.headers, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         installationId: 99,
-        owner: 'sakuga-software',
-        name: 'detectivebox-front',
+        owner: 'acme',
+        name: 'acme-app',
         localesPath: 'c',
         languages: ['fr'],
       }),
@@ -406,7 +458,7 @@ describe('POST /i18n/repositories', () => {
     });
 
     expect(res.status).toBe(400);
-    expect(await res.text()).toContain('sakuga-software/detectivebox-front');
+    expect(await res.text()).toContain('acme/acme-app');
     expect(await db().select().from(i18nRepositories)).toHaveLength(0);
   });
 
@@ -430,7 +482,7 @@ describe('GET /i18n/installations', () => {
     const res = await app.request('/i18n/installations', { headers: admin.headers });
 
     expect(await res.json()).toMatchObject({
-      data: [{ id: 42, account: 'sakuga-software', repositories: [{ name: 'detectivebox-front' }] }],
+      data: [{ id: 42, account: 'acme', repositories: [{ name: 'acme-app' }] }],
     });
   });
 
@@ -491,12 +543,12 @@ describe('GET /i18n/me', () => {
  * of `i18n_translators`.
  */
 describe('the write path', () => {
-  const LOCALES = 'apps/app/src/assets/locales';
+  const LOCALES = 'src/locales';
 
   const withRepo = () => {
     const repo = fakeRepo({
-      owner: 'sakuga-software',
-      name: 'detectivebox-front',
+      owner: 'acme',
+      name: 'acme-app',
       baseBranch: 'main',
       files: {
         [`${LOCALES}/fr/common.json`]: { hello: 'Bonjour' },
@@ -614,7 +666,7 @@ describe('the write path', () => {
 
     const commit = repo.commits.get(repo.refs.get('i18n/en')!);
 
-    expect(commit?.author.email).toBe(`${userId}@users.noreply.detectivebox.com`);
+    expect(commit?.author.email).toBe(`${userId}@users.noreply.invalid`);
     expect(commit?.author.email).not.toContain('@example');
   });
 
@@ -747,7 +799,7 @@ describe('the write path', () => {
         hello: 'Bonjour',
         bye: 'Au revoir',
       });
-      expect(commit.author.email).toBe(`${userId}@users.noreply.detectivebox.com`);
+      expect(commit.author.email).toBe(`${userId}@users.noreply.invalid`);
     });
 
     it('refuses a reviewer who does not write the source', async () => {

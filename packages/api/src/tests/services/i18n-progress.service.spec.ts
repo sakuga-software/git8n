@@ -16,20 +16,21 @@ vi.mock('@/services/github-app.service', async (original) => ({
  * numbers, and they must be the ones its table counts for the same language.
  */
 
-const LOCALES = 'apps/app/src/assets/locales';
+const LOCALES = 'src/locales';
 
 const repository: I18nRepository = {
   id: 'repo-1',
   installationId: 42,
-  owner: 'sakuga-software',
-  name: 'detectivebox-front',
+  owner: 'acme',
+  name: 'acme-app',
   branch: 'main',
   localesPath: LOCALES,
+  manifestPath: null,
   languages: ['fr', 'en', 'de'],
   createdAt: new Date('2026-09-24T00:00:00Z'),
 };
 
-const translator = { name: 'Camille', email: 'camille@users.noreply.detectivebox.com' };
+const translator = { name: 'Camille', email: 'camille@users.noreply.invalid' };
 
 let repo: FakeRepo;
 
@@ -40,10 +41,10 @@ const start = (extra: Record<string, unknown> = {}) => {
     baseBranch: 'main',
     files: {
       [`${LOCALES}/fr/common.json`]: { hello: 'Bonjour', bye: 'Au revoir', back: 'Retour', next: 'Suivant' },
-      [`${LOCALES}/fr/illusion.json`]: { title: 'La Grande Illusion' },
+      [`${LOCALES}/fr/guide.json`]: { title: 'The guide' },
       [`${LOCALES}/en/common.json`]: { hello: 'Hello', bye: 'Bye' },
       [`${LOCALES}/de/common.json`]: { hello: 'Hallo' },
-      [`${LOCALES}/manifest.json`]: { source: 'fr', files: { illusion: { en: 'disabled' } } },
+      [`${LOCALES}/manifest.json`]: { source: 'fr', files: { guide: { en: 'disabled' } } },
       ...extra,
     },
   });
@@ -78,7 +79,7 @@ describe('the progress of each language', () => {
 
     const progress = await progressOf(repository);
 
-    // English holds no version of `illusion`: its key is in no count there.
+    // English holds no version of `guide`: its key is in no count there.
     expect(of(progress, 'en')).toEqual({ language: 'en', published: 2, proposed: 0, missing: 2, total: 4 });
     // German has no manifest entry, so the file counts, and its key is missing.
     expect(of(progress, 'de')).toEqual({ language: 'de', published: 1, proposed: 0, missing: 4, total: 5 });

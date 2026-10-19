@@ -278,7 +278,7 @@ export const matching = (rows: readonly Row[], query: string): readonly Row[] =>
 const LINE = 50;
 
 /**
- * The lines a text needs, so a letter of the game is read without a scroll.
+ * The lines a text needs, so a long text is read without a scroll.
  * A short text takes one line: most keys are a label.
  */
 export const linesOf = (text: string): number =>

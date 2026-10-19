@@ -1,7 +1,6 @@
 /*
  * HeroUI v3 gives the controls (DB-266). The parts of `@heroui/styles` in use are
- * named one by one, as the admin of the game does in `heroui.css`: the bundle
- * then holds the components of the editor and no other.
+ * named one by one: the bundle then holds the components of the editor and no other.
  *
  * The editor owns its document, so the theme of HeroUI goes on `:root`.
  */

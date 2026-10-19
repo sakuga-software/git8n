@@ -357,9 +357,9 @@ function Shell({
             <a href="/" className="text-ink hover:text-ink flex items-center gap-2.5 no-underline">
               <span
                 aria-hidden="true"
-                className="bg-ink inline-flex size-7 items-center justify-center rounded-[7px] font-mono text-[11px] font-medium text-white"
+                className="bg-ink inline-flex size-7 items-center justify-center rounded-[7px] font-mono text-[10px] font-medium text-white"
               >
-                DB
+                i18n
               </span>
               <span className="text-base font-semibold tracking-[-0.01em]">Traductions</span>
             </a>
@@ -804,9 +804,8 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
         ),
         ...filesIn(catalogue.value, 'partial').map(
           (name) =>
-            `${name} est en cours de traduction : l'application ne le charge pas encore, les joueurs lisent le ${nameOf(catalogue.value.source)}.`,
+            `${name} est en cours de traduction : l'application ne le charge pas encore, ses utilisateurs lisent le ${nameOf(catalogue.value.source)}.`,
         ),
-        'Le Tueur au Tarot, Ciao Bella et La Bête de Beaurecueil écrivent leurs textes dans le code : ils ne sont pas ici.',
       ]
     : [];
 

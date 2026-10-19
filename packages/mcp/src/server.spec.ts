@@ -146,13 +146,13 @@ describe('reading the keys', () => {
    * no key of it must not conclude that it is translated.
    */
   it('names the files that have no version in the language', async () => {
-    vi.stubGlobal('fetch', api({ files: { admin: 'available', common: 'partial', illusion: 'disabled' } }));
+    vi.stubGlobal('fetch', api({ files: { admin: 'available', common: 'partial', guide: 'disabled' } }));
 
     const answer = said(
       await (await connected()).callTool({ name: 'i18n_keys', arguments: { repository: 'repo-1', language: 'en' } }),
     );
 
-    expect(answer.filesWithNoVersion).toEqual(['illusion']);
+    expect(answer.filesWithNoVersion).toEqual(['guide']);
   });
 
   it('names no such file for an API that sends no state', async () => {
@@ -164,19 +164,19 @@ describe('reading the keys', () => {
   });
 
   it('says a file has no version rather than that its key is unknown', async () => {
-    vi.stubGlobal('fetch', api({ files: { illusion: 'disabled' } }));
+    vi.stubGlobal('fetch', api({ files: { guide: 'disabled' } }));
 
     const answer = said(
       await (
         await connected()
       ).callTool({
         name: 'i18n_key',
-        arguments: { repository: 'repo-1', language: 'en', file: 'illusion', key: 'title' },
+        arguments: { repository: 'repo-1', language: 'en', file: 'guide', key: 'title' },
       }),
     );
 
     expect(answer.found).toBe(false);
-    expect(String(answer.reason)).toContain('illusion has no en version');
+    expect(String(answer.reason)).toContain('guide has no en version');
   });
 
   it('reads one key with what the source says and what the target does', async () => {
@@ -439,12 +439,12 @@ describe('a language is a tag, on every tool that takes one', () => {
 
 describe('what it needs to start', () => {
   it('names both variables rather than failing on an empty header', () => {
-    expect(() => configOf({})).toThrow(/DETECTIVEBOX_API_URL and DETECTIVEBOX_API_TOKEN/);
-    expect(() => configOf({ DETECTIVEBOX_API_URL: 'https://api.test' })).toThrow(/DETECTIVEBOX_API_TOKEN/);
+    expect(() => configOf({})).toThrow(/I18N_EDITOR_API_URL and I18N_EDITOR_API_TOKEN/);
+    expect(() => configOf({ I18N_EDITOR_API_URL: 'https://api.test' })).toThrow(/I18N_EDITOR_API_TOKEN/);
   });
 
   it('takes the trailing slash off the url, which would double in a path', () => {
-    expect(configOf({ DETECTIVEBOX_API_URL: 'https://api.test/', DETECTIVEBOX_API_TOKEN: 't' }).url).toBe(
+    expect(configOf({ I18N_EDITOR_API_URL: 'https://api.test/', I18N_EDITOR_API_TOKEN: 't' }).url).toBe(
       'https://api.test',
     );
   });
