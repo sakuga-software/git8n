@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { i18nTranslators } from '@i18n-editor/db';
+import { env } from '@/config/env';
 import { db } from '@/db';
 
 /**
@@ -48,8 +49,11 @@ export const rightsOf = async (userId: string): Promise<TranslatorRights | null>
  * A commit is public and permanent, so a personal address written into
  * `git log` cannot be taken back. This names the account without saying how to
  * reach the person, as GitHub's own `users.noreply` addresses do.
+ *
+ * WARNING: do not use `users.noreply.github.com` with an ID of this editor.
+ * GitHub then gives the commit to the GitHub account that has that name.
  */
-export const authorAddressOf = (userId: string): string => `${userId}@users.noreply.detectivebox.com`;
+export const authorAddressOf = (userId: string, domain = env.COMMIT_EMAIL_DOMAIN): string => `${userId}@${domain}`;
 
 /** Whether this account may propose in a language: a row that names it. */
 export const mayPropose = (rights: TranslatorRights | null, language: string): boolean =>

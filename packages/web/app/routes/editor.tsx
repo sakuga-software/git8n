@@ -3,7 +3,7 @@ import { Unlinked } from '~/editor/icons';
 import { Blocked, Loading } from '~/editor/states';
 import { apiUrl } from '~/utils/env';
 
-export const meta = () => [{ title: 'Traductions — Detective Box' }];
+export const meta = () => [{ title: 'Traductions' }];
 
 /**
  * WARNING: the screen must not load without the address of the API. Its

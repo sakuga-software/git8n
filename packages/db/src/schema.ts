@@ -35,6 +35,11 @@ export const i18nRepositories = pgTable(
     branch: text('branch').notNull().default('main'),
     /** Where the locale directories live: `<path>/<language>/<file>.json`. */
     localesPath: text('locales_path').notNull(),
+    /**
+     * Where the manifest of the locales lives, from the root of the repository.
+     * Null means `<localesPath>/manifest.json`.
+     */
+    manifestPath: text('manifest_path'),
     /** The languages, **the source first** — the one the others translate. */
     languages: text('languages').array().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

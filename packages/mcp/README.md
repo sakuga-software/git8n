@@ -8,8 +8,8 @@ a screen and without any access to GitHub (DB-211).
 Two variables, and no password:
 
 ```
-DETECTIVEBOX_API_URL=https://api.detectivebox.com
-DETECTIVEBOX_API_TOKEN=…
+I18N_EDITOR_API_URL=https://i18n.example.com
+I18N_EDITOR_API_TOKEN=…
 ```
 
 The token is the `accessToken` that `POST /auth/login` answers, against the
@@ -18,7 +18,7 @@ password, and it acts as that account: its languages and its role are what the
 API enforces.
 
 ```sh
-curl -s -X POST "$DETECTIVEBOX_API_URL/auth/login" \
+curl -s -X POST "$I18N_EDITOR_API_URL/auth/login" \
   -H 'Content-Type: application/json' \
   -d '{"email":"…","password":"…"}' | jq -r .accessToken
 ```
@@ -28,12 +28,12 @@ curl -s -X POST "$DETECTIVEBOX_API_URL/auth/login" \
 ```json
 {
   "mcpServers": {
-    "detectivebox-i18n": {
+    "i18n-editor": {
       "command": "node",
       "args": ["--experimental-strip-types", "packages/mcp/src/main.ts"],
       "env": {
-        "DETECTIVEBOX_API_URL": "https://api.detectivebox.com",
-        "DETECTIVEBOX_API_TOKEN": "…"
+        "I18N_EDITOR_API_URL": "https://i18n.example.com",
+        "I18N_EDITOR_API_TOKEN": "…"
       }
     }
   }
@@ -70,7 +70,6 @@ values of two separate listings in one call either: a batch carries a single
 ## What it does not do
 
 It does not translate: it answers the catalogue, and the agent writes the words.
-`scripts/translate-json.ts` is the offline fallback for translation in bulk.
 
 It does not publish either. A reviewer approving a translation is a judgement,
 and the screen that asks for it is DB-213 — the API refuses a publication from

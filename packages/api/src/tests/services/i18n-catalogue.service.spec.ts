@@ -33,10 +33,11 @@ vi.mock('@/services/github-app.service', async (original) => ({
 const repository: I18nRepository = {
   id: 'repo-1',
   installationId: 42,
-  owner: 'sakuga-software',
-  name: 'detectivebox-front',
+  owner: 'acme',
+  name: 'acme-app',
   branch: 'main',
-  localesPath: 'apps/app/src/assets/locales',
+  localesPath: 'src/locales',
+  manifestPath: null,
   languages: ['fr', 'en'],
   createdAt: new Date('2026-09-24T00:00:00Z'),
 };
@@ -145,37 +146,37 @@ describe('the catalogue', () => {
   });
 
   /**
-   * La Grande Illusion has no English version (DB-225). Read through
-   * `absentIsEmpty`, its 344 keys answered `missing`, and invited a translator
-   * to bring back the file that #555 removed.
+   * The guide has no English version (DB-225). Read through `absentIsEmpty`,
+   * each of its keys answers `missing`, and asks a translator to write a file
+   * that must not exist.
    */
   it('leaves out a file the manifest disables, and says it has no version', async () => {
     vi.stubGlobal(
       'fetch',
       github(
-        { fr: { common: { hello: 'Bonjour' }, illusion: { title: 'Le carnet' } }, en: { common: { hello: 'Hello' } } },
-        { source: 'fr', files: { common: { en: 'available' }, illusion: { en: 'disabled' } } },
+        { fr: { common: { hello: 'Bonjour' }, guide: { title: 'Le carnet' } }, en: { common: { hello: 'Hello' } } },
+        { source: 'fr', files: { common: { en: 'available' }, guide: { en: 'disabled' } } },
       ),
     );
 
     const catalogue = await getCatalogue(repository, 'en');
 
     expect(catalogue.entries.map((entry) => entry.file)).toEqual(['common']);
-    expect(catalogue.files).toEqual({ common: 'available', illusion: 'disabled' });
+    expect(catalogue.files).toEqual({ common: 'available', guide: 'disabled' });
   });
 
   it('keeps a partial file among the keys to translate', async () => {
     vi.stubGlobal(
       'fetch',
       github(
-        { fr: { illusion: { title: 'Le carnet', end: 'Fin' } }, en: { illusion: { title: 'The notebook' } } },
-        { files: { illusion: { en: 'partial' } } },
+        { fr: { guide: { title: 'Le carnet', end: 'Fin' } }, en: { guide: { title: 'The notebook' } } },
+        { files: { guide: { en: 'partial' } } },
       ),
     );
 
     const catalogue = await getCatalogue(repository, 'en');
 
-    expect(catalogue.files).toEqual({ illusion: 'partial' });
+    expect(catalogue.files).toEqual({ guide: 'partial' });
     expect(catalogue.entries.map((entry) => [entry.key, entry.state])).toEqual([
       ['title', 'translated'],
       ['end', 'missing'],
@@ -186,13 +187,30 @@ describe('the catalogue', () => {
   it('reads every file of the source, whatever the manifest says of it', async () => {
     vi.stubGlobal(
       'fetch',
-      github({ fr: { illusion: { title: 'Le carnet' } } }, { files: { illusion: { fr: 'disabled', en: 'disabled' } } }),
+      github({ fr: { guide: { title: 'Le carnet' } } }, { files: { guide: { fr: 'disabled', en: 'disabled' } } }),
     );
 
     const catalogue = await getCatalogue(repository, 'fr');
 
-    expect(catalogue.files).toEqual({ illusion: 'available' });
+    expect(catalogue.files).toEqual({ guide: 'available' });
     expect(catalogue.entries).toHaveLength(1);
+  });
+
+  it('reads the manifest at the path that the repository names', async () => {
+    const files = { fr: { common: { hello: 'Bonjour' }, guide: { title: 'Le carnet' } }, en: { common: { hello: 'Hello' } } };
+    const elsewhere = github(files);
+    const fetch = vi.fn(async (url: string, init?: RequestInit) =>
+      String(url).includes('/contents/config/i18n.json?')
+        ? ok({ content: base64({ files: { guide: { en: 'disabled' } } }), encoding: 'base64', sha: 'm' })
+        : elsewhere(url, init),
+    );
+
+    vi.stubGlobal('fetch', fetch);
+
+    const catalogue = await getCatalogue({ ...repository, manifestPath: 'config/i18n.json' }, 'en');
+
+    expect(catalogue.files).toEqual({ common: 'available', guide: 'disabled' });
+    expect(fetch.mock.calls.map(([url]) => String(url)).filter((url) => url.includes('manifest.json'))).toEqual([]);
   });
 
   it('reads a repository with no manifest as every file available', async () => {
@@ -272,7 +290,7 @@ describe('the catalogue', () => {
 
     await getCatalogue(repository, 'en');
 
-    expect(asked).toEqual([[42, { repository: 'detectivebox-front', permissions: { contents: 'read' } }]]);
+    expect(asked).toEqual([[42, { repository: 'acme-app', permissions: { contents: 'read' } }]]);
   });
 
   /**

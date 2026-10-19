@@ -36,7 +36,7 @@ export class NotConfiguredError extends Error {
 }
 
 export interface ApiConfig {
-  /** Where the API answers, for example `https://api.detectivebox.com`. */
+  /** Where the API answers, for example `https://i18n.example.com`. */
   url: string;
   /**
    * A bearer token of the account this server acts as.
@@ -48,12 +48,12 @@ export interface ApiConfig {
 }
 
 export const configOf = (env: Record<string, string | undefined>): ApiConfig => {
-  const url = env.DETECTIVEBOX_API_URL?.replace(/\/+$/, '');
-  const token = env.DETECTIVEBOX_API_TOKEN;
+  const url = env.I18N_EDITOR_API_URL?.replace(/\/+$/, '');
+  const token = env.I18N_EDITOR_API_TOKEN;
 
   if (!url || !token) {
     throw new NotConfiguredError(
-      'Set DETECTIVEBOX_API_URL and DETECTIVEBOX_API_TOKEN. The token is the accessToken that POST /auth/login answers.',
+      'Set I18N_EDITOR_API_URL and I18N_EDITOR_API_TOKEN. The token is the accessToken that POST /auth/login answers.',
     );
   }
 
@@ -85,7 +85,7 @@ export interface Catalogue {
    * What the language is for each file of the source (DB-225).
    *
    * A `disabled` file has no version in this language and no entry above. A
-   * `partial` file is translated and not shown to the players yet. An API from
+   * `partial` file is translated and not shown to the users of the application yet. An API from
    * before DB-225 sends no such field.
    */
   files?: Record<string, 'available' | 'partial' | 'disabled'>;
@@ -97,6 +97,8 @@ export interface Repository {
   name: string;
   branch: string;
   localesPath: string;
+  /** From the root of the repository. Absent from an API older than DB-571. */
+  manifestPath?: string;
   source: string;
   targets: string[];
 }

@@ -10,9 +10,8 @@ The editor keeps no text of its own. Its database holds two things:
 - the repositories it translates;
 - the rights of each account.
 
-> **Status:** the code comes out of the Detective Box monorepo. The editor has
-> no sign-in yet, so the API refuses every request with 401. Some defaults
-> still name Detective Box.
+> **Status:** the editor has no sign-in yet, so the API refuses every request
+> with 401.
 
 ## Packages
 
@@ -53,6 +52,12 @@ VITE_API=http://localhost:8001 pnpm -F @i18n-editor/web dev
 | `I18N_GITHUB_APP_ID`      | api     | The ID of the GitHub App that reads and writes the repositories.   |
 | `I18N_GITHUB_PRIVATE_KEY` | api     | The private key of that App, in PEM format.                        |
 | `VITE_API`                | web     | The address of the API. Vite writes it into the build.             |
+
+## Documentation
+
+- [A repository and its locale files](docs/repositories.md): the layout, the
+  fields of a repository, the format of the manifest and the author of a commit.
+- [The GitHub App](docs/github-app.md): its permissions, and how to create it.
 
 ## Checks
 

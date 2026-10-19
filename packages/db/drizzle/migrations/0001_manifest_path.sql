@@ -1,0 +1,1 @@
+ALTER TABLE "i18n_repositories" ADD COLUMN "manifest_path" text;
