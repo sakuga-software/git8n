@@ -1,0 +1,16 @@
+{
+  "singleQuote": true,
+  "printWidth": 120,
+  "semi": true,
+  "trailingComma": "all",
+  "sortTailwindcss": true,
+  "ignorePatterns": [
+    ".react-router",
+    "build",
+    "dist",
+    "**/*.min.js",
+    "**/*.min.css",
+    "packages/db/drizzle/**",
+    "pnpm-lock.yaml"
+  ]
+}

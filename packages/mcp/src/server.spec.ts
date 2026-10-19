@@ -333,7 +333,9 @@ describe('proposing', () => {
       },
     });
 
-    expect((asked.find((call) => call.method === 'POST')?.body as { readAt: string }).readAt).toBe(COMMIT);
+    const post = asked.find((call) => call.method === 'POST');
+
+    expect((post?.body as { readAt?: string } | undefined)?.readAt).toBe(COMMIT);
   });
 
   it('refuses a revision that is not a full sha, before any request leaves', async () => {
