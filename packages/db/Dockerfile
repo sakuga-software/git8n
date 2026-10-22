@@ -5,7 +5,7 @@
 #   docker build -f packages/db/Dockerfile -t i18n-editor-migrator .
 
 # Keep NODE_VERSION equal to `.node-version`, which the workflows read.
-ARG NODE_VERSION=24.21.0
+ARG NODE_VERSION=26.12.1
 
 FROM node:${NODE_VERSION}-slim AS build
 ARG PNPM_VERSION=11.17.0
@@ -20,7 +20,7 @@ COPY --link packages/db ./packages/db
 RUN pnpm --filter @i18n-editor/db run build
 
 # One bundle and the SQL files. The bundle finds `drizzle/` at `../drizzle` from `dist/`.
-FROM gcr.io/distroless/nodejs24-debian12:nonroot
+FROM gcr.io/distroless/nodejs26-debian13:nonroot
 WORKDIR /app
 COPY --from=build --link /app/packages/db/dist ./dist
 COPY --from=build --link /app/packages/db/drizzle/migrations ./drizzle/migrations

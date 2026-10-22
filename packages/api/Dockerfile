@@ -5,7 +5,7 @@
 #   docker build -f packages/api/Dockerfile -t i18n-editor .
 
 # Keep NODE_VERSION equal to `.node-version`, which the workflows read.
-ARG NODE_VERSION=24.21.0
+ARG NODE_VERSION=26.12.1
 
 FROM node:${NODE_VERSION}-slim AS base
 ARG PNPM_VERSION=11.17.0
