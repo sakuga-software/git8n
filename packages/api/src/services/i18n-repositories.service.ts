@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { i18nRepositories, newId, type I18nRepository } from '@i18n-editor/db';
 import { db } from '@/db';
+import { withoutTrailingSlashes } from '@/utils/trailing-slashes';
 import { GithubAppNotConfiguredError, GithubError, repositoriesOf } from '@/services/github-app.service';
 
 /**
@@ -159,7 +160,7 @@ export const addRepository = async (input: NewRepository): Promise<Added> => {
       name: input.name,
       branch: input.branch || 'main',
       // A path that ends in a slash would double in a URL.
-      localesPath: input.localesPath.replace(/\/+$/, ''),
+      localesPath: withoutTrailingSlashes(input.localesPath),
       manifestPath: input.manifestPath ?? null,
       languages: input.languages,
     })
