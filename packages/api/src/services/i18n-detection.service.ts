@@ -1,6 +1,7 @@
 import { ask, GithubError, insideRepository, installationToken } from '@/services/github-app.service';
 import { ensureReachable, UnknownRepositoryError } from '@/services/i18n-repositories.service';
 import { fileName, localeManifestSchema } from '@/schemas/i18n';
+import { withoutTrailingSlashes } from '@/utils/trailing-slashes';
 
 /**
  * What a repository holds, read before an admin connects it (DB-581).
@@ -151,7 +152,8 @@ export const detect = async (input: {
   });
 
   const candidates = candidatesOf(listing.tree);
-  const localesPath = input.localesPath?.replace(/\/+$/, '') || candidates[0]?.path || null;
+  const localesPath =
+    (input.localesPath ? withoutTrailingSlashes(input.localesPath) : null) || candidates[0]?.path || null;
 
   if (localesPath === null) {
     return {
