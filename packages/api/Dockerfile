@@ -7,9 +7,11 @@
 # Keep NODE_VERSION equal to `.node-version`, which the workflows read.
 ARG NODE_VERSION=26.12.1
 
+FROM ghcr.io/pnpm/pnpm:12.15.0@sha256:d6148daf3ad2af8fa4ecd1aa06db73da32b2e37f63088987eea2fb375ee7f320 AS pnpm
+
 FROM node:${NODE_VERSION}-slim AS base
-ARG PNPM_VERSION=11.17.0
-RUN npm install -g pnpm@$PNPM_VERSION
+COPY --from=pnpm /opt/pnpm /opt/pnpm
+RUN ln -s /opt/pnpm/pnpm /usr/local/bin/pnpm
 # The `prepare` script of the root installs the git hooks. An image has no git repository.
 ENV HUSKY=0
 WORKDIR /app
@@ -44,6 +46,12 @@ FROM node:${NODE_VERSION}-slim
 ENV NODE_ENV=production \
     PORT=8001 \
     WEB_ROOT=/app/web
+# The image carries no pnpm, npm or corepack.
+RUN apt-get update -qq && \
+    apt-get upgrade -y && \
+    rm -rf /var/lib/apt/lists/* \
+      /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 WORKDIR /app
 COPY --from=prod-deps --link /app/node_modules ./node_modules
 COPY --from=prod-deps --link /app/packages/api/node_modules ./packages/api/node_modules

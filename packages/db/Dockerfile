@@ -7,9 +7,11 @@
 # Keep NODE_VERSION equal to `.node-version`, which the workflows read.
 ARG NODE_VERSION=26.12.1
 
+FROM ghcr.io/pnpm/pnpm:12.15.0@sha256:d6148daf3ad2af8fa4ecd1aa06db73da32b2e37f63088987eea2fb375ee7f320 AS pnpm
+
 FROM node:${NODE_VERSION}-slim AS build
-ARG PNPM_VERSION=11.17.0
-RUN npm install -g pnpm@$PNPM_VERSION
+COPY --from=pnpm /opt/pnpm /opt/pnpm
+RUN ln -s /opt/pnpm/pnpm /usr/local/bin/pnpm
 WORKDIR /app
 COPY --link package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY --link packages/db/package.json ./packages/db/
