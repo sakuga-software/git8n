@@ -32,14 +32,32 @@ describe('avatarsByInstallation', () => {
     expect(listed).toHaveBeenCalledTimes(2);
   });
 
-  /** A picture is decoration: the list of repositories must not fail for it. */
-  it('gives no picture when GitHub fails, and asks again on the next call', async () => {
+  /** A picture is decoration: the list of repositories must not wait for it on each call. */
+  it('gives no picture for a minute when GitHub fails, then asks again', async () => {
     listed.mockRejectedValueOnce(new Error('GitHub answered 502'));
 
     expect(await avatarsByInstallation(0)).toEqual(new Map());
 
     listed.mockResolvedValue([{ id: 42, account: 'acme', avatarUrl: 'https://example.test/a.png' }]);
 
-    expect(await avatarsByInstallation(1)).toEqual(new Map([[42, 'https://example.test/a.png']]));
+    expect(await avatarsByInstallation(59 * 1000)).toEqual(new Map());
+    expect(listed).toHaveBeenCalledTimes(1);
+
+    expect(await avatarsByInstallation(61 * 1000)).toEqual(new Map([[42, 'https://example.test/a.png']]));
+    expect(listed).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not wait for a slow GitHub, and keeps its late answer for the next call', async () => {
+    let answer!: (rows: Awaited<ReturnType<typeof installations>>) => void;
+
+    listed.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+
+    expect(await avatarsByInstallation(0, 10)).toEqual(new Map());
+
+    answer([{ id: 42, account: 'acme', avatarUrl: 'https://example.test/a.png' }]);
+    await vi.waitFor(async () =>
+      expect(await avatarsByInstallation(1, 10)).toEqual(new Map([[42, 'https://example.test/a.png']])),
+    );
+    expect(listed).toHaveBeenCalledTimes(1);
   });
 });
