@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { ApiError } from '@i18n-editor/mcp/api';
-import { forgetReads, readErrorOf, readOf, reads, type Read } from './use-read';
+import { forgetReads, readErrorOf, readOf, reads, readsFor, type Read } from './use-read';
 
 /** A read that answers when the test says so. */
 const held = <T>() => {
@@ -233,6 +233,37 @@ describe('a write forgets the reads it changed', () => {
 
     expect(reads.getQueryData(['catalogue', 'repo', 'en'])).toBe('en');
     stop();
+  });
+});
+
+describe('the cache belongs to one account', () => {
+  afterEach(() => {
+    readsFor(null);
+    reads.clear();
+  });
+
+  const answered = (value: string) => reads.fetchQuery({ queryKey: ['me'], queryFn: () => Promise.resolve(value) });
+
+  it('keeps the answers while the account stays', async () => {
+    readsFor('ana');
+    await answered('rights of Ana');
+    readsFor('ana');
+
+    expect(reads.getQueryData(['me'])).toBe('rights of Ana');
+  });
+
+  /** Ana signs out and Ben signs in, in the same tab: Ben must not see the rights of Ana. */
+  it('forgets every answer when the account changes, or signs out', async () => {
+    readsFor('ana');
+    await answered('rights of Ana');
+    readsFor('ben');
+
+    expect(reads.getQueryData(['me'])).toBeUndefined();
+
+    await answered('rights of Ben');
+    readsFor(null);
+
+    expect(reads.getQueryData(['me'])).toBeUndefined();
   });
 });
 
