@@ -93,10 +93,15 @@ describe('bodyOf', () => {
       branch: 'main',
       localesPath: 'src/locales',
       languages: ['fr', 'en'],
+      publishMode: 'commit',
     });
   });
 
   it('sends the manifest that was typed', () => {
     expect(bodyOf(choice, form({ manifestPath: 'i18n.json' }))).toMatchObject({ manifestPath: 'i18n.json' });
+  });
+
+  it('sends the mode of publication that was chosen', () => {
+    expect(bodyOf(choice, form({}), 'pull_request')).toMatchObject({ publishMode: 'pull_request' });
   });
 });

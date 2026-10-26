@@ -2,14 +2,24 @@ import type { I18nRepository } from '@i18n-editor/db';
 import { ask, GithubError, insideRepository, installationToken } from '@/services/github-app.service';
 import { contentOf, filesOf, forgetCatalogues, manifestOf, pathsOf } from '@/services/i18n-catalogue.service';
 import { languagesOf, UnknownLanguageError } from '@/services/i18n-repositories.service';
+import {
+  ensurePull,
+  lastPullOf,
+  mergeBaseInto,
+  openPullOf,
+  PUBLISH_BRANCH,
+  publicationMessage,
+  publishToken,
+  type PublishPull,
+} from '@/services/i18n-pull-request.service';
 
 /**
  * The git path of the translations (DB-212).
  *
  * A proposal is a commit on the branch of its language, `i18n/<language>`. A
- * publication is a commit on the branch of the repository. **No pull request
- * exists**, so nothing waits on a merge and everything stays diffable and
- * revertible in git.
+ * publication is a commit on the branch of the repository. A repository whose
+ * base branch requires a pull request publishes on `i18n/publish` instead, and
+ * one pull request carries it (DB-606).
  *
  * One batch is one commit, not one per key. The contents API writes one file
  * per commit, so a batch of three hundred keys would be three hundred commits.
@@ -165,6 +175,12 @@ const commitBatch = async (
     message: string;
     author: Author;
     at: Date;
+    /**
+     * Moves the branch even when the commit is not built on where it points.
+     * Only the branch of the publications uses it, once its pull request is
+     * merged or closed: what it held is on the base branch, or was dropped.
+     */
+    force?: boolean;
   },
 ): Promise<string> => {
   const repo = `/repos/${insideRepository(repository.owner, repository.name)}`;
@@ -205,7 +221,7 @@ const commitBatch = async (
     if (batch.expected === null) {
       await ask(`${repo}/git/refs`, token, 'POST', { ref: `refs/heads/${batch.branch}`, sha: commit.sha });
     } else {
-      await ask(refPath(repository, batch.branch), token, 'PATCH', { sha: commit.sha, force: false });
+      await ask(refPath(repository, batch.branch), token, 'PATCH', { sha: commit.sha, force: batch.force === true });
     }
   } catch (error) {
     if (error instanceof GithubError && (error.status === 422 || error.status === 409)) {
@@ -216,6 +232,43 @@ const commitBatch = async (
   }
 
   return commit.sha;
+};
+
+/**
+ * Where a publication writes, and what it reads as already published.
+ *
+ * - `commit`: the base branch itself.
+ * - `pull_request`: the branch of the publications. It is built on the base
+ *   branch: a new one, a fresh one after its pull request is merged or closed,
+ *   or the open one with the base branch merged in.
+ */
+interface PublishTarget {
+  branch: string;
+  /** The commit the new one is built on. What it says in a language is what is published already. */
+  parent: string;
+  /** Where the branch points now, or nothing when it is not there. */
+  expected: string | null;
+  force: boolean;
+}
+
+const publishTarget = async (repository: I18nRepository, token: string, base: string): Promise<PublishTarget> => {
+  if (repository.publishMode !== 'pull_request') {
+    return { branch: repository.branch, parent: base, expected: base, force: false };
+  }
+
+  const head = await headOf(repository, token, PUBLISH_BRANCH);
+
+  if (!head) return { branch: PUBLISH_BRANCH, parent: base, expected: null, force: false };
+
+  if (!(await openPullOf(repository, token))) {
+    return { branch: PUBLISH_BRANCH, parent: base, expected: head, force: true };
+  }
+
+  const parent = (await isAncestor(repository, token, base, head))
+    ? head
+    : await mergeBaseInto(repository, token, head);
+
+  return { branch: PUBLISH_BRANCH, parent, expected: parent, force: false };
 };
 
 /** What a proposal ended as. */
@@ -408,7 +461,8 @@ export const proposedKeys = async (repository: I18nRepository, language: string)
     );
   }
 
-  const token = await writeToken(repository);
+  const token =
+    repository.publishMode === 'pull_request' ? await publishToken(repository) : await writeToken(repository);
   const branch = branchOf(language);
   const compared = await ask<{
     merge_base_commit: { sha: string };
@@ -475,6 +529,13 @@ export const proposedKeys = async (repository: I18nRepository, language: string)
 
   const head = before;
   const baseFiles = await filesOf(repository, token, language, base, { absentIsEmpty: true });
+  // A key published in the open pull request waits on its merge, not on a
+  // reviewer. Listed here, it would be approved and published a second time.
+  const pending =
+    repository.publishMode === 'pull_request' && (await openPullOf(repository, token))
+      ? await headOf(repository, token, PUBLISH_BRANCH)
+      : null;
+  const pendingFiles = pending ? await filesOf(repository, token, language, pending, { absentIsEmpty: true }) : null;
   const sourceFiles = await filesOf(repository, token, source, base);
   const rows: ProposedKey[] = [];
 
@@ -490,6 +551,10 @@ export const proposedKeys = async (repository: I18nRepository, language: string)
     const current = baseSha ? (await keysAt(language, file, base, baseSha)).get(key) : undefined;
 
     if (typeof value !== 'string' || value === current) continue;
+
+    const pendingSha = pendingFiles?.get(file);
+
+    if (pending && pendingSha && (await keysAt(language, file, pending, pendingSha)).get(key) === value) continue;
 
     const sourceSha = sourceFiles.get(file);
     const said = sourceSha ? (await keysAt(source, file, base, sourceSha)).get(key) : undefined;
@@ -540,10 +605,12 @@ export interface RefusedKey extends ApprovedKey {
 }
 
 export interface Publication {
-  /** The commit on the base branch, or nothing when every key was refused. */
+  /** The commit on the branch it wrote, or nothing when no key changed. */
   commit: string | null;
   published: ApprovedKey[];
   refused: RefusedKey[];
+  /** The pull request that carries it, in the mode `pull_request`. Null in the mode `commit`. */
+  pullRequest: PublishPull | null;
 }
 
 const stringAt = (content: Record<string, unknown>, key: string): string | null => {
@@ -580,7 +647,7 @@ export const publish = async (
     );
   }
 
-  const token = await writeToken(repository);
+  const token = await publishToken(repository);
   const attempts = options.attempts ?? 2;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -588,6 +655,7 @@ export const publish = async (
 
     if (!base) throw new GithubError(`${repository.branch} is not a branch of this repository`, 404);
 
+    const target = await publishTarget(repository, token, base);
     const branch = branchOf(language);
     const head = await headOf(repository, token, branch);
 
@@ -597,7 +665,10 @@ export const publish = async (
     const refused: RefusedKey[] = [];
     const files = new Map<string, Record<string, unknown>>();
     const branchFiles = await filesOf(repository, token, language, head, { absentIsEmpty: true });
-    const baseFiles = await filesOf(repository, token, language, base, { absentIsEmpty: true });
+    // What the target says is what is published already. In the mode
+    // `pull_request`, it holds the keys of the open pull request too, so a
+    // second publication keeps them.
+    const targetFiles = await filesOf(repository, token, language, target.parent, { absentIsEmpty: true });
     const stateOf = await manifestOf(repository, token, base);
     // A file of twenty approved keys asked GitHub for the same batch and the
     // same source twenty times. The caches are made per attempt, so a replay
@@ -658,7 +729,7 @@ export const publish = async (
       }
 
       const proposed = await readOnce(language, file, head);
-      const current = baseFiles.has(file) ? await readOnce(language, file, base) : {};
+      const current = targetFiles.has(file) ? await readOnce(language, file, target.parent) : {};
       const sourceNow = await readOnce(source, file, base);
       let changed = false;
 
@@ -717,20 +788,35 @@ export const publish = async (
       if (changed) files.set(`${repository.localesPath}/${language}/${file}.json`, current);
     }
 
-    if (files.size === 0) return { commit: null, published, refused };
+    const pullRequest = async () =>
+      repository.publishMode === 'pull_request' ? await ensurePull(repository, token) : null;
+
+    if (files.size === 0) {
+      return {
+        commit: null,
+        published,
+        refused,
+        pullRequest: repository.publishMode === 'pull_request' ? await lastPullOf(repository, token) : null,
+      };
+    }
 
     try {
       const commit = await commitBatch(repository, token, {
-        branch: repository.branch,
-        parent: base,
-        expected: base,
+        branch: target.branch,
+        parent: target.parent,
+        expected: target.expected,
+        force: target.force,
         files: [...files].map(([path, content]) => ({ path, content })),
-        message: `i18n(${language}): ${published.length} ${published.length === 1 ? 'key' : 'keys'} published by ${reviewer.name}`,
+        message: publicationMessage(
+          `i18n(${language}): ${published.length} ${published.length === 1 ? 'key' : 'keys'} published by ${reviewer.name}`,
+          language,
+          published,
+        ),
         author: reviewer,
         at: options.now ?? new Date(),
       });
 
-      return { commit, published, refused };
+      return { commit, published, refused, pullRequest: await pullRequest() };
     } catch (error) {
       // Only the ref move is a stale write. A refusal from a blob, a tree or a
       // commit is a body GitHub would refuse again, so it is not retried. A
@@ -740,17 +826,19 @@ export const publish = async (
     }
   }
 
-  throw new GithubError(`${repository.branch} moved under every attempt to publish onto it`, 409);
+  throw new GithubError(`The branch moved under every attempt to publish onto it`, 409);
 };
 
 /** What the creation of keys ended as. */
 export interface CreatedKeys {
-  /** The commit of the base branch that now holds the keys. */
+  /** The commit that now holds the keys: on the base branch, or on the branch of the publications. */
   commit: string;
   /** How many keys it carries. */
   keys: number;
   /** The files it touched, by their path in the repository. */
   files: string[];
+  /** The pull request that carries them, in the mode `pull_request`. */
+  pullRequest: PublishPull | null;
 }
 
 /** Whether a file holds anything at a dotted path: a text, or the keys under it. */
@@ -797,7 +885,7 @@ export const createKeys = async (
     throw new UnwritableKeyError(`${blank.sort().join(', ')} has no text. A source key says something.`);
   }
 
-  const token = await writeToken(repository);
+  const token = await publishToken(repository);
   const attempts = options.attempts ?? 2;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -805,7 +893,10 @@ export const createKeys = async (
 
     if (!base) throw new GithubError(`${repository.branch} is not a branch of this repository`, 404);
 
-    const known = await filesOf(repository, token, source, base);
+    const target = await publishTarget(repository, token, base);
+    // A key created in an open pull request is created already: reading the
+    // target refuses it a second time.
+    const known = await filesOf(repository, token, source, target.parent);
     const touched = [...new Set(values.map((value) => value.file))].sort();
     // A file the source does not hold is one the product does not load. A key
     // written there would look created and reach no screen.
@@ -820,7 +911,7 @@ export const createKeys = async (
     const files: FileToWrite[] = [];
 
     for (const file of touched) {
-      const content = await contentOf(repository, token, source, file, base);
+      const content = await contentOf(repository, token, source, file, target.parent);
 
       for (const value of values.filter((row) => row.file === file)) {
         // It also refuses a key named twice in the batch: the first one is in
@@ -837,22 +928,32 @@ export const createKeys = async (
 
     try {
       const commit = await commitBatch(repository, token, {
-        branch: repository.branch,
-        parent: base,
-        expected: base,
+        branch: target.branch,
+        parent: target.parent,
+        expected: target.expected,
+        force: target.force,
         files,
-        message: `i18n(${source}): ${values.length} ${values.length === 1 ? 'key' : 'keys'} created by ${author.name}`,
+        message: publicationMessage(
+          `i18n(${source}): ${values.length} ${values.length === 1 ? 'key' : 'keys'} created by ${author.name}`,
+          source,
+          values,
+        ),
         author,
         at: options.now ?? new Date(),
       });
 
       forgetCatalogues(repository.id);
 
-      return { commit, keys: values.length, files: files.map((file) => file.path) };
+      return {
+        commit,
+        keys: values.length,
+        files: files.map((file) => file.path),
+        pullRequest: repository.publishMode === 'pull_request' ? await ensurePull(repository, token) : null,
+      };
     } catch (error) {
       if (!(error instanceof StaleBranchError)) throw error;
     }
   }
 
-  throw new GithubError(`${repository.branch} moved under every attempt to create keys on it`, 409);
+  throw new GithubError(`The branch moved under every attempt to create keys on it`, 409);
 };

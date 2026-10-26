@@ -18,11 +18,18 @@ names the address of that deployment.
 | ------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
 | Contents                  | write  | Read the locale files and the manifest. Write the branches of proposals and publish.                |
 | Metadata                  | read   | List the repositories that an installation reaches. GitHub always grants it.                        |
+| Pull requests             | write  | Open and update the pull request of the publications, for a repository in the mode `pull_request`.  |
 | Email addresses (account) | read   | Read the addresses of a person at the sign-in, with their `verified` flag. `ADMIN_EMAILS` needs it. |
 
-The App asks for nothing more. It opens no pull request: a proposal is a commit
-on the branch `i18n/<language>`, and a publication is a commit on the base
-branch of the repository.
+The App asks for nothing more. A proposal is a commit on the branch
+`i18n/<language>`. A publication is a commit on the base branch, or, for a
+repository in the mode `pull_request`, a commit on `i18n/publish` and one pull
+request to the base branch. [repositories.md](repositories.md) tells the two
+modes apart.
+
+A token asks for `pull_requests: write` only for a repository in the mode
+`pull_request`. A repository that publishes by commit keeps working on an
+installation that never accepted it.
 
 It has **no webhook**. The editor reads GitHub when a person opens a page, and
 it never waits for an event. The manifest switches the webhook off.
@@ -119,7 +126,26 @@ The routes stay open to a script: `GET /i18n/installations`, then
 `POST /i18n/repositories`. Sent twice, the POST answers the row that is there
 with `created: false`, and writes nothing.
 
-**A protected branch refuses the publications.** If the base branch requires a
-pull request or a review, add the App to the list of actors that can bypass
-the rule. Otherwise each publication fails, and the proposals stay on their
-branch.
+**A protected branch refuses a commit.** If the base branch requires a pull
+request, connect the repository in the mode `pull_request`: the form proposes
+it when a ruleset of the branch requires one. Do not add the App to the actors
+that bypass the rule: a publication would then reach the branch with no check.
+
+## Add the permission « Pull requests » to an App that exists
+
+An App created before the mode `pull_request` has no permission on pull
+requests. GitHub refuses the token, and the editor answers 503 with the name of
+the missing permission.
+
+1. In the settings of the App, open **Permissions & events**. Under
+   **Repository permissions**, set **Pull requests** to **Read and write**.
+   Save. GitHub asks for a note to the installations; it can stay empty.
+2. **Each installation must accept it.** GitHub keeps the old permissions of an
+   installation until an owner of the account accepts the new ones. An owner
+   of the organisation opens **Settings → GitHub Apps → i18n-editor →
+   Configure**, and clicks **Review request**, then **Accept new permissions**.
+   GitHub also sends this request by e-mail to the owners.
+
+Until step 2, a repository of that installation that publishes through a pull
+request fails, and its header says « Permission « Pull requests » manquante ».
+A repository that publishes by commit is not touched.

@@ -31,14 +31,15 @@ The files of one language are in one directory, under a path that you choose:
 An admin adds a repository with `POST /i18n/repositories`. Install the GitHub
 App on the repository first: [github-app.md](github-app.md) tells how.
 
-| Field            | Required | What it is                                                                                   |
-| ---------------- | -------- | -------------------------------------------------------------------------------------------- |
-| `installationId` | yes      | The installation of the App, from `GET /i18n/installations`.                                 |
-| `owner`, `name`  | yes      | The repository, for example `acme` and `acme-app`.                                           |
-| `localesPath`    | yes      | The directory that holds the directories of the languages.                                   |
-| `languages`      | yes      | The languages, **the source language first**.                                                |
-| `branch`         | no       | The base branch, which the editor reads and publishes to. The default is `main`.             |
-| `manifestPath`   | no       | The manifest, from the root of the repository. The default is `<localesPath>/manifest.json`. |
+| Field            | Required | What it is                                                                                      |
+| ---------------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `installationId` | yes      | The installation of the App, from `GET /i18n/installations`.                                    |
+| `owner`, `name`  | yes      | The repository, for example `acme` and `acme-app`.                                              |
+| `localesPath`    | yes      | The directory that holds the directories of the languages.                                      |
+| `languages`      | yes      | The languages, **the source language first**.                                                   |
+| `branch`         | no       | The base branch, which the editor reads and publishes to. The default is `main`.                |
+| `manifestPath`   | no       | The manifest, from the root of the repository. The default is `<localesPath>/manifest.json`.    |
+| `publishMode`    | no       | `commit` or `pull_request`: how a publication reaches the base branch. The default is `commit`. |
 
 ```sh
 curl -X POST https://<editor>/i18n/repositories \
@@ -50,6 +51,40 @@ curl -X POST https://<editor>/i18n/repositories \
 These settings belong to the repository, so they are in the database and not
 in the environment of the API. To add a language, change the row. You do not
 need to deploy again.
+
+## How a publication reaches the base branch
+
+A repository publishes in one of two modes. An admin chooses it in the form
+« Brancher un dépôt », and changes it later from the header of the editor,
+which sends `PATCH /i18n/repositories/<id>` with `{"publishMode": "…"}`.
+
+| Mode           | A publication is                                          | For                                              |
+| -------------- | --------------------------------------------------------- | ------------------------------------------------ |
+| `commit`       | one commit on the base branch                             | a base branch that accepts a push                |
+| `pull_request` | one commit on `i18n/publish`, carried by one pull request | a base branch whose rules require a pull request |
+
+In the mode `pull_request`:
+
+- The first publication makes `i18n/publish` from the base branch, and opens the
+  pull request `i18n/publish` → base branch.
+- A later publication adds a commit to the same branch, and writes the title
+  and the body of the pull request again. They list every key and language
+  that the pull request carries. Each commit names the reviewer who published.
+- When the base branch moved, the publication merges it into `i18n/publish`
+  first. If the two changed the same lines, the publication stops with a 409
+  and forces nothing. Resolve the conflict on GitHub, or close the pull request.
+- After a merge or a close, the next publication starts `i18n/publish` again
+  from the base branch, and opens a new pull request. A closed pull request
+  drops what it carried: its keys are proposals again.
+- A key in the open pull request leaves the list of proposals. It shows as
+  published in the catalogue after the merge, because the catalogue reads the
+  base branch.
+- A key created from the editor goes into the pull request too.
+- `GET /i18n/publication?repository=<id>` answers the last pull request, open or
+  not, and whether GitHub can merge it. The header of the editor shows it.
+
+The App needs the permission « Pull requests: write » for this mode:
+[github-app.md](github-app.md) tells how to add it to an App that exists.
 
 ## The manifest
 

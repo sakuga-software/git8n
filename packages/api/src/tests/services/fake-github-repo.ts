@@ -36,6 +36,26 @@ export interface FakeRepo {
   refusals: number;
   /** Makes the next `n` moves of the base branch fail as a stale write. */
   refuseNextMoves: (n: number) => void;
+  /** The pull requests, by number (DB-606). */
+  pulls: Map<number, FakePull>;
+  /** Merges a pull request as GitHub does: a merge commit on its base branch. */
+  mergePull: (number: number) => string;
+  closePull: (number: number) => void;
+  /**
+   * What the installation refuses, as GitHub answers a permission it lacks:
+   * `pulls` refuses every call on the pull requests with a 403.
+   */
+  refuse: { pulls: boolean; mergeConflict: boolean };
+}
+
+export interface FakePull {
+  number: number;
+  head: string;
+  base: string;
+  state: 'open' | 'closed';
+  merged_at: string | null;
+  title: string;
+  body: string;
 }
 
 /**
@@ -95,6 +115,20 @@ export const fakeRepo = (options: {
     refuseNextMoves: (n) => {
       refusing = n;
     },
+    pulls: new Map(),
+    mergePull: (number) => {
+      const pull = state.pulls.get(number)!;
+      const made = mergeCommit(pull.base, pull.head, `Merge pull request #${number}`);
+
+      pull.state = 'closed';
+      pull.merged_at = new Date().toISOString();
+
+      return made;
+    },
+    closePull: (number) => {
+      state.pulls.get(number)!.state = 'closed';
+    },
+    refuse: { pulls: false, mergeConflict: false },
   };
 
   let refusing = 0;
@@ -111,20 +145,60 @@ export const fakeRepo = (options: {
   });
   state.refs.set(options.baseBranch, first);
 
-  /** Whether `commit` is `of` itself, or was built on it. */
-  const descends = (commit: string, of: string): boolean => {
-    for (let at: string | undefined = commit; at; at = state.commits.get(at)?.parents[0]) {
-      if (at === of) return true;
+  /** `commit` and every commit it was built on, through every parent of a merge. */
+  const ancestry = (commit: string): Set<string> => {
+    const seen = new Set<string>();
+    const queue = [commit];
+
+    while (queue.length > 0) {
+      const at = queue.shift()!;
+
+      if (seen.has(at) || !state.commits.has(at)) continue;
+
+      seen.add(at);
+      queue.push(...state.commits.get(at)!.parents);
     }
 
-    return false;
+    return seen;
+  };
+
+  /** Whether `commit` is `of` itself, or was built on it. */
+  const descends = (commit: string, of: string): boolean => ancestry(commit).has(of);
+
+  /**
+   * A merge commit of `head` into the branch `into`, as GitHub makes one.
+   *
+   * A file that `head` changed since the two parted takes its version. Every
+   * other file keeps the one of `into`.
+   */
+  const mergeCommit = (into: string, head: string, message: string): string => {
+    const intoSha = state.refs.get(into)!;
+    const headSha = state.refs.get(head) ?? head;
+    const base = mergeBase(intoSha, headSha);
+    const before = state.commits.get(base)?.files ?? new Map<string, string>();
+    const files = new Map(state.commits.get(intoSha)!.files);
+
+    for (const [path, content] of state.commits.get(headSha)!.files) {
+      if (before.get(path) !== content) files.set(path, content);
+    }
+
+    const made = sha('c');
+
+    state.commits.set(made, {
+      sha: made,
+      message,
+      parents: [intoSha, headSha],
+      author: { name: 'GitHub', email: 'noreply@github.com', date: new Date().toISOString() },
+      files,
+    });
+    state.refs.set(into, made);
+
+    return made;
   };
 
   /** The newest commit that both hold, as the compare of GitHub answers it. */
   const mergeBase = (base: string, head: string): string => {
-    const held = new Set<string>();
-
-    for (let at: string | undefined = base; at; at = state.commits.get(at)?.parents[0]) held.add(at);
+    const held = ancestry(base);
 
     for (let at: string | undefined = head; at; at = state.commits.get(at)?.parents[0]) {
       if (held.has(at)) return at;
@@ -135,9 +209,7 @@ export const fakeRepo = (options: {
 
   /** The commits of `head` that `base` does not hold, oldest first. */
   const ahead = (base: string, head: string): Commit[] => {
-    const held = new Set<string>();
-
-    for (let at: string | undefined = base; at; at = state.commits.get(at)?.parents[0]) held.add(at);
+    const held = ancestry(base);
 
     const rows: Commit[] = [];
 
@@ -274,6 +346,60 @@ export const fakeRepo = (options: {
           commit: { message: commit.message, author: commit.author },
         })),
       });
+    }
+
+    if (rest === '/pulls' || rest.startsWith('/pulls/') || rest === '/merges') {
+      if (rest !== '/merges' && state.refuse.pulls) return fail(403, 'Resource not accessible by integration');
+    }
+
+    if (method === 'GET' && rest === '/pulls') {
+      const head = String(at.searchParams.get('head')).split(':')[1];
+      const base = at.searchParams.get('base');
+      const wanted = at.searchParams.get('state');
+      const rows = [...state.pulls.values()]
+        .filter((row) => row.head === head && (!base || row.base === base))
+        .filter((row) => wanted === 'all' || row.state === wanted)
+        .sort((a, b) => b.number - a.number)
+        .slice(0, Number(at.searchParams.get('per_page') ?? 30));
+
+      return json(rows.map((row) => ({ ...row, html_url: `https://github.com${repo.slice(6)}/pull/${row.number}` })));
+    }
+
+    if (rest.startsWith('/pulls/')) {
+      const pull = state.pulls.get(Number(rest.replace('/pulls/', '')));
+
+      if (!pull) return fail(404, 'No pull request');
+
+      if (method === 'PATCH') Object.assign(pull, { title: body!.title, body: body!.body });
+
+      return json({ ...pull, mergeable: true, html_url: `https://github.com${repo.slice(6)}/pull/${pull.number}` });
+    }
+
+    if (method === 'POST' && rest === '/pulls') {
+      const pull: FakePull = {
+        number: state.pulls.size + 1,
+        head: String(body!.head),
+        base: String(body!.base),
+        state: 'open',
+        merged_at: null,
+        title: String(body!.title),
+        body: String(body!.body),
+      };
+
+      state.pulls.set(pull.number, pull);
+
+      return json({ ...pull, html_url: `https://github.com${repo.slice(6)}/pull/${pull.number}` });
+    }
+
+    if (method === 'POST' && rest === '/merges') {
+      const into = String(body!.base);
+      const from = state.refs.get(String(body!.head))!;
+
+      if (descends(state.refs.get(into)!, from))
+        return { ok: true, status: 204, headers: new Headers(), json: async () => null };
+      if (state.refuse.mergeConflict) return fail(409, 'Merge conflict');
+
+      return json({ sha: mergeCommit(into, String(body!.head), String(body!.commit_message)) });
     }
 
     if (method === 'GET' && rest.startsWith('/contents/')) {

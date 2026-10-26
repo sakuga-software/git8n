@@ -1,13 +1,20 @@
 import { Button } from '@heroui/react/button';
 import { Input } from '@heroui/react/input';
 import { useEffect, useRef, useState } from 'react';
-import { addRepository, detection as readDetection, type Detection, type Repository } from '@i18n-editor/mcp/api';
+import {
+  addRepository,
+  detection as readDetection,
+  type Detection,
+  type PublishMode,
+  type Repository,
+} from '@i18n-editor/mcp/api';
 import { api } from '~/utils/api';
 import { Branch, Github, Info, Plus, Wrench } from './icons';
 import { bodyOf, problemsOf, type ConnectField, type ConnectForm, type RepositoryChoice } from './connect-flow';
 import { RepositoryPicker, useReachable } from './repository-picker';
 import { Blocked, Failure, Loading } from './states';
 import { Busy } from './ui';
+import { PublishModeSwitch } from './pull-state';
 import { readErrorOf, type ReadError } from './use-read';
 
 interface Props {
@@ -184,6 +191,9 @@ function RepositoryForm({
   const [busy, setBusy] = useState(false);
   const [sendError, setSendError] = useState<ReadError | null>(null);
   const [already, setAlready] = useState<Repository | null>(null);
+  const [publishMode, setPublishMode] = useState<PublishMode>('commit');
+  // A ruleset found on the branch chooses the pull request, until the admin chooses.
+  const modeChosen = useRef(false);
   // The answer of an older detection must not fill the form after a newer one started.
   const turn = useRef(0);
 
@@ -200,6 +210,9 @@ function RepositoryForm({
 
       setDetection(found);
       setForm((before) => filledFrom(found, before, typed.current));
+      if (!modeChosen.current && found.requiresPullRequest != null) {
+        setPublishMode(found.requiresPullRequest ? 'pull_request' : 'commit');
+      }
     } catch (error) {
       if (mine === turn.current) setDetectError(readErrorOf(error));
     } finally {
@@ -240,7 +253,7 @@ function RepositoryForm({
     setSendError(null);
 
     try {
-      const answer = await addRepository(api, bodyOf(choice, form));
+      const answer = await addRepository(api, bodyOf(choice, form, publishMode));
 
       // The API answers the row that holds the repository when one does, and writes nothing.
       if (answer.created === false) setAlready(answer);
@@ -388,6 +401,25 @@ function RepositoryForm({
             />
           </Field>
 
+          <div className="flex flex-col gap-1.5">
+            <span className="text-muted text-xs font-medium">Publier</span>
+            <PublishModeSwitch
+              label="Publier par"
+              value={publishMode}
+              onChange={(mode) => {
+                modeChosen.current = true;
+                setPublishMode(mode);
+              }}
+            />
+            <span className="text-muted text-xs">
+              {detection?.requiresPullRequest
+                ? `Une règle de ${form.branch.trim() || 'la branche'} exige une pull request : une publication ouvre la PR i18n/publish, ou la complète.`
+                : publishMode === 'pull_request'
+                  ? 'Une publication ouvre la PR i18n/publish, ou la complète. Il faut que l’App ait la permission « Pull requests ».'
+                  : 'Une publication est un commit sur la branche. Choisissez pull request si la branche est protégée.'}
+            </span>
+          </div>
+
           {already && (
             <Notice>
               <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -404,7 +436,9 @@ function RepositoryForm({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-muted inline-flex items-center gap-1.5 text-xs">
               <Branch size={13} />
-              L'éditeur écrit sur {form.branch.trim() || 'la branche'} et sur une branche par langue.
+              {publishMode === 'pull_request'
+                ? `L'éditeur écrit sur une branche par langue et sur i18n/publish, jamais sur ${form.branch.trim() || 'la branche'}.`
+                : `L'éditeur écrit sur ${form.branch.trim() || 'la branche'} et sur une branche par langue.`}
             </span>
             <Button type="submit" isDisabled={busy || detecting}>
               {busy ? (

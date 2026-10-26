@@ -31,7 +31,26 @@ export interface Detection {
   source: string | null;
   /** The languages under `localesPath`, the source first when it is known. */
   languages: string[];
+  /**
+   * Whether a ruleset of the repository requires a pull request on `branch`
+   * (DB-606). The form then proposes to publish through one. Null when GitHub
+   * did not say.
+   */
+  requiresPullRequest: boolean | null;
 }
+
+/**
+ * Whether a ruleset requires a pull request on a branch.
+ *
+ * The rules of a branch answer to any token that reads the repository. The
+ * protection of the older kind needs a token that administers it, so it is not
+ * read: a repository protected that way answers false, and the admin chooses.
+ */
+const requiresPullRequestOn = async (repository: string, branch: string, token: string): Promise<boolean | null> =>
+  ask<Array<{ type: string }>>(`${repository}/rules/branches/${encodeURIComponent(branch)}`, token).then(
+    (rules) => rules.some((rule) => rule.type === 'pull_request'),
+    () => null,
+  );
 
 /** One entry of a tree of git, as GitHub lists it. */
 export interface TreeEntry {
@@ -152,6 +171,7 @@ export const detect = async (input: {
   });
 
   const candidates = candidatesOf(listing.tree);
+  const requiresPullRequest = await requiresPullRequestOn(repository, branch, token);
   const localesPath =
     (input.localesPath ? withoutTrailingSlashes(input.localesPath) : null) || candidates[0]?.path || null;
 
@@ -165,6 +185,7 @@ export const detect = async (input: {
       manifestPath: null,
       source: null,
       languages: [],
+      requiresPullRequest,
     };
   }
 
@@ -185,5 +206,6 @@ export const detect = async (input: {
     manifestPath,
     source,
     languages: sourceFirst(languages, source),
+    requiresPullRequest,
   };
 };

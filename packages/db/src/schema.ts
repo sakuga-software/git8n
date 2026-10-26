@@ -91,6 +91,19 @@ export type I18nRole = (typeof I18N_ROLES)[number];
 /** What an account may do with the translations: propose, or publish (DB-210). */
 export const i18nRole = pgEnum('i18n_role', I18N_ROLES);
 
+export const PUBLISH_MODES = ['commit', 'pull_request'] as const;
+
+export type PublishMode = (typeof PUBLISH_MODES)[number];
+
+/**
+ * How a publication reaches the base branch (DB-606).
+ *
+ * - `commit`: one commit straight onto the base branch;
+ * - `pull_request`: commits on `i18n/publish`, and one open pull request to the
+ *   base branch. A repository whose base branch requires a pull request needs it.
+ */
+export const publishMode = pgEnum('publish_mode', PUBLISH_MODES);
+
 /**
  * A repository the editor translates, and how to read it (DB-210).
  *
@@ -125,6 +138,7 @@ export const i18nRepositories = pgTable(
     manifestPath: text('manifest_path'),
     /** The languages, **the source first** — the one the others translate. */
     languages: text('languages').array().notNull(),
+    publishMode: publishMode('publish_mode').notNull().default('commit'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   // One row per repository: two would each answer for it, with a branch of

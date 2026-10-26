@@ -39,6 +39,7 @@ const repository: I18nRepository = {
   localesPath: 'src/locales',
   manifestPath: null,
   languages: ['fr', 'en'],
+  publishMode: 'commit',
   createdAt: new Date('2026-09-24T00:00:00Z'),
 };
 
