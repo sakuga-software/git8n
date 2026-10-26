@@ -18,6 +18,8 @@ const fromKey = (key: unknown): string => (key === NO_VALUE || key === null ? ''
 export interface ChoiceItem {
   value: string;
   label: string;
+  /** Drawn before the label, in the list and in the button. */
+  icon?: ReactNode;
 }
 
 /** A last entry of a select that does a thing and selects nothing. */
@@ -53,6 +55,8 @@ export function Choice({
   className?: string;
   action?: ChoiceAction;
 }) {
+  const selected = items.find((item) => item.value === value);
+
   return (
     <Select
       aria-label={label}
@@ -62,14 +66,28 @@ export function Choice({
       className={className}
     >
       <Select.Trigger className="h-9 min-h-0">
-        <Select.Value />
+        {selected?.icon ? (
+          <Select.Value className="inline-flex min-w-0 items-center gap-2">
+            {selected.icon}
+            <span className="truncate">{selected.label}</span>
+          </Select.Value>
+        ) : (
+          <Select.Value />
+        )}
         <Select.Indicator />
       </Select.Trigger>
       <Select.Popover className="max-h-80">
         <ListBox>
           {items.map((item) => (
             // A test finds an entry by its value, which no text carries for « every file ».
-            <ListBox.Item key={toKey(item.value)} id={toKey(item.value)} textValue={item.label} data-value={item.value}>
+            <ListBox.Item
+              key={toKey(item.value)}
+              id={toKey(item.value)}
+              textValue={item.label}
+              data-value={item.value}
+              className="pe-8"
+            >
+              {item.icon}
               {item.label}
               <ListBox.ItemIndicator />
             </ListBox.Item>
