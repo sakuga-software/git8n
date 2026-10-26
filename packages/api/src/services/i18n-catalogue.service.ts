@@ -9,6 +9,7 @@ import {
 import { languagesOf, UnknownLanguageError } from '@/services/i18n-repositories.service';
 import { reviewsOf } from '@/services/i18n-review.service';
 import { fileName, localeManifestSchema, type FileState } from '@/schemas/i18n';
+import { createCache } from '@/utils/cache';
 import { describeError } from '@/utils/describe-error';
 import { logger } from '@/utils/logger';
 
@@ -327,22 +328,16 @@ const read = async (repository: I18nRepository, language: string): Promise<Catal
   return { repository: repository.id, language, source, commit, entries, files, shas };
 };
 
-const held = new Map<string, { at: number; value: Catalogue }>();
-
 /**
- * The reads that have not answered yet, by the key they will be held under.
+ * The catalogues, by `<repository>:<language>`.
  *
  * One catalogue costs a request per file per language. Two readers on a cold
- * cache fan that out twice for one answer. The second caller waits on the
- * first read.
+ * cache share one read.
  */
-const reading = new Map<string, Promise<Catalogue>>();
+const catalogues = createCache<Catalogue>(CACHE_MS);
 
 /** Empties the cache. The tests call it; nothing else needs it. */
-export const clearI18nCatalogueCache = (): void => {
-  held.clear();
-  reading.clear();
-};
+export const clearI18nCatalogueCache = (): void => catalogues.clear();
 
 /**
  * Drops what is held of one repository, for every language.
@@ -350,51 +345,22 @@ export const clearI18nCatalogueCache = (): void => {
  * A key that was just added to the source is missing in each target. Held for
  * five minutes more, the catalogue would not show the key to who created it.
  */
-export const forgetCatalogues = (repositoryId: string): void => {
-  for (const key of [...held.keys(), ...reading.keys()]) {
-    if (key.startsWith(`${repositoryId}:`)) {
-      held.delete(key);
-      reading.delete(key);
-    }
-  }
-};
+export const forgetCatalogues = (repositoryId: string): void => catalogues.forget(repositoryId);
 
-export const getCatalogue = async (
+export const getCatalogue = (
   repository: I18nRepository,
   language: string,
   options: { now?: Date } = {},
-): Promise<Catalogue> => {
-  const now = options.now ?? new Date();
-  const key = `${repository.id}:${language}`;
-  const hit = held.get(key);
+): Promise<Catalogue> =>
+  catalogues.get(
+    `${repository.id}:${language}`,
+    () =>
+      read(repository, language).catch((error: unknown) => {
+        // An operator or a caller acts on these two. Wrapped, they reach the
+        // route as a server failure.
+        if (error instanceof GithubAppNotConfiguredError || error instanceof UnknownLanguageError) throw error;
 
-  if (hit && now.getTime() - hit.at < CACHE_MS) return hit.value;
-
-  const shared = reading.get(key);
-
-  if (shared) return shared;
-
-  const started = read(repository, language)
-    .then((value) => {
-      held.set(key, { at: now.getTime(), value });
-
-      return value;
-    })
-    .catch((error: unknown) => {
-      // An operator or a caller acts on these two. Wrapped, they reach the
-      // route as a server failure.
-      if (error instanceof GithubAppNotConfiguredError || error instanceof UnknownLanguageError) throw error;
-
-      throw new Error(`The translations of ${language} were not read: ${describeError(error)}`, { cause: error });
-    })
-    .finally(() => {
-      // A failure is never held: the next caller reads again. The identity
-      // check keeps a read that was cleared, then started again, from being
-      // removed while it is in flight.
-      if (reading.get(key) === started) reading.delete(key);
-    });
-
-  reading.set(key, started);
-
-  return started;
-};
+        throw new Error(`The translations of ${language} were not read: ${describeError(error)}`, { cause: error });
+      }),
+    (options.now ?? new Date()).getTime(),
+  );

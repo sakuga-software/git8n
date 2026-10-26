@@ -10,8 +10,7 @@ import {
   installationToken,
   repositoriesOf,
 } from '@/services/github-app.service';
-import { forgetCatalogues } from '@/services/i18n-catalogue.service';
-import { forgetProgress } from '@/services/i18n-progress.service';
+import { forgetRepository } from '@/utils/cache';
 
 /**
  * The repositories the editor translates (DB-210).
@@ -279,8 +278,7 @@ export const updateRepository = async (id: string, change: RepositoryChange): Pr
 
   const [changed] = await db().update(i18nRepositories).set(set).where(eq(i18nRepositories.id, id)).returning();
 
-  forgetCatalogues(id);
-  forgetProgress(id);
+  forgetRepository(id);
 
   return changed;
 };

@@ -1,4 +1,5 @@
 import { installations } from '@/services/github-app.service';
+import { createCache } from '@/utils/cache';
 
 /**
  * The picture of the account that holds each installation of the App (DB-617).
@@ -15,39 +16,35 @@ const FAILURE_MS = 60 * 1000;
 /** The list of repositories waits this long for the pictures, and no longer. */
 export const WAIT_MS = 2000;
 
-let held: { until: number; avatars: Map<number, string> } | null = null;
-let asking: Promise<Map<number, string>> | null = null;
+/** One answer for all the installations: GitHub lists them in one call. */
+const ALL = 'installations';
+
+const pictures = createCache<{ avatars: Map<number, string>; failed: boolean }>((answer) =>
+  answer.failed ? FAILURE_MS : CACHE_MS,
+);
 
 /** Empties the cache. The tests call it. */
-export const clearAvatarCache = (): void => {
-  held = null;
-  asking = null;
-};
+export const clearAvatarCache = (): void => pictures.clear();
 
-const ask = (now: number): Promise<Map<number, string>> => {
-  asking ??= installations()
-    .then((found) => {
-      const avatars = new Map(
-        found.flatMap((installation) =>
-          installation.avatarUrl ? [[installation.id, installation.avatarUrl] as const] : [],
+const ask = async (now: number): Promise<Map<number, string>> =>
+  (
+    await pictures.get(
+      ALL,
+      () =>
+        installations().then(
+          (found) => ({
+            avatars: new Map(
+              found.flatMap((installation) =>
+                installation.avatarUrl ? [[installation.id, installation.avatarUrl] as const] : [],
+              ),
+            ),
+            failed: false,
+          }),
+          () => ({ avatars: new Map<number, string>(), failed: true }),
         ),
-      );
-
-      held = { until: now + CACHE_MS, avatars };
-
-      return avatars;
-    })
-    .catch(() => {
-      held = { until: now + FAILURE_MS, avatars: new Map() };
-
-      return held.avatars;
-    })
-    .finally(() => {
-      asking = null;
-    });
-
-  return asking;
-};
+      now,
+    )
+  ).avatars;
 
 /**
  * The picture of each installation, by its id.
@@ -61,10 +58,12 @@ const ask = (now: number): Promise<Map<number, string>> => {
  *   empty map now. The answer still fills the cache for the next call.
  */
 export const avatarsByInstallation = async (now = Date.now(), waitMs = WAIT_MS): Promise<Map<number, string>> => {
-  if (held) {
-    if (now >= held.until) void ask(now);
+  const held = pictures.peek(ALL, now);
 
-    return held.avatars;
+  if (held) {
+    if (!held.fresh) void ask(now);
+
+    return held.value.avatars;
   }
 
   let timer: ReturnType<typeof setTimeout> | undefined;
