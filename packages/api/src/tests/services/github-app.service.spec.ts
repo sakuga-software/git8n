@@ -47,7 +47,7 @@ const github = (options: { expiresAt?: string } = {}) => {
 
     if (path.includes('/app/installations?')) {
       return page([
-        { id: 42, account: { login: 'acme' } },
+        { id: 42, account: { login: 'acme', avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4' } },
         { id: 43, account: { login: 'acme-labs' } },
       ]);
     }
@@ -166,12 +166,12 @@ describe('the installation token', () => {
 
 describe('what the App can reach', () => {
   /** This is how a repository is found rather than typed into a variable. */
-  it('names its installations and who holds them', async () => {
+  it('names its installations, who holds them, and their picture', async () => {
     vi.stubGlobal('fetch', github());
 
     expect(await installations()).toEqual([
-      { id: 42, account: 'acme' },
-      { id: 43, account: 'acme-labs' },
+      { id: 42, account: 'acme', avatarUrl: 'https://avatars.githubusercontent.com/u/1?v=4' },
+      { id: 43, account: 'acme-labs', avatarUrl: null },
     ]);
   });
 
@@ -205,8 +205,8 @@ describe('what the App can reach', () => {
     );
 
     expect(await installations()).toEqual([
-      { id: 42, account: 'acme' },
-      { id: 44, account: 'third' },
+      { id: 42, account: 'acme', avatarUrl: null },
+      { id: 44, account: 'third', avatarUrl: null },
     ]);
   });
 

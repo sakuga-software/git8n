@@ -5,6 +5,7 @@ import app from '../../app';
 import { env } from '@/config/env';
 import { clearI18nCatalogueCache } from '@/services/i18n-catalogue.service';
 import { clearI18nProgressCache } from '@/services/i18n-progress.service';
+import { clearAvatarCache } from '@/services/i18n-avatars.service';
 import { authHeaders, insertAccount, signedInAdmin } from '../db/fixtures';
 import { useTestDb } from '../db/test-db';
 import { fakeRepo } from '../services/fake-github-repo';
@@ -16,7 +17,9 @@ vi.mock('@/services/github-app.service', async (original) => {
   return {
     ...real,
     installationToken: async () => 'installation-token',
-    installations: async () => [{ id: 42, account: 'acme' }],
+    installations: async () => [
+      { id: 42, account: 'acme', avatarUrl: 'https://avatars.githubusercontent.com/u/42?v=4' },
+    ],
     // GitHub answers 404 for an installation nobody holds: its token cannot
     // be minted.
     repositoriesOf: async (installationId: number) => {
@@ -98,6 +101,7 @@ async function translator(
 beforeEach(() => {
   clearI18nCatalogueCache();
   clearI18nProgressCache();
+  clearAvatarCache();
   Object.assign(env, { I18N_APP: APP });
   vi.stubGlobal('fetch', github());
 });
@@ -106,6 +110,30 @@ afterEach(() => {
   vi.unstubAllGlobals();
   Object.assign(env, { I18N_APP: undefined });
   clearI18nCatalogueCache();
+});
+
+describe('GET /i18n/repositories', () => {
+  /** The header shows the picture of the owner beside the name (DB-617). */
+  it('gives each repository the picture of the account that holds its installation', async () => {
+    const repo = await repository();
+    const other = { ...repo, id: newId(), installationId: 7, name: 'other-app' };
+
+    await db()
+      .insert(i18nRepositories)
+      .values(other as never);
+
+    const admin = await signedInAdmin();
+    const listed = (await (await app.request('/i18n/repositories', { headers: admin.headers })).json()) as {
+      data: Array<{ name: string; avatarUrl: string | null }>;
+    };
+
+    expect(listed.data.map(({ name, avatarUrl }) => ({ name, avatarUrl }))).toEqual(
+      expect.arrayContaining([
+        { name: 'acme-app', avatarUrl: 'https://avatars.githubusercontent.com/u/42?v=4' },
+        { name: 'other-app', avatarUrl: null },
+      ]),
+    );
+  });
 });
 
 describe('GET /i18n/catalogue', () => {

@@ -250,6 +250,8 @@ export interface Installation {
   id: number;
   /** The organisation or the person the App is installed on. */
   account: string;
+  /** The picture of that account on GitHub. Null if GitHub sends none. */
+  avatarUrl: string | null;
 }
 
 /**
@@ -259,12 +261,16 @@ export interface Installation {
  * the answer says what it reaches.
  */
 export const installations = async (options: { now?: Date } = {}): Promise<Installation[]> => {
-  const rows = await every<{ id: number; account?: { login?: string } }>(
+  const rows = await every<{ id: number; account?: { login?: string; avatar_url?: string } }>(
     '/app/installations?per_page=100',
     appJwt(options.now ?? new Date()),
   );
 
-  return rows.map((row) => ({ id: row.id, account: row.account?.login ?? '' }));
+  return rows.map((row) => ({
+    id: row.id,
+    account: row.account?.login ?? '',
+    avatarUrl: row.account?.avatar_url ?? null,
+  }));
 };
 
 /** A repository one installation can reach. */
