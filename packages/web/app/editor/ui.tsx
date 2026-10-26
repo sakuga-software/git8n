@@ -1,7 +1,9 @@
 import { Checkbox } from '@heroui/react/checkbox';
 import { ListBox } from '@heroui/react/list-box';
 import { Select } from '@heroui/react/select';
+import { Separator } from '@heroui/react/separator';
 import { Spinner } from '@heroui/react/spinner';
+import type { ReactNode } from 'react';
 
 /**
  * React Aria reads an empty key as « no selection ». The file filter uses ""
@@ -18,6 +20,15 @@ export interface ChoiceItem {
   label: string;
 }
 
+/** A last entry of a select that does a thing and selects nothing. */
+export interface ChoiceAction {
+  label: string;
+  icon?: ReactNode;
+  onAction: () => void;
+}
+
+const ACTION_KEY = '__action__';
+
 /**
  * A select of the editor: the button and the list box of HeroUI, with the
  * keyboard and the search by first letter that a native select gives.
@@ -32,6 +43,7 @@ export function Choice({
   onChange,
   isDisabled,
   className,
+  action,
 }: {
   label: string;
   value: string;
@@ -39,12 +51,13 @@ export function Choice({
   onChange: (value: string) => void;
   isDisabled?: boolean;
   className?: string;
+  action?: ChoiceAction;
 }) {
   return (
     <Select
       aria-label={label}
       selectedKey={toKey(value)}
-      onSelectionChange={(key) => onChange(fromKey(key))}
+      onSelectionChange={(key) => (action && key === ACTION_KEY ? action.onAction() : onChange(fromKey(key)))}
       isDisabled={isDisabled}
       className={className}
     >
@@ -61,6 +74,13 @@ export function Choice({
               <ListBox.ItemIndicator />
             </ListBox.Item>
           ))}
+          {action && <Separator className="my-1" />}
+          {action && (
+            <ListBox.Item id={ACTION_KEY} textValue={action.label} className="text-sub">
+              {action.icon}
+              {action.label}
+            </ListBox.Item>
+          )}
         </ListBox>
       </Select.Popover>
     </Select>
