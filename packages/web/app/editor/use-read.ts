@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect } from 'react';
+import { hashKey, QueryClient, useQuery, type QueryObserverResult } from '@tanstack/react-query';
 import { ApiError } from '@i18n-editor/mcp/api';
 
 /**
@@ -42,73 +43,100 @@ export type Read<T> =
     };
 
 /**
- * Starts reads, and hands over the answer of the last one alone.
+ * The cache of the reads of the editor (DB-638).
  *
- * An answer that arrives after a later read started is dropped: a slow read
- * of one language must not replace the table of the next. `start` returns a
- * function that drops the answer of its read, for a page that leaves.
+ * A read stays fresh for 30 seconds: in that time, a page that comes back
+ * shows it and does not ask the API. After that, the page shows it and reads
+ * it again. A write must not wait for that time: see `forgetReads`.
  *
- * **A new read of the same thing keeps what is on the screen** (DB-241). `of`
- * names what a read reads. If the last answer is of the same thing, it stays
- * as `done` and says that it refreshes. If the new read fails, it still stays,
- * and says that it can be out of date. A read of another thing — another
- * language — forgets the last answer: it must not show under a new header.
- *
- * It holds no React, so a test can run it with promises that it resolves
- * itself.
+ * The browser asks nothing again when its tab gets the focus, and a failed
+ * read is not tried again: the screen says it failed, and offers a retry.
+ * A read also starts with no network, so that it fails and says so, as
+ * before the cache, and does not wait with no word.
  */
-export const latestOnly = <T>(apply: (answer: Read<T>) => void) => {
-  let last = 0;
-  let held: { of: string; value: T } | null = null;
+export const reads = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 30_000, retry: false, refetchOnWindowFocus: false, networkMode: 'always' },
+  },
+});
 
-  return (read: () => Promise<T>, of: string): (() => void) => {
-    const mine = (last += 1);
+/** A key names what a read reads. Its lines are the segments that `forgetReads` matches from the start. */
+const queryKeyOf = (key: string): string[] => key.split('\n');
 
-    if (held?.of !== of) held = null;
+/** The answer of a read in the cache, as the screens draw it. */
+export const readOf = <T>(result: QueryObserverResult<T>): Read<T> => {
+  if (result.data === undefined) {
+    return result.error && !result.isFetching
+      ? { state: 'failed', error: readErrorOf(result.error) }
+      : { state: 'loading' };
+  }
 
-    const kept = held;
+  if (result.isFetching) return { state: 'done', value: result.data, refreshing: true };
+  if (result.error) return { state: 'done', value: result.data, stale: readErrorOf(result.error) };
 
-    apply(kept ? { state: 'done', value: kept.value, refreshing: true } : { state: 'loading' });
-    read().then(
-      (value) => {
-        if (mine !== last) return;
-
-        held = { of, value };
-        apply({ state: 'done', value });
-      },
-      (error: unknown) => {
-        if (mine !== last) return;
-
-        apply(
-          kept
-            ? { state: 'done', value: kept.value, stale: readErrorOf(error) }
-            : { state: 'failed', error: readErrorOf(error) },
-        );
-      },
-    );
-
-    return () => {
-      if (mine === last) last += 1;
-    };
-  };
+  return { state: 'done', value: result.data };
 };
 
-/** Reads when `key` changes, and again on `reload`. `key` null reads nothing. */
-export const useRead = <T>(key: string | null, read: () => Promise<T>): [Read<T>, () => void] => {
-  const [answer, setAnswer] = useState<Read<T>>({ state: 'loading' });
-  const [turn, setTurn] = useState(0);
-  const start = useMemo(() => latestOnly<T>(setAnswer), []);
-  // `read` is a new function at each render, and `key` names what it reads.
-  // The effect calls the last one, and runs again only when `key` changes.
-  const latest = useRef(read);
+/**
+ * The reads to drop when the last page that shows them leaves.
+ *
+ * A page that wrote keeps its own record of the write on top of the read
+ * (the values just published, for example). That record goes with the page.
+ * The read alone is then older than the write: shown again, it would put a
+ * row in a state it never had.
+ */
+const dropOnLeave = new Set<string>();
 
-  latest.current = read;
+/**
+ * Drops the reads whose key starts with `start`, after a write changed what they read.
+ *
+ * A read that no page shows goes now: the next page that needs it reads it
+ * and says that it loads. A read on the screen stays, because the page that
+ * wrote draws it, and goes when that page leaves it.
+ */
+export const forgetReads = (start: string): void => {
+  for (const query of reads.getQueryCache().findAll({ queryKey: queryKeyOf(start) })) {
+    if (query.getObserversCount() === 0) reads.getQueryCache().remove(query);
+    else dropOnLeave.add(query.queryHash);
+  }
+};
+
+const dropIfLeft = (hash: string): void => {
+  const query = reads.getQueryCache().get(hash);
+
+  if (query && query.getObserversCount() > 0) return;
+
+  dropOnLeave.delete(hash);
+  if (query) reads.getQueryCache().remove(query);
+};
+
+/**
+ * Reads when `key` changes, and again on `reload`. `key` null reads nothing.
+ *
+ * Two reads with one key share one answer: a key must name the read, not only
+ * its subject (`catalogue\n<repository>\n<language>`).
+ *
+ * **A new read of the same thing keeps what is on the screen** (DB-241). The
+ * answer stays as `done` and says that it refreshes. If the new read fails, it
+ * still stays, and says that it can be out of date. A read of another thing,
+ * another language for example, shows its own answer from the cache, or loads:
+ * it never shows the answer of the thing before.
+ */
+export const useRead = <T>(key: string | null, read: () => Promise<T>): [Read<T>, () => void] => {
+  const queryKey = key === null ? ['none'] : queryKeyOf(key);
+  const result = useQuery({ queryKey, queryFn: read, enabled: key !== null }, reads);
+  const { refetch } = result;
 
   useEffect(() => {
     if (key === null) return;
 
-    return start(() => latest.current(), key);
-  }, [key, turn, start]);
+    const hash = hashKey(queryKeyOf(key));
 
-  return [answer, useCallback(() => setTurn((value) => value + 1), [])];
+    // The observer of `useQuery` leaves in a cleanup of its own, maybe after this one. The check waits for it.
+    return () => {
+      if (dropOnLeave.has(hash)) setTimeout(() => dropIfLeft(hash), 0);
+    };
+  }, [key]);
+
+  return [readOf(result), useCallback(() => void refetch(), [refetch])];
 };

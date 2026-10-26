@@ -63,7 +63,7 @@ import {
   type RowState,
   type Writes,
 } from '~/editor/rows';
-import { readErrorOf, useRead, type ReadError } from '~/editor/use-read';
+import { forgetReads, readErrorOf, useRead, type ReadError } from '~/editor/use-read';
 
 const PAGE = 100;
 
@@ -375,10 +375,14 @@ function Editor({
     access && language && access.languages.includes(language)
       ? language
       : (access?.languages.find((code) => code !== repository?.source) ?? access?.languages[0] ?? null);
-  const readKey = repository && opened ? `${repository.id}:${opened}` : null;
+  const readKey = repository && opened ? `${repository.id}\n${opened}` : null;
 
-  const [catalogue, reloadCatalogue] = useRead(readKey, () => readCatalogue(api, repository!.id, opened!));
-  const [proposed, reloadProposed] = useRead(readKey, () => readProposedKeys(api, repository!.id, opened!));
+  const [catalogue, reloadCatalogue] = useRead(readKey && `catalogue\n${readKey}`, () =>
+    readCatalogue(api, repository!.id, opened!),
+  );
+  const [proposed, reloadProposed] = useRead(readKey && `proposed\n${readKey}`, () =>
+    readProposedKeys(api, repository!.id, opened!),
+  );
   // The other languages of the side panel. The open one counts its own rows, which a write changes at once.
   const [progress, reloadProgress] = useRead(repository ? `progress\n${repository.id}` : null, () =>
     readProgress(api, repository!.id),
@@ -550,6 +554,7 @@ function Editor({
           setConnecting(false);
           openRepository(id, { replace: window.location.pathname === SETUP_PATH });
           reloadRepositories();
+          forgetReads('overview');
         }}
         onCancel={repository ? closeConnect : undefined}
       />
@@ -710,6 +715,10 @@ function Editor({
         readAt: catalogue.value.commit,
         values: sent.map(({ row, value }) => ({ file: row.file, key: row.key, value })),
       });
+
+      // The cache keeps no read that the page draws under its own record of the write.
+      forgetReads(`proposed\n${readKey}`);
+      forgetReads('overview');
       setSentNote({ keys: sent.length, commit: answer.commit });
       // A proposed key leaves every list but the one of the proposals.
       settle(filter === 'proposed' ? [] : sent.map(({ row }) => idOf(row)), () => {
@@ -761,6 +770,10 @@ function Editor({
         language: opened,
         approved: sent.map((row) => ({ file: row.file, key: row.key, commit: row.proposal!.commit })),
       });
+
+      forgetReads(`catalogue\n${readKey}`);
+      forgetReads(`proposed\n${readKey}`);
+      forgetReads('overview');
       const values = new Map(sent.map((row) => [idOf(row), row.proposal!.value]));
 
       setReport({
@@ -814,6 +827,10 @@ function Editor({
         language: opened,
         keys: sent.map((row) => ({ file: row.file, key: row.key })),
       });
+
+      forgetReads(`catalogue\n${readKey}`);
+      forgetReads(`proposed\n${readKey}`);
+      forgetReads('overview');
 
       if (answer.pullRequest) reloadPublication();
 
@@ -1021,6 +1038,8 @@ function Editor({
               reloadCatalogue();
               // A new key is missing in every language.
               reloadProgress();
+              forgetReads(`catalogue\n${repository.id}`);
+              forgetReads('overview');
             } catch (error) {
               setCreateError(readErrorOf(error));
             }

@@ -17,7 +17,7 @@ import { PublishModeSwitch } from '~/editor/pull-state';
 import { Signed } from '~/editor/shell';
 import { Blocked, Failure, Loading } from '~/editor/states';
 import { Busy } from '~/editor/ui';
-import { readErrorOf, useRead, type ReadError } from '~/editor/use-read';
+import { forgetReads, readErrorOf, useRead, type ReadError } from '~/editor/use-read';
 import {
   changeOf,
   fieldOfIssue,
@@ -102,7 +102,14 @@ function Settings({ waiting }: { waiting: React.RefObject<number> }) {
     );
   }
 
-  return <SettingsOf repository={repository} waiting={waiting} onSaved={reloadRepositories} />;
+  const saved = () => {
+    reloadRepositories();
+    // The languages, the files or the branch can change: every read of the repository is out of date.
+    for (const kind of ['catalogue', 'proposed', 'progress', 'publication']) forgetReads(`${kind}\n${repository.id}`);
+    forgetReads('overview');
+  };
+
+  return <SettingsOf repository={repository} waiting={waiting} onSaved={saved} />;
 }
 
 function SettingsOf({
