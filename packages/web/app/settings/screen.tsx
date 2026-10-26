@@ -509,7 +509,7 @@ function SectionTabs({
             role="tab"
             id={`settings-tab-${id}`}
             aria-selected={selected}
-            aria-controls={`settings-panel-${id}`}
+            aria-controls={selected ? `settings-panel-${id}` : undefined}
             tabIndex={selected ? 0 : -1}
             onClick={() => onSelect(id)}
             onKeyDown={(event) => move(event, index)}
