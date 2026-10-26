@@ -202,6 +202,48 @@ describe('a read after a write', () => {
     expect(changed.status).toBe(200);
     expect(await read(`/i18n/proposals/keys?${q}`, headers)).toEqual([]);
   });
+
+  it('a read in flight during a write is not held: the next read shows the write', async () => {
+    const row = await repository('pull_request');
+    const headers = await writer();
+    const real = repo.fetch.getMockImplementation()!;
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let gated = false;
+
+    // GitHub answers the first list of pull requests before the write, and
+    // the answer arrives after it.
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      const answer = await real(url, init);
+
+      if (!gated && String(url).includes('/pulls?')) {
+        gated = true;
+        await released;
+      }
+
+      return answer;
+    });
+
+    const inFlight = read<Pull>(`/i18n/publication?repository=${row.id}`, headers);
+
+    await vi.waitFor(() => expect(gated).toBe(true));
+
+    const created = await send('POST', '/i18n/keys', headers, {
+      repository: row.id,
+      values: [{ file: 'common', key: 'bye', value: 'Au revoir' }],
+    });
+
+    expect(created.status).toBe(200);
+
+    release();
+
+    expect(await inFlight).toMatchObject({ pullRequest: null });
+    expect(await read<Pull>(`/i18n/publication?repository=${row.id}`, headers)).toMatchObject({
+      pullRequest: { number: 1 },
+    });
+  });
 });
 
 describe('two reads with no write between them', () => {
