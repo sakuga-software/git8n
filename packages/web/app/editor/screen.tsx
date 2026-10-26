@@ -25,6 +25,7 @@ import { ConnectRepository } from '~/editor/connect';
 import { SETUP_PATH, setupReturnOf } from '~/editor/connect-flow';
 import { branchUrl, commitUrl, fileUrl, repositoryUrl } from '~/editor/github';
 import { NewKey } from '~/editor/new-key';
+import { OwnerAvatar } from '~/editor/owner-avatar';
 import { Busy, Choice } from '~/editor/ui';
 import { PullState } from '~/editor/pull-state';
 import { publishedWhere } from '~/editor/publication';
@@ -852,24 +853,26 @@ function Editor({
       {slots.project &&
         createPortal(
           <>
-            {repositories.value.length > 1 ? (
-              <Choice
-                label="Changer de projet"
-                value={repository.id}
-                items={repositories.value.map((row) => ({ value: row.id, label: row.name }))}
-                onChange={(next) => next !== repository.id && mayLeave(changed.length) && openRepository(next)}
-                className="min-w-[170px]"
-              />
-            ) : (
-              // One repository is no choice: its name is a link, and no button.
-              <Outside
-                href={repositoryUrl(repository)}
-                className="inline-flex items-center gap-2 text-[13px] font-medium no-underline"
-              >
-                <Repository size={14} className="text-muted" />
-                {repository.name}
-              </Outside>
-            )}
+            <span className="inline-flex items-center gap-2">
+              <OwnerAvatar owner={repository.owner} src={repository.avatarUrl} />
+              {repositories.value.length > 1 ? (
+                <Choice
+                  label="Changer de projet"
+                  value={repository.id}
+                  items={repositories.value.map((row) => ({ value: row.id, label: row.name }))}
+                  onChange={(next) => next !== repository.id && mayLeave(changed.length) && openRepository(next)}
+                  className="min-w-[170px]"
+                />
+              ) : (
+                // One repository is no choice: its name is a link, and no button.
+                <Outside
+                  href={repositoryUrl(repository)}
+                  className="inline-flex items-center gap-2 text-[13px] font-medium no-underline"
+                >
+                  {repository.name}
+                </Outside>
+              )}
+            </span>
             {installUrl && (
               <Button
                 size="sm"

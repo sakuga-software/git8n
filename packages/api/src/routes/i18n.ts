@@ -13,6 +13,7 @@ import {
   waiting,
   type Author,
 } from '@/services/i18n-git.service';
+import { avatarsByInstallation } from '@/services/i18n-avatars.service';
 import { GithubAppNotConfiguredError, GithubError, installations, repositoriesOf } from '@/services/github-app.service';
 import { forgetCatalogues, getCatalogue, manifestPathOf } from '@/services/i18n-catalogue.service';
 import { forgetProgress, progressOf } from '@/services/i18n-progress.service';
@@ -114,7 +115,7 @@ const answer = async <T>(read: () => Promise<T>): Promise<T> => {
 router.get('/repositories', signedIn, async (c) => {
   await refuseAStranger(c);
 
-  const rows = await listRepositories();
+  const [rows, avatars] = await Promise.all([listRepositories(), avatarsByInstallation()]);
 
   return c.json({
     success: true,
@@ -122,6 +123,7 @@ router.get('/repositories', signedIn, async (c) => {
       id: row.id,
       owner: row.owner,
       name: row.name,
+      avatarUrl: avatars.get(row.installationId) ?? null,
       branch: row.branch,
       localesPath: row.localesPath,
       manifestPath: manifestPathOf(row),

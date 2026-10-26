@@ -98,6 +98,8 @@ export interface Repository {
   id: string;
   owner: string;
   name: string;
+  /** The picture of the owner on GitHub (DB-617). Null if GitHub gave none, absent from an older API. */
+  avatarUrl?: string | null;
   branch: string;
   localesPath: string;
   /** From the root of the repository. Absent from an API older than DB-571. */
