@@ -32,6 +32,25 @@ describe('avatarsByInstallation', () => {
     expect(listed).toHaveBeenCalledTimes(2);
   });
 
+  it('gives the old pictures at once when they expire, and takes the new ones from the next call', async () => {
+    listed.mockResolvedValueOnce([{ id: 42, account: 'acme', avatarUrl: 'https://example.test/old.png' }]);
+    await avatarsByInstallation(0);
+
+    let answer!: (rows: Awaited<ReturnType<typeof installations>>) => void;
+
+    listed.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+
+    // GitHub has not answered: an expired cache must not make the call wait.
+    expect(await avatarsByInstallation(61 * 60 * 1000, 60 * 1000)).toEqual(
+      new Map([[42, 'https://example.test/old.png']]),
+    );
+
+    answer([{ id: 42, account: 'acme', avatarUrl: 'https://example.test/new.png' }]);
+    await vi.waitFor(async () =>
+      expect(await avatarsByInstallation(62 * 60 * 1000)).toEqual(new Map([[42, 'https://example.test/new.png']])),
+    );
+  });
+
   /** A picture is decoration: the list of repositories must not wait for it on each call. */
   it('gives no picture for a minute when GitHub fails, then asks again', async () => {
     listed.mockRejectedValueOnce(new Error('GitHub answered 502'));
@@ -43,8 +62,12 @@ describe('avatarsByInstallation', () => {
     expect(await avatarsByInstallation(59 * 1000)).toEqual(new Map());
     expect(listed).toHaveBeenCalledTimes(1);
 
-    expect(await avatarsByInstallation(61 * 1000)).toEqual(new Map([[42, 'https://example.test/a.png']]));
+    // The held failure is old: this call answers it and asks GitHub again in the background.
+    expect(await avatarsByInstallation(61 * 1000)).toEqual(new Map());
     expect(listed).toHaveBeenCalledTimes(2);
+    await vi.waitFor(async () =>
+      expect(await avatarsByInstallation(62 * 1000)).toEqual(new Map([[42, 'https://example.test/a.png']])),
+    );
   });
 
   it('does not wait for a slow GitHub, and keeps its late answer for the next call', async () => {

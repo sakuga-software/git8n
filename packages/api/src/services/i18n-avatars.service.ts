@@ -53,13 +53,19 @@ const ask = (now: number): Promise<Map<number, string>> => {
  * The picture of each installation, by its id.
  *
  * A picture is decoration, and the list of repositories must not wait for it:
+ * - If the held pictures are old, this gives them now and asks GitHub for new
+ *   ones in the background.
  * - If GitHub does not answer, or the App is not configured, this gives an empty
  *   map for a minute. The page then shows initials.
- * - If GitHub is slower than `waitMs`, this gives an empty map now. The answer
- *   still fills the cache for the next call.
+ * - If nothing is held yet and GitHub is slower than `waitMs`, this gives an
+ *   empty map now. The answer still fills the cache for the next call.
  */
 export const avatarsByInstallation = async (now = Date.now(), waitMs = WAIT_MS): Promise<Map<number, string>> => {
-  if (held && now < held.until) return held.avatars;
+  if (held) {
+    if (now >= held.until) void ask(now);
+
+    return held.avatars;
+  }
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<Map<number, string>>((resolve) => {
