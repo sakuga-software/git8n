@@ -20,7 +20,7 @@ import {
   type RefusedKey,
 } from '@i18n-editor/mcp/api';
 import { api } from '~/utils/api';
-import { ChevronDown, Info, KeyView, Lock, Plus, Published, Repository, TableView } from '~/editor/icons';
+import { ChevronDown, Gear, Info, KeyView, Lock, Plus, Published, Repository, TableView } from '~/editor/icons';
 import { ConnectRepository } from '~/editor/connect';
 import { SETUP_PATH, setupReturnOf } from '~/editor/connect-flow';
 import { branchUrl, commitUrl, fileUrl, repositoryUrl } from '~/editor/github';
@@ -888,8 +888,9 @@ function Editor({
                 onClick={(event) => {
                   if (!mayLeave(changed.length)) event.preventDefault();
                 }}
-                className="text-sub hover:text-ink text-[13px] no-underline"
+                className="button button--sm button--ghost text-sub hover:text-ink text-[13px] no-underline"
               >
+                <Gear size={14} />
                 Réglages
               </Link>
             )}
