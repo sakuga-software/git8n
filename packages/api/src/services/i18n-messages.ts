@@ -38,7 +38,7 @@ export const publicationSubject = (
   repository: Repository,
   language: string,
   count: number,
-  action: 'published' | 'created',
+  action: 'published' | 'created' | 'reviewed',
   author: { name: string },
 ): string =>
   messageOf('publicationCommit', repository.publicationCommitTemplate, {

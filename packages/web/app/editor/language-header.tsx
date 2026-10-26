@@ -8,6 +8,7 @@ const countOf = (value: number): string => value.toLocaleString('fr-FR');
 const LEGEND: { state: RowState; one: string; many: string; mark: string }[] = [
   { state: 'published', one: 'publiée', many: 'publiées', mark: 'bg-published-ink' },
   { state: 'proposed', one: 'proposée', many: 'proposées', mark: 'bg-signal' },
+  { state: 'review', one: 'à revoir', many: 'à revoir', mark: 'bg-alarm-line' },
   { state: 'missing', one: 'manquante', many: 'manquantes', mark: 'hatched' },
 ];
 
@@ -16,7 +17,7 @@ const LEGEND: { state: RowState; one: string; many: string; mark: string }[] = [
  * state that asks for work reads with no colour. The legend writes the numbers.
  */
 function Progress({ counts }: { counts: Record<RowState, number> | null }) {
-  const total = counts ? counts.published + counts.proposed + counts.missing : 0;
+  const total = counts ? counts.published + counts.proposed + counts.missing + counts.review : 0;
 
   if (!counts || total === 0) {
     return <div aria-hidden="true" className="bg-line h-2 max-w-[640px] rounded-full" />;
@@ -27,6 +28,7 @@ function Progress({ counts }: { counts: Record<RowState, number> | null }) {
       {counts.published > 0 && <span className="bg-published-ink" style={{ flexGrow: counts.published }} />}
       {/* A few proposals among two thousand keys would be thinner than a pixel. */}
       {counts.proposed > 0 && <span className="bg-signal min-w-1.5" style={{ flexGrow: counts.proposed }} />}
+      {counts.review > 0 && <span className="bg-alarm-line min-w-1.5" style={{ flexGrow: counts.review }} />}
       {counts.missing > 0 && <span className="hatched min-w-1.5" style={{ flexGrow: counts.missing }} />}
     </div>
   );
@@ -112,12 +114,15 @@ export function LanguageHeader({
               <span>
                 <strong className="text-ink font-semibold">{share}</strong> publié
               </span>
-              {LEGEND.map(({ state, one, many, mark }) => (
-                <span key={state} className="inline-flex items-center gap-1.5">
-                  <span aria-hidden="true" className={`size-2 rounded-xs ${mark}`} />
-                  {counts ? `${countOf(counts[state])} ${counts[state] > 1 ? many : one}` : `– ${many}`}
-                </span>
-              ))}
+              {/* A language with nothing to read again does not say so: most never have any. */}
+              {LEGEND.filter(({ state }) => state !== 'review' || (counts?.review ?? 0) > 0).map(
+                ({ state, one, many, mark }) => (
+                  <span key={state} className="inline-flex items-center gap-1.5">
+                    <span aria-hidden="true" className={`size-2 rounded-xs ${mark}`} />
+                    {counts ? `${countOf(counts[state])} ${counts[state] > 1 ? many : one}` : `– ${many}`}
+                  </span>
+                ),
+              )}
             </p>
           </>
         )}

@@ -9,6 +9,7 @@ const row = (file: string, key: string, state: Row['state']): Row => ({
   published: state === 'published' ? 'Text' : null,
   proposal: null,
   state,
+  was: null,
 });
 
 const rows = [
@@ -35,7 +36,7 @@ describe('the structure of the translations', () => {
   it('counts under each node the keys it holds, by state', () => {
     const common = treeOf(rows).find((found) => found.name === 'common')!;
 
-    expect(common.counts).toEqual({ missing: 1, proposed: 1, published: 2 });
+    expect(common.counts).toEqual({ missing: 1, review: 0, proposed: 1, published: 2 });
     expect(common.total).toBe(4);
     expect(common.children[0]).toMatchObject({ counts: { missing: 1, proposed: 1, published: 1 }, total: 3 });
   });

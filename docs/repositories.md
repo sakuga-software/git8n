@@ -113,6 +113,41 @@ In the mode `pull_request`:
 The App needs the permission « Pull requests: write » for this mode:
 [github-app.md](github-app.md) tells how to add it to an App that exists.
 
+## Change a text of the source
+
+The source language is in the list of languages, first, with « (source) » after
+its name. An account with `writes_source` changes its texts as a translator
+changes a target: it proposes, and the change waits on `i18n/<source>`. The same
+account then publishes it. An admin without `writes_source` reads the source
+and writes nothing.
+
+- A proposal of the source changes a key that the source holds. To add a key,
+  use « Nouvelle clé », which writes it at once.
+- A source text cannot be empty.
+- A publication refuses a key whose text changed on the base branch since the
+  proposal, as for a target: the reason is `source-changed`.
+- The publication follows the mode of the repository: a commit, or the pull
+  request of the publications.
+
+### A translation to read again
+
+When a source text changes on the base branch, every translation of that key
+shows under « À revoir » in its language, with the old source beside the new
+one. The editor computes this from the history of the base branch. No table
+holds it:
+
+- a change of the source, after the last change of the translation, puts the
+  key to read again;
+- a new translation of the key, published, clears it;
+- a reviewer can keep the translation as it is: « Garder … telles quelles » sends
+  `POST /i18n/reviews`. The commit changes no file and carries one trailer per
+  key, `Reviewed: <language> <file>:<key>`. When it reaches the base branch, the
+  key is up to date.
+
+Only the history since the repository was connected counts, and at most the
+last 300 commits of the base branch. A source that changed before, or further
+back, puts nothing to read again. A translation that is missing stays missing.
+
 ## The settings of a repository
 
 An admin opens « Réglages » in the header of the editor, at
@@ -142,17 +177,17 @@ writes `}`. A variable that the format of its kind does not list is refused.
 | The title of the pull request | `pullRequestTitleTemplate`  | `count`, `count_keys`, `languages`, `repository`, `branch`                    | `i18n: {count_keys} published ({languages})`          |
 | The body of the pull request  | `pullRequestBodyTemplate`   | `count`, `count_keys`, `languages`, `keys_list`, `repository`, `branch`       | a sentence, a blank line, then `{keys_list}`          |
 
-| Variable     | What it writes                                                                |
-| ------------ | ----------------------------------------------------------------------------- |
-| `language`   | the language of the commit: `en`                                              |
-| `languages`  | the languages of the pull request, in alphabetical order: `de, en`            |
-| `count`      | how many keys: `3`                                                            |
-| `count_keys` | the same, with the word: `1 key`, `3 keys`                                    |
-| `action`     | `published`, or `created` for a key that « Nouvelle clé » added to the source |
-| `author`     | the name of the account that proposed or published                            |
-| `repository` | `owner/name`                                                                  |
-| `branch`     | the base branch                                                               |
-| `keys_list`  | the keys of the pull request, one Markdown section for each language          |
+| Variable     | What it writes                                                                                                                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `language`   | the language of the commit: `en`                                                                                                                    |
+| `languages`  | the languages of the pull request, in alphabetical order: `de, en`                                                                                  |
+| `count`      | how many keys: `3`                                                                                                                                  |
+| `count_keys` | the same, with the word: `1 key`, `3 keys`                                                                                                          |
+| `action`     | `published`; `created` for a key that « Nouvelle clé » added to the source; `reviewed` for translations kept as they are after their source changed |
+| `author`     | the name of the account that proposed or published                                                                                                  |
+| `repository` | `owner/name`                                                                                                                                        |
+| `branch`     | the base branch                                                                                                                                     |
+| `keys_list`  | the keys of the pull request, one Markdown section for each language                                                                                |
 
 Rules:
 

@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router';
 import {
   catalogue as readCatalogue,
   createKeys,
+  keepTranslations,
   progress as readProgress,
   propose,
   proposedKeys as readProposedKeys,
@@ -50,6 +51,7 @@ import {
   pageNumbersOf,
   pageOf,
   ROW_STATES,
+  statesOf,
   rowsOf,
   withPublished,
   withWrites,
@@ -81,12 +83,14 @@ const nameOf = (language: string): string => {
 
 const FILTER_LABEL: Record<RowState, string> = {
   missing: 'Manquantes',
+  review: 'À revoir',
   proposed: 'Proposées',
   published: 'Publiées',
 };
 
 const EMPTY: Record<RowState, string> = {
   missing: 'Aucune clé manquante.',
+  review: 'Aucune traduction à revoir.',
   proposed: 'Aucune proposition en attente.',
   published: 'Aucune clé publiée.',
 };
@@ -94,6 +98,7 @@ const EMPTY: Record<RowState, string> = {
 /** The same, when a file or a search narrows the table: « none » is then true of what is shown only. */
 const EMPTY_NARROWED: Record<RowState, string> = {
   missing: 'Aucune clé manquante ne correspond à ce filtre.',
+  review: 'Aucune traduction à revoir ne correspond à ce filtre.',
   proposed: 'Aucune proposition en attente ne correspond à ce filtre.',
   published: 'Aucune clé publiée ne correspond à ce filtre.',
 };
@@ -134,6 +139,7 @@ function Outside({ href, className, children }: { href: string; className?: stri
 /** The pill of a count wears the colour of its state. The word beside it says the state. */
 const PILL: Record<RowState, string> = {
   missing: 'bg-missing text-missing-ink',
+  review: 'bg-alarm text-alarm-ink',
   proposed: 'bg-proposed text-proposed-ink',
   published: 'bg-hover text-sub',
 };
@@ -322,10 +328,15 @@ function Editor({
         : (repositories.value[0] ?? null)
       : null;
   const access = useMemo(
-    () => (me.state === 'done' && repository ? accessOf(me.value, repository.targets) : null),
+    () => (me.state === 'done' && repository ? accessOf(me.value, repository.targets, repository.source) : null),
     [me, repository],
   );
-  const opened = access && language && access.languages.includes(language) ? language : (access?.languages[0] ?? null);
+  // The source comes first in the list, and opens only when it is chosen: a
+  // visit opens the first language there is to translate (DB-607).
+  const opened =
+    access && language && access.languages.includes(language)
+      ? language
+      : (access?.languages.find((code) => code !== repository?.source) ?? access?.languages[0] ?? null);
   const readKey = repository && opened ? `${repository.id}:${opened}` : null;
 
   const [catalogue, reloadCatalogue] = useRead(readKey, () => readCatalogue(api, repository!.id, opened!));
@@ -362,11 +373,11 @@ function Editor({
   const [drafts, setDrafts] = useState<ReadonlyMap<string, string>>(new Map());
   const [approved, setApproved] = useState<ReadonlySet<string>>(new Set());
   const [published, setPublished] = useState<ReadonlyMap<string, string>>(new Map());
-  const [busy, setBusy] = useState<'proposing' | 'publishing' | null>(null);
+  const [busy, setBusy] = useState<'proposing' | 'publishing' | 'keeping' | null>(null);
   const [writeError, setWriteError] = useState<{
     title: string;
     error: ReadError;
-    of: 'proposal' | 'publication';
+    of: 'proposal' | 'publication' | 'review';
   } | null>(null);
   const [report, setReport] = useState<{
     published: number;
@@ -396,6 +407,13 @@ function Editor({
     setCreateError(null);
     setCreatedNote(null);
   }, [readKey]);
+
+  const sourceCode = repository?.source ?? null;
+
+  // The source has no tab « À revoir » (DB-607).
+  useEffect(() => {
+    if (opened !== null && opened === sourceCode) setFilter((before) => (before === 'review' ? 'missing' : before));
+  }, [opened, sourceCode]);
 
   // A reload or a closed tab drops what was typed. The browser asks first.
   useEffect(() => {
@@ -529,6 +547,8 @@ function Editor({
   }
 
   const mayPropose = access.mayPropose(opened);
+  const editsSource = opened === repository.source;
+  const states = statesOf(editsSource);
   const mayPublish = access.mayPublish(opened);
   const read = catalogue.state === 'done' && proposed.state === 'done';
   const failed = catalogue.state === 'failed' || proposed.state === 'failed';
@@ -539,6 +559,11 @@ function Editor({
   // An edited proposal is not published: the publication copies the value of
   // the branch, not the text in the field.
   const ticked = [...approved].filter((id) => byId.get(id)?.proposal && !edited.has(id));
+  // A translation « à revoir » that a reviewer keeps as it is (DB-607).
+  const mayReview = access.mayReview(opened);
+  const keptIds = [...approved].filter((id) => byId.get(id)?.state === 'review' && !edited.has(id));
+  // The tick column shows where a tick acts: the proposals to publish, the translations to keep.
+  const tickable = (mayPublish && filter === 'proposed') || (mayReview && filter === 'review') ? approved : null;
   const found = matching(rows, query);
   const narrowed = scope ? under(found, scope) : found;
   // The counts follow the file and the search, so a tab never says more than its table shows.
@@ -709,6 +734,47 @@ function Editor({
     }
   };
 
+  const keep = async () => {
+    if (keptIds.length === 0 || busy !== null || leaving.size > 0) return;
+
+    setBusy('keeping');
+    setWriteError(null);
+    setReport(null);
+    setSentNote(null);
+
+    try {
+      const sent = keptIds.map((id) => byId.get(id)!);
+      const answer = await keepTranslations(api, {
+        repository: repository.id,
+        language: opened,
+        keys: sent.map((row) => ({ file: row.file, key: row.key })),
+      });
+
+      if (answer.pullRequest) reloadPublication();
+
+      setApproved(new Set());
+      // A kept translation reads as published again: its value does not change.
+      settle(filter === 'published' ? [] : answer.kept.map(idOf), () => {
+        setPublished(
+          (before) =>
+            new Map([
+              ...before,
+              ...answer.kept.map((row) => [idOf(row), byId.get(idOf(row))?.published ?? ''] as const),
+            ]),
+        );
+        reloadProgress();
+      });
+    } catch (error) {
+      setWriteError({
+        title: "Les traductions n'ont pas été gardées. Les cases cochées le sont toujours.",
+        error: readErrorOf(error),
+        of: 'review',
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const notices: string[] = read
     ? [
         ...filesIn(catalogue.value, 'disabled').map(
@@ -793,7 +859,7 @@ function Editor({
             <Languages
               languages={access.languages.map((code) => ({
                 code,
-                name: titleOf(nameOf(code)),
+                name: code === repository.source ? `${titleOf(nameOf(code))} (source)` : titleOf(nameOf(code)),
                 counts:
                   code === opened && read
                     ? countsOf(rows)
@@ -832,9 +898,10 @@ function Editor({
         )}
 
       <LanguageHeader
-        name={titleOf(nameOf(opened))}
+        name={opened === repository.source ? `${titleOf(nameOf(opened))} (source)` : titleOf(nameOf(opened))}
         code={opened}
-        sourceName={read ? nameOf(catalogue.value.source) : null}
+        // The source is translated from nothing.
+        sourceName={read && opened !== repository.source ? nameOf(catalogue.value.source) : null}
         // The whole language, not what the file or the search keeps.
         counts={read ? countsOf(rows) : null}
         readOnly={read && !mayPropose}
@@ -946,7 +1013,7 @@ function Editor({
               }}
               className="tabs"
             >
-              {ROW_STATES.map((state) => (
+              {states.map((state) => (
                 <ToggleButton key={state} id={state}>
                   {FILTER_LABEL[state]} <Count value={read ? counts[state] : null} state={state} />
                 </ToggleButton>
@@ -1013,7 +1080,7 @@ function Editor({
         <Failure
           title={writeError.title}
           error={writeError.error}
-          onRetry={writeError.of === 'proposal' ? save : release}
+          onRetry={writeError.of === 'proposal' ? save : writeError.of === 'review' ? keep : release}
           written
         />
       )}
@@ -1144,7 +1211,9 @@ function Editor({
                 })
               }
               readOnly={!mayPropose}
-              approved={mayPublish && filter === 'proposed' ? approved : null}
+              editsSource={editsSource}
+              states={states}
+              approved={tickable}
               onApprove={approve}
               refused={refusedWhy}
               onSubmit={save}
@@ -1186,8 +1255,10 @@ function Editor({
                 drafts={drafts}
                 onDraft={(id, value) => setDrafts((before) => new Map(before).set(id, value))}
                 readOnly={!mayPropose}
-                // The column that publishes shows where a proposal can be: under « Proposées ».
-                approved={mayPublish && filter === 'proposed' ? approved : null}
+                editsSource={editsSource}
+                ticksKeep={filter === 'review'}
+                // The column of the ticks shows where a tick acts: under « Proposées », and under « À revoir ».
+                approved={tickable}
                 onApprove={approve}
                 refused={refusedWhy}
                 leaving={leaving}
@@ -1208,10 +1279,13 @@ function Editor({
           )}
           {mayPropose && (
             <PendingBar
+              editsSource={editsSource}
               changed={changed.length}
               changedElsewhere={changedElsewhere}
               ticked={mayPublish ? ticked.length : null}
               tickedElsewhere={tickedElsewhere}
+              kept={mayReview ? keptIds.length : null}
+              onKeep={keep}
               elsewhere={view === 'key' ? 'hors de la liste filtrée' : 'hors de cette page'}
               busy={busy}
               locked={busy !== null || leaving.size > 0}

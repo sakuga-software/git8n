@@ -21,6 +21,7 @@ import {
 } from '@/services/i18n-pull-request.service';
 import { proposalSubject, publicationSubject } from '@/services/i18n-messages';
 import { LocaleFile, UnwritableKeyError } from '@/services/locale-file';
+import { reviewedLine, reviewsOf } from '@/services/i18n-review.service';
 
 export { UnwritableKeyError } from '@/services/locale-file';
 
@@ -40,6 +41,22 @@ export { UnwritableKeyError } from '@/services/locale-file';
 
 /** The branch a language is proposed on. */
 export const branchOf = (language: string): string => `i18n/${language}`;
+
+/**
+ * Refuses a language that is not the source and not a target.
+ *
+ * The source is written as a target is, through a proposal and a publication
+ * (DB-607). The route decides who may: `writes_source` for the source.
+ */
+const refuseAnUnknownLanguage = (repository: I18nRepository, language: string): void => {
+  const { source, targets } = languagesOf(repository);
+
+  if (language !== source && !targets.includes(language)) {
+    throw new UnknownLanguageError(
+      `${language} is not a language of this repository. Known: ${[source, ...targets].join(', ')}`,
+    );
+  }
+};
 
 /**
  * The trailer that says which revision a proposal was written against.
@@ -265,15 +282,21 @@ export const propose = async (
   readAt: string,
   options: { now?: Date } = {},
 ): Promise<Proposal> => {
-  const { targets } = languagesOf(repository);
+  const { source } = languagesOf(repository);
 
-  if (!targets.includes(language)) {
-    throw new UnknownLanguageError(
-      `${language} is not a language this repository translates into. Known: ${targets.join(', ') || 'none'}`,
-    );
-  }
+  refuseAnUnknownLanguage(repository, language);
 
   if (values.length === 0) throw new UnknownLanguageError('A proposal carries at least one key.');
+
+  // A source text is what every translation answers, so an empty one is
+  // refused. A target may leave a key empty: the key is then missing.
+  if (language === source) {
+    const blank = values.filter((value) => value.value.trim().length === 0).map((value) => value.key);
+
+    if (blank.length > 0) {
+      throw new UnwritableKeyError(`${blank.sort().join(', ')} has no text. A source key says something.`);
+    }
+  }
 
   const token = await writeToken(repository);
   const base = await headOf(repository, token, repository.branch);
@@ -311,6 +334,26 @@ export const propose = async (
   const known = await filesOf(repository, token, language, parent, { absentIsEmpty: true });
   const touched = [...new Set(values.map((value) => value.file))].sort();
   const files: FileToWrite[] = [];
+
+  // **A proposal of the source changes a key, and never adds one.** A new key
+  // goes through « Nouvelle clé » (DB-238), which checks the file and the name.
+  // Read on the base branch: a key that only a proposal holds is not a key.
+  if (language === source) {
+    const sourceFiles = await filesOf(repository, token, source, base);
+
+    for (const file of touched) {
+      const keys = sourceFiles.has(file)
+        ? new Set(pathsOf(await contentOf(repository, token, source, file, base)).map(([key]) => key))
+        : new Set<string>();
+      const unknown = values.filter((row) => row.file === file && !keys.has(row.key)).map((row) => row.key);
+
+      if (unknown.length > 0) {
+        throw new UnwritableKeyError(
+          `${unknown.sort().join(', ')} is not a key of ${source} ${file}. To add a key, use « Nouvelle clé ».`,
+        );
+      }
+    }
+  }
 
   for (const file of touched) {
     const content = known.has(file)
@@ -414,13 +457,9 @@ export interface ProposedKey {
  * could contradict the repository.
  */
 export const proposedKeys = async (repository: I18nRepository, language: string): Promise<ProposedKey[]> => {
-  const { source, targets } = languagesOf(repository);
+  const { source } = languagesOf(repository);
 
-  if (!targets.includes(language)) {
-    throw new UnknownLanguageError(
-      `${language} is not a language this repository translates into. Known: ${targets.join(', ') || 'none'}`,
-    );
-  }
+  refuseAnUnknownLanguage(repository, language);
 
   const token =
     repository.publishMode === 'pull_request' ? await publishToken(repository) : await writeToken(repository);
@@ -600,13 +639,9 @@ export const publish = async (
   reviewer: Author,
   options: { now?: Date; attempts?: number } = {},
 ): Promise<Publication> => {
-  const { source, targets } = languagesOf(repository);
+  const { source } = languagesOf(repository);
 
-  if (!targets.includes(language)) {
-    throw new UnknownLanguageError(
-      `${language} is not a language this repository translates into. Known: ${targets.join(', ') || 'none'}`,
-    );
-  }
+  refuseAnUnknownLanguage(repository, language);
 
   const token = await publishToken(repository);
   const attempts = options.attempts ?? 2;
@@ -917,4 +952,106 @@ export const createKeys = async (
   }
 
   throw new GithubError(`The branch moved under every attempt to create keys on it`, 409);
+};
+
+/** What a review ended as. */
+export interface Acknowledgement {
+  /** The commit that holds the `Reviewed:` trailers, or nothing when no key was to read again. */
+  commit: string | null;
+  /** The keys kept as they are. */
+  kept: Array<{ file: string; key: string }>;
+  /** The keys that were not to read again, and so were left out. */
+  skipped: Array<{ file: string; key: string }>;
+  pullRequest: PublishPull | null;
+}
+
+/**
+ * Keeps translations as they are, after their source changed (DB-607).
+ *
+ * A translation that still fits its new source has no new value to propose:
+ * the editor refuses a proposal equal to what is published, and git has no
+ * change to commit. So a reviewer keeps it here. The commit changes no file
+ * and carries one `Reviewed:` trailer per key. `reviewsOf` reads it as the
+ * last event of the key, which clears « à revoir ».
+ *
+ * The commit goes where a publication goes: the base branch, or the branch of
+ * the publications in the mode `pull_request`. The state clears when it
+ * reaches the base branch.
+ */
+export const acknowledge = async (
+  repository: I18nRepository,
+  language: string,
+  keys: Array<{ file: string; key: string }>,
+  reviewer: Author,
+  options: { now?: Date; attempts?: number } = {},
+): Promise<Acknowledgement> => {
+  const { targets } = languagesOf(repository);
+
+  if (!targets.includes(language)) {
+    throw new UnknownLanguageError(
+      `${language} is not a language this repository translates into. Known: ${targets.join(', ') || 'none'}`,
+    );
+  }
+
+  if (keys.length === 0) throw new UnwritableKeyError('A review carries at least one key.');
+
+  const token = await publishToken(repository);
+  const attempts = options.attempts ?? 2;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const base = await headOf(repository, token, repository.branch);
+
+    if (!base) throw new GithubError(`${repository.branch} is not a branch of this repository`, 404);
+
+    const reviews = await reviewsOf(repository, token, base, language);
+    const kept = keys.filter((row) => reviews.has(`${row.file}\n${row.key}`));
+    const skipped = keys.filter((row) => !reviews.has(`${row.file}\n${row.key}`));
+
+    if (kept.length === 0) {
+      return {
+        commit: null,
+        kept,
+        skipped,
+        pullRequest: repository.publishMode === 'pull_request' ? await lastPullOf(repository, token) : null,
+      };
+    }
+
+    const target = await publishTarget(repository, token, base);
+
+    try {
+      const commit = await commitBatch(repository, token, {
+        branch: target.branch,
+        parent: target.parent,
+        expected: target.expected,
+        force: target.force,
+        files: [],
+        // The summary lists at most a few keys. The trailers list every one:
+        // they are what clears the state, and a key cut from them stays to review.
+        message: [
+          publicationMessage(
+            publicationSubject(repository, language, kept.length, 'reviewed', reviewer),
+            language,
+            kept,
+          ),
+          '',
+          ...kept.map((row) => reviewedLine(language, row)),
+        ].join('\n'),
+        author: reviewer,
+        at: options.now ?? new Date(),
+      });
+
+      forgetCatalogues(repository.id);
+
+      return {
+        commit,
+        kept,
+        skipped,
+        pullRequest: repository.publishMode === 'pull_request' ? await ensurePull(repository, token) : null,
+      };
+    } catch (error) {
+      if (!(error instanceof StaleBranchError)) throw error;
+    }
+  }
+
+  throw new GithubError(`The branch moved under every attempt to keep translations on it`, 409);
 };

@@ -66,7 +66,10 @@ export interface CatalogueEntry {
   key: string;
   source: string;
   value: string | null;
-  state: 'translated' | 'missing';
+  /** `review`: a translation whose source changed after it was written (DB-607). */
+  state: 'translated' | 'missing' | 'review';
+  /** For `review` only: the source text the translation answers. `source` is the text now. */
+  was?: string;
 }
 
 export interface Catalogue {
@@ -423,11 +426,30 @@ export interface CreatedKeys {
 export const createKeys = (config: ApiConfig, batch: { repository: string; values: ProposedValue[] }) =>
   ask<CreatedKeys>(config, '/i18n/keys', batch);
 
+/** What keeping translations after a change of their source ended as (DB-607). */
+export interface Reviewed {
+  commit: string | null;
+  kept: Array<{ file: string; key: string }>;
+  skipped: Array<{ file: string; key: string }>;
+  pullRequest: PublishPull | null;
+}
+
+/**
+ * Keeps translations as they are, after their source changed. The MCP server
+ * exposes no tool for it: as a publication, a person does it.
+ */
+export const keepTranslations = (
+  config: ApiConfig,
+  batch: { repository: string; language: string; keys: Array<{ file: string; key: string }> },
+) => ask<Reviewed>(config, '/i18n/reviews', batch);
+
 export interface LanguageProgress {
   language: string;
   published: number;
   proposed: number;
   missing: number;
+  /** Translations whose source changed after they were written (DB-607). */
+  review: number;
   total: number;
 }
 

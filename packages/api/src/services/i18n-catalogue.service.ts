@@ -7,6 +7,7 @@ import {
   installationToken,
 } from '@/services/github-app.service';
 import { languagesOf, UnknownLanguageError } from '@/services/i18n-repositories.service';
+import { reviewsOf } from '@/services/i18n-review.service';
 import { fileName, localeManifestSchema, type FileState } from '@/schemas/i18n';
 import { describeError } from '@/utils/describe-error';
 import { logger } from '@/utils/logger';
@@ -36,12 +37,15 @@ export interface CatalogueEntry {
   /** What the target language says, or nothing when it says nothing. */
   value: string | null;
   /**
-   * `translated` or `missing`.
+   * `translated`, `missing` or `review`.
    *
    * An empty value counts as missing. i18next falls back on it instead of
-   * drawing a blank line.
+   * drawing a blank line. `review` is a translation whose source changed after
+   * it was written (DB-607).
    */
-  state: 'translated' | 'missing';
+  state: 'translated' | 'missing' | 'review';
+  /** For `review` only: the source text the translation answers. `source` is the text now. */
+  was?: string;
 }
 
 export interface Catalogue {
@@ -268,12 +272,13 @@ const read = async (repository: I18nRepository, language: string): Promise<Catal
   // to the content returned (DB-212). The contents API takes a commit as
   // `ref`.
   const commit = await headCommit(repository, token);
-  const [sourceFiles, targetFiles, stateOf] = await Promise.all([
+  const [sourceFiles, targetFiles, stateOf, reviews] = await Promise.all([
     filesOf(repository, token, source, commit),
     language === source
       ? Promise.resolve(new Map<string, string>())
       : filesOf(repository, token, language, commit, { absentIsEmpty: true }),
     manifestOf(repository, token, commit),
+    reviewsOf(repository, token, commit, language),
   ]);
 
   const entries: CatalogueEntry[] = [];
@@ -303,13 +308,18 @@ const read = async (repository: I18nRepository, language: string): Promise<Catal
     for (const [key, value] of pathsOf(sourceContent)) {
       const answer = target.get(key);
       const translated = typeof answer === 'string' && answer.length > 0;
+      const text = typeof value === 'string' ? value : String(value ?? '');
+      // A source that changed and came back to its old text asks nothing.
+      const review = translated ? reviews.get(`${file}\n${key}`) : undefined;
+      const stale = review !== undefined && review.was !== text;
 
       entries.push({
         file,
         key,
-        source: typeof value === 'string' ? value : String(value ?? ''),
+        source: text,
         value: translated ? (answer as string) : null,
-        state: translated ? 'translated' : 'missing',
+        state: stale ? 'review' : translated ? 'translated' : 'missing',
+        ...(stale ? { was: review.was } : {}),
       });
     }
   }

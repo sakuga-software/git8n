@@ -197,10 +197,17 @@ export const Published = ({ size = 18 }: { size?: number }) => (
  * The mark of a state, inside its badge. The three differ by their shape, so
  * a state reads without its colour: a dashed ring, a half disc, a full disc.
  */
-export const StateMark = ({ state }: { state: 'missing' | 'proposed' | 'published' }) => (
+export const StateMark = ({ state }: { state: 'missing' | 'review' | 'proposed' | 'published' }) => (
   <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" className="flex-none">
     {state === 'missing' && (
       <circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2.2 1.8" />
+    )}
+    {state === 'review' && (
+      <>
+        <circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M6 3.4v3.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="6" cy="8.5" r="0.85" fill="currentColor" />
+      </>
     )}
     {state === 'proposed' && (
       <>

@@ -78,8 +78,48 @@ describe('the rows of the table', () => {
   it('counts each state', () => {
     expect(countsOf(rowsOf(catalogue, [proposal('common', 'bye', 'Goodbye')]))).toEqual({
       missing: 1,
+      review: 0,
       proposed: 1,
       published: 2,
+    });
+  });
+
+  /** A translation whose source changed is to read again (DB-607). */
+  it('puts a translation to read again after the missing keys, with the source it answers', () => {
+    const changed: Catalogue = {
+      ...catalogue,
+      entries: catalogue.entries.map((entry) =>
+        entry.key === 'hello' ? { ...entry, source: 'Salut', state: 'review' as const, was: 'Bonjour' } : entry,
+      ),
+    };
+    const rows = rowsOf(changed, []);
+
+    expect(rows.map((row) => [row.state, row.key])).toEqual([
+      ['missing', 'title'],
+      ['missing', 'bye'],
+      ['review', 'hello'],
+      ['published', 'save'],
+    ]);
+    expect(rows.find((row) => row.key === 'hello')).toMatchObject({
+      was: 'Bonjour',
+      source: 'Salut',
+      published: 'Hello',
+    });
+    expect(countsOf(rows)).toMatchObject({ review: 1, published: 1 });
+  });
+
+  /** A new proposal answers the new source: the row is proposed, and no longer to read again. */
+  it('calls a translation to read again proposed when a new value waits for it', () => {
+    const changed: Catalogue = {
+      ...catalogue,
+      entries: catalogue.entries.map((entry) =>
+        entry.key === 'hello' ? { ...entry, state: 'review' as const, was: 'Bonjour' } : entry,
+      ),
+    };
+
+    expect(rowsOf(changed, [proposal('common', 'hello', 'Hi')]).find((row) => row.key === 'hello')).toMatchObject({
+      state: 'proposed',
+      was: null,
     });
   });
 
@@ -101,6 +141,33 @@ describe('the rows of the table', () => {
 
 describe('what an account can do', () => {
   const targets = ['en', 'de'];
+
+  /** The source is a language of its own in the list, and written by `writes_source` alone (DB-607). */
+  it('lists the source first, and lets only an account that writes the source write it', () => {
+    const writer = accessOf(
+      { admin: false, rights: { languages: [], role: 'translator', writesSource: true } },
+      targets,
+      'fr',
+    );
+    const reviewer = accessOf({ admin: false, rights: { languages: ['en', 'fr'], role: 'reviewer' } }, targets, 'fr');
+
+    expect(writer.languages).toEqual(['fr', 'en', 'de']);
+    expect(writer.mayPropose('fr')).toBe(true);
+    expect(writer.mayPublish('fr')).toBe(true);
+    expect(reviewer.languages).toEqual(['fr', 'en']);
+    expect(reviewer.mayPropose('fr')).toBe(false);
+    expect(reviewer.mayPublish('fr')).toBe(false);
+  });
+
+  it('lets a reviewer of a language keep its translations, and nobody keep the source', () => {
+    const reviewer = accessOf({ admin: false, rights: { languages: ['en'], role: 'reviewer' } }, targets, 'fr');
+    const translator = accessOf({ admin: false, rights: { languages: ['en'], role: 'translator' } }, targets, 'fr');
+
+    expect(reviewer.mayReview('en')).toBe(true);
+    expect(reviewer.mayReview('de')).toBe(false);
+    expect(reviewer.mayReview('fr')).toBe(false);
+    expect(translator.mayReview('en')).toBe(false);
+  });
 
   it('lets an admin with no grant read every language and write none', () => {
     const access = accessOf({ admin: true, rights: null }, targets);
@@ -224,6 +291,7 @@ describe('a search of the table', () => {
         }
       : null,
     state: proposed ? 'proposed' : published === null ? 'missing' : 'published',
+    was: null,
   });
   const rows = [
     row('settings.logout', 'Déconnexion', null),
@@ -363,13 +431,15 @@ describe('an account that writes the source', () => {
 
 describe('the share that is published', () => {
   it('rounds down, so that a language with a key left never reads 100 %', () => {
-    expect(shareOf({ published: 1506, proposed: 23, missing: 142 })).toBe(90);
-    expect(shareOf({ published: 999, proposed: 0, missing: 1 })).toBe(99);
-    expect(shareOf({ published: 4, proposed: 0, missing: 0 })).toBe(100);
+    expect(shareOf({ published: 1506, proposed: 23, missing: 142, review: 0 })).toBe(90);
+    expect(shareOf({ published: 999, proposed: 0, missing: 1, review: 0 })).toBe(99);
+    expect(shareOf({ published: 4, proposed: 0, missing: 0, review: 0 })).toBe(100);
+    // A translation to read again is not published: the share says so.
+    expect(shareOf({ published: 3, proposed: 0, missing: 0, review: 1 })).toBe(75);
   });
 
   it('is unknown with no key, and not zero', () => {
-    expect(shareOf({ published: 0, proposed: 0, missing: 0 })).toBeNull();
+    expect(shareOf({ published: 0, proposed: 0, missing: 0, review: 0 })).toBeNull();
   });
 });
 
@@ -431,6 +501,7 @@ describe('neighboursOf', () => {
     published: state === 'published' ? value : null,
     proposal: state === 'proposed' ? proposal(file, key, value ?? '') : null,
     state,
+    was: null,
   });
 
   const rows: Row[] = [

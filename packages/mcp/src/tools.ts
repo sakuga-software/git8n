@@ -50,9 +50,11 @@ export const languageSchema = {
 export const listSchema = {
   ...languageSchema,
   state: z
-    .enum(['missing', 'translated', 'all'])
+    .enum(['missing', 'review', 'translated', 'all'])
     .default('missing')
-    .describe('Which keys to answer. `missing` is what there is work on.'),
+    .describe(
+      'Which keys to answer. `missing` is what there is work on. `review` is a translation whose source changed: `was` holds the old source.',
+    ),
   file: fileName.optional().describe('Only the keys of this file, for example `common`.'),
   offset: z.number().int().min(0).default(0).describe('Where to start, for a catalogue past one answer.'),
 };

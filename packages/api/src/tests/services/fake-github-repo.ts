@@ -165,6 +165,14 @@ export const fakeRepo = (options: {
     return seen;
   };
 
+  /** The files a commit changed against its first parent, as the commit API lists them. */
+  const changedPaths = (commit: Commit): string[] => {
+    const before = state.commits.get(commit.parents[0] ?? '')?.files ?? new Map<string, string>();
+    const paths = new Set([...commit.files.keys(), ...before.keys()]);
+
+    return [...paths].filter((path) => commit.files.get(path) !== before.get(path)).sort();
+  };
+
   /** Whether `commit` is `of` itself, or was built on it. */
   const descends = (commit: string, of: string): boolean => ancestry(commit).has(of);
 
@@ -319,13 +327,44 @@ export const fakeRepo = (options: {
       return json({ sha: made });
     }
 
+    if (method === 'GET' && rest === '/commits') {
+      // The history of a ref, newest first, as `git log` walks it: every
+      // parent of a merge. A path keeps the commits that changed a file under
+      // it, against their first parent (DB-607).
+      const from = String(at.searchParams.get('sha'));
+      const head = state.refs.get(from) ?? from;
+      const since = at.searchParams.get('since');
+      const under = at.searchParams.get('path');
+      const perPage = Number(at.searchParams.get('per_page') ?? 30);
+      const page = Number(at.searchParams.get('page') ?? 1);
+      // `ancestry` walks from the head, breadth first: newest first on a line.
+      const rows = [...ancestry(head)]
+        .map((one) => state.commits.get(one)!)
+        .filter((commit) => !since || commit.author.date >= since)
+        .filter((commit) => !under || changedPaths(commit).some((file) => file.startsWith(`${under}/`)))
+        .slice((page - 1) * perPage, page * perPage);
+
+      return json(
+        rows.map((commit) => ({
+          sha: commit.sha,
+          commit: { message: commit.message, author: commit.author },
+          parents: commit.parents.map((one) => ({ sha: one })),
+        })),
+      );
+    }
+
     if (method === 'GET' && rest.startsWith('/commits/')) {
       // GitHub answers a branch name here too, with the commit it points at.
       const named = decodeURIComponent(rest.replace('/commits/', ''));
       const commit = state.commits.get(state.refs.get(named) ?? named);
 
       return commit
-        ? json({ sha: commit.sha, commit: { message: commit.message, author: commit.author } })
+        ? json({
+            sha: commit.sha,
+            commit: { message: commit.message, author: commit.author },
+            parents: commit.parents.map((one) => ({ sha: one })),
+            files: changedPaths(commit).map((filename) => ({ filename })),
+          })
         : fail(404, 'No commit');
     }
 
