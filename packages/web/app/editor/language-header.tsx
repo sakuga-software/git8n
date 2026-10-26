@@ -43,7 +43,7 @@ function Progress({ counts }: { counts: Record<RowState, number> | null }) {
 export function LanguageHeader({
   name,
   code,
-  sourceName,
+  source,
   counts,
   readOnly,
   notices,
@@ -55,8 +55,8 @@ export function LanguageHeader({
   /** « Anglais ». */
   name: string;
   code: string;
-  /** « français », or `null` before the first read. */
-  sourceName: string | null;
+  /** The language this one is translated from. `null` for the source itself, and before the first read. */
+  source: { name: string; code: string } | null;
   /** `null` before the first read: the legend then says dashes, never zeros. */
   counts: Record<RowState, number> | null;
   /** The account reads this language and cannot write it. The title says so: a dialog alone would hide why a field refuses. */
@@ -89,7 +89,14 @@ export function LanguageHeader({
           <span className="border-line-strong text-sub rounded-[5px] border px-1.5 py-px font-mono text-xs">
             {code}
           </span>
-          {sourceName && !compact && <span className="text-muted text-[13px]">traduit depuis le {sourceName}</span>}
+          {source && (
+            <span
+              title={`Traduit depuis le ${source.name}`}
+              className="border-line text-muted rounded-[5px] border px-1.5 py-px text-xs"
+            >
+              source <span className="font-mono">{source.code.toUpperCase()}</span>
+            </span>
+          )}
           {compact && (
             <span className="text-sub text-[13px]">
               <strong className="text-ink font-semibold">{share}</strong> publié ·{' '}
