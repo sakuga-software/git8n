@@ -2,6 +2,7 @@ import { Button } from '@heroui/react/button';
 import { SearchField } from '@heroui/react/search-field';
 import { ToggleButton } from '@heroui/react/toggle-button';
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group';
+import { Tooltip } from '@heroui/react/tooltip';
 import { use, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router';
@@ -299,14 +300,18 @@ function ViewSwitch({ view, onView, isDisabled }: { view: View; onView: (view: V
       }}
       className="switch"
     >
-      <ToggleButton id="table">
-        <TableView size={15} />
-        Tableau
-      </ToggleButton>
-      <ToggleButton id="key">
-        <KeyView size={15} />
-        Clé par clé
-      </ToggleButton>
+      <Tooltip delay={300}>
+        <ToggleButton id="table" aria-label="Tableau">
+          <TableView size={15} />
+        </ToggleButton>
+        <Tooltip.Content>Tableau</Tooltip.Content>
+      </Tooltip>
+      <Tooltip delay={300}>
+        <ToggleButton id="key" aria-label="Clé par clé">
+          <KeyView size={15} />
+        </ToggleButton>
+        <Tooltip.Content>Clé par clé</Tooltip.Content>
+      </Tooltip>
     </ToggleButtonGroup>
   );
 }
