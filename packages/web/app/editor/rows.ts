@@ -4,12 +4,17 @@ import type { Catalogue, ProposedKey, Rights } from '@i18n-editor/mcp/api';
  * What a key is for a translator, in the order the table shows it (DB-213).
  *
  * - `missing`: the base branch says nothing, and nobody proposed anything;
+ * - `review`: the base branch says it, and its source changed since (DB-607);
  * - `proposed`: a batch waits on the branch of the language;
  * - `published`: the base branch says it.
  */
-export type RowState = 'missing' | 'proposed' | 'published';
+export type RowState = 'missing' | 'review' | 'proposed' | 'published';
 
-export const ROW_STATES: readonly RowState[] = ['missing', 'proposed', 'published'];
+export const ROW_STATES: readonly RowState[] = ['missing', 'review', 'proposed', 'published'];
+
+/** The tabs of a language. The source answers no other text, so nothing in it is to read again (DB-607). */
+export const statesOf = (isSource: boolean): readonly RowState[] =>
+  isSource ? ROW_STATES.filter((state) => state !== 'review') : ROW_STATES;
 
 export interface Row {
   file: string;
@@ -20,6 +25,8 @@ export interface Row {
   /** What waits on the branch of the language, with the batch a publication names. */
   proposal: ProposedKey | null;
   state: RowState;
+  /** For `review`: the source text the published translation answers. `source` is the text now. */
+  was: string | null;
 }
 
 export const idOf = (row: { file: string; key: string }): string => `${row.file}\n${row.key}`;
@@ -102,7 +109,14 @@ export const rowsOf = (catalogue: Catalogue, proposed: readonly ProposedKey[]): 
         source: entry.source,
         published: entry.value,
         proposal,
-        state: proposal ? 'proposed' : entry.state === 'translated' ? 'published' : 'missing',
+        state: proposal
+          ? 'proposed'
+          : entry.state === 'review'
+            ? 'review'
+            : entry.state === 'translated'
+              ? 'published'
+              : 'missing',
+        was: !proposal && entry.state === 'review' ? (entry.was ?? '') : null,
       };
     })
     .sort(
@@ -115,6 +129,7 @@ export const rowsOf = (catalogue: Catalogue, proposed: readonly ProposedKey[]): 
 
 export const countsOf = (rows: readonly Row[]): Record<RowState, number> => ({
   missing: rows.filter((row) => row.state === 'missing').length,
+  review: rows.filter((row) => row.state === 'review').length,
   proposed: rows.filter((row) => row.state === 'proposed').length,
   published: rows.filter((row) => row.state === 'published').length,
 });
@@ -125,7 +140,7 @@ export const countsOf = (rows: readonly Row[]): Record<RowState, number> => ({
  * Rounded down: 99.6 % published is not « 100 % », which would say that nothing is left.
  */
 export const shareOf = (counts: Record<RowState, number>): number | null => {
-  const total = counts.published + counts.proposed + counts.missing;
+  const total = counts.published + counts.proposed + counts.missing + counts.review;
 
   return total === 0 ? null : Math.floor((counts.published / total) * 100);
 };
@@ -138,10 +153,12 @@ export const filesIn = (catalogue: Catalogue, state: 'partial' | 'disabled'): st
     .sort();
 
 export interface Access {
-  /** The languages the account can open, in the order of the repository. */
+  /** The languages the account can open, in the order of the repository: the source first. */
   languages: string[];
   mayPropose: (language: string) => boolean;
   mayPublish: (language: string) => boolean;
+  /** Whether the account may keep a translation as it is after its source changed (DB-607). */
+  mayReview: (language: string) => boolean;
   /** Whether the account may add a key to the source language (DB-238). */
   mayCreate: boolean;
 }
@@ -156,15 +173,24 @@ export interface Access {
  * An account that writes the source opens every language, as an admin does. A
  * key is created to be translated, and its author must see where it lands.
  */
-export const accessOf = (rights: Rights, targets: readonly string[]): Access => {
+export const accessOf = (rights: Rights, targets: readonly string[], source?: string): Access => {
   const granted = rights.rights?.languages ?? [];
-  const mayPropose = (language: string) => granted.includes(language) && targets.includes(language);
   const mayCreate = rights.rights?.writesSource === true;
+  const isTarget = (language: string) => granted.includes(language) && targets.includes(language);
+  const reviews = (language: string) => isTarget(language) && rights.rights?.role === 'reviewer';
+  // The source is written and published by `writes_source` alone (DB-607).
+  // Every account that opens the repository reads it: it is what a
+  // translation answers.
+  const isSource = (language: string) => source !== undefined && language === source;
 
   return {
-    languages: targets.filter((language) => rights.admin || mayCreate || granted.includes(language)),
-    mayPropose,
-    mayPublish: (language) => mayPropose(language) && rights.rights?.role === 'reviewer',
+    languages: [
+      ...(source !== undefined ? [source] : []),
+      ...targets.filter((language) => rights.admin || mayCreate || granted.includes(language)),
+    ],
+    mayPropose: (language) => (isSource(language) ? mayCreate : isTarget(language)),
+    mayPublish: (language) => (isSource(language) ? mayCreate : reviews(language)),
+    mayReview: (language) => !isSource(language) && reviews(language),
     mayCreate,
   };
 };

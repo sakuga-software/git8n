@@ -214,6 +214,20 @@ export const publicationSchema = z.object({
 });
 
 /**
+ * Translations a reviewer keeps as they are, after their source changed (DB-607).
+ *
+ * No value is sent: the translation stays what the base branch says.
+ */
+export const reviewSchema = z.object({
+  repository: z.string().min(1),
+  language: z.string().regex(/^[A-Za-z0-9_-]+$/, 'A language is a tag such as fr or pt-BR'),
+  keys: z
+    .array(z.object({ file: fileName, key: translationKey }))
+    .min(1)
+    .max(2000),
+});
+
+/**
  * The keys an account adds to the source language (DB-238).
  *
  * No language is named: the source of a repository is the first language of

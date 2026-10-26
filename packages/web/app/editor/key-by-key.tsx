@@ -8,19 +8,32 @@ import { ArrowRight, ChevronDown, Copy, External, StateMark, Undo } from './icon
 import { idOf, isEdited, ROW_STATES, type Neighbours, type Page, type Row, type RowState } from './rows';
 import { dayOf, OUTSIDE } from './table';
 import { SameSection } from './neighbours';
+import { WasSource } from './was-source';
 import { Tick } from './ui';
 
-const STATE_LABEL: Record<RowState, string> = { missing: 'Manquante', proposed: 'Proposée', published: 'Publiée' };
-const FILTER_LABEL: Record<RowState, string> = { missing: 'Manquantes', proposed: 'Proposées', published: 'Publiées' };
+const STATE_LABEL: Record<RowState, string> = {
+  missing: 'Manquante',
+  review: 'À revoir',
+  proposed: 'Proposée',
+  published: 'Publiée',
+};
+const FILTER_LABEL: Record<RowState, string> = {
+  missing: 'Manquantes',
+  review: 'À revoir',
+  proposed: 'Proposées',
+  published: 'Publiées',
+};
 
 const STATE_STYLE: Record<RowState, string> = {
   missing: 'bg-missing border-missing-line text-missing-ink',
+  review: 'bg-alarm border-alarm-line text-alarm-ink',
   proposed: 'bg-proposed border-proposed-line text-proposed-ink',
   published: 'bg-published border-published-line text-published-ink',
 };
 
 const COUNT_STYLE: Record<RowState, string> = {
   missing: 'text-missing-ink',
+  review: 'text-alarm-ink',
   proposed: 'text-proposed-ink',
   published: 'text-muted',
 };
@@ -58,6 +71,10 @@ interface Props {
   onStep: (by: -1 | 1) => boolean;
   filter: RowState;
   onFilter: (state: RowState) => void;
+  /** The tabs of the open language, in order. */
+  states?: readonly RowState[];
+  /** The open language is the source: the field writes the source text, not a translation (DB-607). */
+  editsSource?: boolean;
   /** `null` while nothing is read: a count is then a dash. */
   counts: Record<RowState, number> | null;
   query: string;
@@ -94,6 +111,8 @@ interface Props {
  * same file. This view changes how a key is shown, not which keys are shown.
  */
 export function KeyByKey({
+  states = ROW_STATES,
+  editsSource = false,
   page,
   onPage,
   open,
@@ -201,7 +220,7 @@ export function KeyByKey({
             }}
             className="segments"
           >
-            {ROW_STATES.map((state) => (
+            {states.map((state) => (
               <ToggleButton key={state} id={state}>
                 {FILTER_LABEL[state]} {/* A count nobody read is a dash, never a zero. */}
                 <span className={`font-mono text-xs ${COUNT_STYLE[state]}`}>
@@ -369,7 +388,9 @@ export function KeyByKey({
 
             <div className="flex flex-col gap-2">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-xs font-semibold">Source · {source.name}</span>
+                <span className="text-xs font-semibold">
+                  {editsSource ? 'Texte publié' : 'Source'} · {source.name}
+                </span>
                 <span className="text-muted text-xs">{lengthOf(row.source)}</span>
               </div>
               <p
@@ -379,19 +400,20 @@ export function KeyByKey({
               >
                 {row.source}
               </p>
+              {row.was !== null && <WasSource was={row.was} lang={source.code} />}
             </div>
 
             <div className="flex flex-col gap-2">
               <div className="flex items-baseline justify-between gap-3">
                 <label htmlFor="open-key-field" className="text-xs font-semibold">
-                  Traduction · {language.name}
+                  {editsSource ? 'Nouveau texte' : 'Traduction'} · {language.name}
                 </label>
                 <span className="text-muted text-xs">{lengthOf(draft ?? held)}</span>
               </div>
               <TextArea
                 ref={field}
                 id="open-key-field"
-                aria-label={`Traduction de ${row.key} (${row.file})`}
+                aria-label={`${editsSource ? 'Texte' : 'Traduction'} de ${row.key} (${row.file})`}
                 aria-describedby="open-key-source"
                 aria-keyshortcuts="Alt+ArrowDown Alt+ArrowUp"
                 lang={language.code}
@@ -428,15 +450,15 @@ export function KeyByKey({
                     Rétablir
                   </Button>
                 )}
-                {approved && row.proposal && (
+                {approved && (row.proposal || row.state === 'review') && (
                   <label className="text-sub inline-flex items-center gap-2 text-[13px]">
                     <Tick
-                      label={`Publier ${row.key} (${row.file})`}
+                      label={`${row.state === 'review' ? 'Garder' : 'Publier'} ${row.key} (${row.file})`}
                       isSelected={!edited && approved.has(id)}
                       isDisabled={edited}
                       onChange={(on) => onApprove([id], on)}
                     />
-                    Publier cette clé
+                    {row.state === 'review' ? 'Garder cette traduction' : 'Publier cette clé'}
                   </label>
                 )}
               </div>

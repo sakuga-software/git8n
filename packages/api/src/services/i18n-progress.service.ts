@@ -3,12 +3,14 @@ import { getCatalogue } from '@/services/i18n-catalogue.service';
 import { proposedKeys } from '@/services/i18n-git.service';
 import { languagesOf } from '@/services/i18n-repositories.service';
 
-/** How far one language is: every key of the source is in one of the three counts. */
+/** How far one language is: every key of the source is in one of the four counts. */
 export interface LanguageProgress {
   language: string;
   published: number;
   proposed: number;
   missing: number;
+  /** Translations whose source changed after they were written (DB-607). */
+  review: number;
   total: number;
 }
 
@@ -58,10 +60,11 @@ const read = async (repository: I18nRepository, language: string): Promise<Langu
     proposedKeys(repository, language),
   ]);
   const proposedIds = new Set(waiting.map(idOf));
-  const counts = { published: 0, proposed: 0, missing: 0 };
+  const counts = { published: 0, proposed: 0, missing: 0, review: 0 };
 
   for (const entry of catalogue.entries) {
     if (proposedIds.has(idOf(entry))) counts.proposed += 1;
+    else if (entry.state === 'review') counts.review += 1;
     else if (entry.state === 'translated') counts.published += 1;
     else counts.missing += 1;
   }

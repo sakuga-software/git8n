@@ -17,7 +17,7 @@ const node = (name: string, file: string, path: string): TreeNode => ({
   name,
   file,
   path,
-  counts: { missing: 0, proposed: 0, published: 0 },
+  counts: { missing: 0, review: 0, proposed: 0, published: 0 },
   total: 0,
   children: [],
 });

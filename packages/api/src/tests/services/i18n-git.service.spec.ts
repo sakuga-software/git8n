@@ -309,16 +309,23 @@ describe('proposing', () => {
 
     await expect(
       propose(repository, 'de', [{ file: 'common', key: 'hello', value: 'Hallo' }], translator, readCommit()),
-    ).rejects.toThrow(/not a language this repository translates into/);
+    ).rejects.toThrow(/not a language of this repository/);
   });
 
-  /** The source is not proposed in: it is what the others are translated from. */
-  it('refuses the source language', async () => {
+  /** The source is proposed in as a target is, on its own branch (DB-607). The route decides who may. */
+  it('proposes a change of the source on the branch of the source', async () => {
     start({ [`${LOCALES}/fr/common.json`]: { hello: 'Bonjour' } });
 
-    await expect(
-      propose(repository, 'fr', [{ file: 'common', key: 'hello', value: 'Salut' }], translator, readCommit()),
-    ).rejects.toThrow(/not a language this repository translates into/);
+    const proposal = await propose(
+      repository,
+      'fr',
+      [{ file: 'common', key: 'hello', value: 'Salut' }],
+      translator,
+      readCommit(),
+    );
+
+    expect(proposal.branch).toBe('i18n/fr');
+    expect(parsed(repo, proposal.commit, `${LOCALES}/fr/common.json`)).toEqual({ hello: 'Salut' });
   });
 });
 
@@ -869,7 +876,7 @@ describe('the keys that wait on a branch', () => {
   it('refuses a language the repository does not translate into', async () => {
     started();
 
-    await expect(proposedKeys(repository, 'de')).rejects.toThrow(/not a language this repository translates into/);
+    await expect(proposedKeys(repository, 'de')).rejects.toThrow(/not a language of this repository/);
   });
 });
 

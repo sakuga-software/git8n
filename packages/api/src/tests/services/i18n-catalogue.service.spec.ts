@@ -64,6 +64,9 @@ const github = (files: Record<string, Record<string, unknown>>, manifest?: unkno
 
     if (path.includes('/commits/')) return ok({ sha: 'c0ffee1234' });
 
+    // No source text changed since the connection, so nothing is to read again (DB-607).
+    if (path.includes('/commits?')) return ok([]);
+
     if (path.includes('locales/manifest.json?')) {
       return manifest === undefined ? missing() : ok({ content: base64(manifest), encoding: 'base64', sha: 'm' });
     }

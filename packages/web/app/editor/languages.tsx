@@ -19,7 +19,7 @@ const percentOf = (counts: LanguageCard['counts']): string => {
 };
 
 function Bar({ counts }: { counts: LanguageCard['counts'] }) {
-  const total = counts ? counts.published + counts.proposed + counts.missing : 0;
+  const total = counts ? counts.published + counts.proposed + counts.missing + counts.review : 0;
 
   return (
     <span aria-hidden="true" className="bg-line flex h-1 overflow-hidden rounded-full">
@@ -27,6 +27,7 @@ function Bar({ counts }: { counts: LanguageCard['counts'] }) {
         <>
           <span className="bg-published-ink" style={{ width: `${(counts.published / total) * 100}%` }} />
           <span className="bg-signal" style={{ width: `${(counts.proposed / total) * 100}%` }} />
+          <span className="bg-alarm-line" style={{ width: `${(counts.review / total) * 100}%` }} />
         </>
       )}
     </span>

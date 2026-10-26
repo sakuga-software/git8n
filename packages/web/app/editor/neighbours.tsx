@@ -5,6 +5,7 @@ const STATE_LABEL: Record<NeighbourState, string> = {
   proposed: 'Proposée',
   edited: 'Modifiée',
   missing: 'Manquante',
+  review: 'À revoir',
 };
 
 const STATE_INK: Record<NeighbourState, string> = {
@@ -12,6 +13,7 @@ const STATE_INK: Record<NeighbourState, string> = {
   proposed: 'text-proposed-ink',
   edited: 'text-sub',
   missing: 'text-missing-ink',
+  review: 'text-alarm-ink',
 };
 
 const countOf = (value: number): string => value.toLocaleString('fr-FR');

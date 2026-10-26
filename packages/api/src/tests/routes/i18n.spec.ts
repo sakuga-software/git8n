@@ -48,6 +48,9 @@ const github = () =>
     const path = String(url);
 
     if (path.includes('/commits/')) return ok({ sha: 'c0ffee1234' });
+
+    // No source text changed since the connection (DB-607).
+    if (path.includes('/commits?')) return ok([]);
     // This repository holds no manifest, so every file is available (DB-225).
     if (path.includes('locales/manifest.json?')) {
       return { ok: false, status: 404, json: async () => ({ message: 'Not Found' }) };
@@ -1014,6 +1017,103 @@ describe('the write path', () => {
       withRepo();
 
       expect((await post('/i18n/keys', {}, body(repoRow.id))).status).toBe(401);
+    });
+  });
+
+  /**
+   * Who may change a text of the source, and keep a translation after it (DB-607).
+   *
+   * The source is proposed and published by `writes_source` alone. A grant of
+   * the source as a language grants nothing, and neither does an admin.
+   */
+  describe('the source, and the translations to read again', () => {
+    const sourceProposal = (repositoryId: string, readAt: string) => ({
+      ...proposalBody(repositoryId, readAt, 'fr'),
+      values: [{ file: 'common', key: 'hello', value: 'Salut' }],
+    });
+
+    it('lets an account that writes the source propose and publish it', async () => {
+      const repoRow = await repository();
+      const repo = withRepo();
+      const { headers } = await translator([], 'translator', { writesSource: true });
+      const proposed = await post('/i18n/proposals', headers, sourceProposal(repoRow.id, repo.refs.get('main')!));
+
+      expect(proposed.status).toBe(200);
+
+      const { data } = (await proposed.json()) as { data: { commit: string } };
+      const published = await post('/i18n/publications', headers, {
+        repository: repoRow.id,
+        language: 'fr',
+        approved: [{ file: 'common', key: 'hello', commit: data.commit }],
+      });
+
+      expect(published.status).toBe(200);
+      expect(JSON.parse(repo.filesAt(repo.refs.get('main')!).get(`${LOCALES}/fr/common.json`)!)).toEqual({
+        hello: 'Salut',
+      });
+    });
+
+    it('refuses a reviewer of every language who does not write the source', async () => {
+      const repoRow = await repository();
+      const repo = withRepo();
+      const { headers } = await translator(['en', 'fr'], 'reviewer');
+
+      expect((await post('/i18n/proposals', headers, sourceProposal(repoRow.id, repo.refs.get('main')!))).status).toBe(
+        403,
+      );
+      expect(repo.refs.get('i18n/fr')).toBeUndefined();
+    });
+
+    it('refuses an admin who holds no row', async () => {
+      const repoRow = await repository();
+      const repo = withRepo();
+      const admin = await signedInAdmin();
+
+      expect(
+        (await post('/i18n/proposals', admin.headers, sourceProposal(repoRow.id, repo.refs.get('main')!))).status,
+      ).toBe(403);
+    });
+
+    it('lets a reviewer keep a translation whose source changed, and shows it to read again before', async () => {
+      const repoRow = await repository();
+      const repo = withRepo();
+
+      repo.moveBranch('main', { [`${LOCALES}/fr/common.json`]: { hello: 'Salut' } });
+
+      const { headers } = await translator(['en'], 'reviewer');
+      const before = await app.request(`/i18n/catalogue?repository=${repoRow.id}&language=en`, { headers });
+
+      expect(await before.json()).toMatchObject({
+        data: { entries: [{ key: 'hello', state: 'review', was: 'Bonjour', source: 'Salut', value: 'Hello' }] },
+      });
+
+      const kept = await post('/i18n/reviews', headers, {
+        repository: repoRow.id,
+        language: 'en',
+        keys: [{ file: 'common', key: 'hello' }],
+      });
+
+      expect(kept.status).toBe(200);
+      expect(await kept.json()).toMatchObject({ data: { kept: [{ file: 'common', key: 'hello' }], skipped: [] } });
+
+      const after = await app.request(`/i18n/catalogue?repository=${repoRow.id}&language=en`, { headers });
+
+      expect(await after.json()).toMatchObject({ data: { entries: [{ key: 'hello', state: 'translated' }] } });
+    });
+
+    it('refuses a translator who does not review the language', async () => {
+      const repoRow = await repository();
+
+      withRepo();
+
+      const { headers } = await translator(['en']);
+      const res = await post('/i18n/reviews', headers, {
+        repository: repoRow.id,
+        language: 'en',
+        keys: [{ file: 'common', key: 'hello' }],
+      });
+
+      expect(res.status).toBe(403);
     });
   });
 

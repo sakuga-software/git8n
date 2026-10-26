@@ -3,9 +3,14 @@ import { useEffect, useRef } from 'react';
 import { FileIcon } from './icons';
 import { idOf, isEdited, linesOf, type Row } from './rows';
 import { Tick } from './ui';
+import { WasSource } from './was-source';
 
 interface Props {
   rows: readonly Row[];
+  /** The open language is the source: the field writes the source text, not a translation (DB-607). */
+  editsSource?: boolean;
+  /** The ticks keep translations « à revoir » as they are, rather than publish proposals (DB-607). */
+  ticksKeep?: boolean;
   /** The two languages: the name the headers say (« anglais »), and the tag the browser reads (`en`). */
   language: { name: string; code: string };
   source: { name: string; code: string };
@@ -43,12 +48,23 @@ export const dayOf = (at: string): string => {
 };
 
 /** The box that ticks every proposal on the screen. It shows a dash when some are ticked and some are not. */
-function TickAll({ ticked, total, onChange }: { ticked: number; total: number; onChange: (on: boolean) => void }) {
+function TickAll({
+  ticked,
+  total,
+  keeps,
+  onChange,
+}: {
+  ticked: number;
+  total: number;
+  /** The rows are translations to keep, not proposals to publish (DB-607). */
+  keeps: boolean;
+  onChange: (on: boolean) => void;
+}) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <span aria-hidden="true">Publier</span>
+      <span aria-hidden="true">{keeps ? 'Garder' : 'Publier'}</span>
       <Tick
-        label="Cocher toutes les propositions affichées"
+        label={keeps ? 'Cocher toutes les traductions affichées' : 'Cocher toutes les propositions affichées'}
         isSelected={total > 0 && ticked === total}
         isIndeterminate={ticked > 0 && ticked < total}
         isDisabled={total === 0}
@@ -81,6 +97,8 @@ function KeyName({ name }: { name: string }) {
  */
 export function KeyTable({
   rows,
+  editsSource = false,
+  ticksKeep = false,
   language,
   source,
   drafts,
@@ -97,7 +115,10 @@ export function KeyTable({
 }: Props) {
   // An edited proposal cannot be ticked: the publication copies the value of
   // the branch, not the text in the field.
-  const tickable = rows.filter((row) => row.proposal && !isEdited(row, drafts.get(idOf(row)))).map(idOf);
+  // A row « à revoir » is ticked to be kept as it is (DB-607).
+  const tickable = rows
+    .filter((row) => (row.proposal || row.state === 'review') && !isEdited(row, drafts.get(idOf(row))))
+    .map(idOf);
   const table = useRef<HTMLDivElement>(null);
   // The field to go back to after a proposal from the keyboard. A row that is
   // proposed leaves the missing ones, and its field takes the focus with it.
@@ -158,16 +179,17 @@ export function KeyTable({
             Clé
           </div>
           <div role="columnheader" className="min-w-0 flex-1 basis-0">
-            Source · {source.name}
+            {editsSource ? 'Texte publié' : 'Source'} · {source.name}
           </div>
           <div role="columnheader" className="min-w-0 flex-1 basis-0">
-            Traduction · {language.name}
+            {editsSource ? 'Nouveau texte' : 'Traduction'} · {language.name}
           </div>
           {approved && (
             <div role="columnheader" className="w-16 flex-none text-center">
               <TickAll
                 ticked={tickable.filter((id) => approved.has(id)).length}
                 total={tickable.length}
+                keeps={ticksKeep}
                 onChange={(on) => onApprove(tickable, on)}
               />
             </div>
@@ -209,12 +231,13 @@ export function KeyTable({
                     className="min-w-0 flex-1 basis-0 pt-[9px] text-sm leading-normal whitespace-pre-line"
                   >
                     {row.source}
+                    {row.was !== null && <WasSource was={row.was} lang={source.code} className="mt-2" />}
                   </div>
 
                   <div role="cell" className="flex min-w-0 flex-1 basis-0 flex-col gap-1.5">
                     <div className="relative">
                       <TextArea
-                        aria-label={`Traduction de ${row.key} (${row.file})`}
+                        aria-label={`${editsSource ? 'Texte' : 'Traduction'} de ${row.key} (${row.file})`}
                         aria-describedby={sourceId}
                         lang={language.code}
                         rows={Math.max(linesOf(row.source), linesOf(draft ?? held))}
@@ -268,10 +291,10 @@ export function KeyTable({
 
                   {approved && (
                     <div role="cell" className="w-16 flex-none">
-                      {row.proposal && (
+                      {(row.proposal || row.state === 'review') && (
                         <div className="flex justify-center px-2 pt-2 pb-3">
                           <Tick
-                            label={`Publier ${row.key} (${row.file})`}
+                            label={`${row.state === 'review' ? 'Garder' : 'Publier'} ${row.key} (${row.file})`}
                             isSelected={!edited && approved.has(id)}
                             isDisabled={edited}
                             onChange={(on) => onApprove([id], on)}

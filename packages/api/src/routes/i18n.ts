@@ -4,7 +4,15 @@ import { HonoEnv } from '@/types/hono';
 import { getUser } from '@/utils/context';
 import { withAuth } from '@/auth';
 import { authorAddressOf, mayPropose, mayPublish, mayWriteSource, rightsOf } from '@/services/i18n-rights.service';
-import { createKeys, propose, proposedKeys, publish, waiting, type Author } from '@/services/i18n-git.service';
+import {
+  acknowledge,
+  createKeys,
+  propose,
+  proposedKeys,
+  publish,
+  waiting,
+  type Author,
+} from '@/services/i18n-git.service';
 import { GithubAppNotConfiguredError, GithubError, installations, repositoriesOf } from '@/services/github-app.service';
 import { forgetCatalogues, getCatalogue, manifestPathOf } from '@/services/i18n-catalogue.service';
 import { forgetProgress, progressOf } from '@/services/i18n-progress.service';
@@ -38,6 +46,7 @@ import {
   proposalSchema,
   publicationSchema,
   repositoryChangeSchema,
+  reviewSchema,
 } from '@/schemas/i18n';
 
 const router = new Hono<HonoEnv>();
@@ -358,11 +367,16 @@ router.post('/proposals', signedIn, async (c) => {
 
   if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
 
-  if (!mayPropose(await rightsOf(getUser(c).id), data.language)) {
+  const repository = await answer(() => repositoryOrReason(data.repository));
+  const rights = await rightsOf(getUser(c).id);
+  // The source is proposed and published by `writes_source` alone (DB-607). A
+  // grant of the source language as a target grants nothing here.
+  const allowed =
+    data.language === languagesOf(repository).source ? mayWriteSource(rights) : mayPropose(rights, data.language);
+
+  if (!allowed) {
     throw new HTTPException(403, { message: `This account may not propose in ${data.language}.` });
   }
-
-  const repository = await answer(() => repositoryOrReason(data.repository));
 
   const proposal = await answer(() => propose(repository, data.language, data.values, authorOf(c), data.readAt));
 
@@ -412,11 +426,15 @@ router.post('/publications', signedIn, async (c) => {
 
   if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
 
-  if (!mayPublish(await rightsOf(getUser(c).id), data.language)) {
+  const repository = await answer(() => repositoryOrReason(data.repository));
+  const rights = await rightsOf(getUser(c).id);
+  // In the source, the account that writes it also reviews it (DB-607).
+  const allowed =
+    data.language === languagesOf(repository).source ? mayWriteSource(rights) : mayPublish(rights, data.language);
+
+  if (!allowed) {
     throw new HTTPException(403, { message: `This account may not publish ${data.language}.` });
   }
-
-  const repository = await answer(() => repositoryOrReason(data.repository));
 
   const publication = await answer(() => publish(repository, data.language, data.approved, authorOf(c)));
 
@@ -428,6 +446,30 @@ router.post('/publications', signedIn, async (c) => {
   forgetProgress(repository.id);
 
   return c.json({ success: true, data: publication });
+});
+
+/**
+ * Keeps translations as they are, after their source changed (DB-607).
+ *
+ * It needs the reviewer role on the language, as a publication does: it is one.
+ * A key that is not to read again is answered in `skipped`, not refused.
+ */
+router.post('/reviews', signedIn, async (c) => {
+  const { data, error, success } = await parsed(c, reviewSchema);
+
+  if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
+
+  const repository = await answer(() => repositoryOrReason(data.repository));
+
+  if (!mayPublish(await rightsOf(getUser(c).id), data.language)) {
+    throw new HTTPException(403, { message: `This account may not review ${data.language}.` });
+  }
+
+  const reviewed = await answer(() => acknowledge(repository, data.language, data.keys, authorOf(c)));
+
+  forgetProgress(repository.id);
+
+  return c.json({ success: true, data: reviewed });
 });
 
 /**

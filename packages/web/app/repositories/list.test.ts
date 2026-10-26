@@ -41,6 +41,6 @@ it('counts one page for an empty list', () => {
 });
 
 it('says 100 % only when every key is published', () => {
-  expect(percentOf({ language: 'en', published: 999, proposed: 0, missing: 1, total: 1000 })).toBe(99);
-  expect(percentOf({ language: 'en', published: 0, proposed: 0, missing: 0, total: 0 })).toBe(100);
+  expect(percentOf({ language: 'en', published: 999, proposed: 0, missing: 1, review: 0, total: 1000 })).toBe(99);
+  expect(percentOf({ language: 'en', published: 0, proposed: 0, missing: 0, review: 0, total: 0 })).toBe(100);
 });
