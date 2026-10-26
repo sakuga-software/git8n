@@ -139,3 +139,27 @@ export const fieldOfIssue = (field: string): SettingsField | null => {
     null
   );
 };
+
+/** The sections of the page, in the order of the tabs. The first one opens by default. */
+export const SETTINGS_SECTIONS = [
+  { id: 'repository', title: 'Dépôt', fields: ['branch', 'localesPath', 'manifestPath', 'languages'] },
+  { id: 'publication', title: 'Publication', fields: ['publishMode'] },
+  {
+    id: 'messages',
+    title: 'Messages',
+    fields: ['proposalCommit', 'publicationCommit', 'pullRequestTitle', 'pullRequestBody'],
+  },
+] as const satisfies readonly { id: string; title: string; fields: readonly SettingsField[] }[];
+
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]['id'];
+
+/** The section that the `?section=` of the address names, or the first one for any other value. */
+export const sectionOf = (value: string | null): SettingsSection =>
+  SETTINGS_SECTIONS.find((section) => section.id === value)?.id ?? SETTINGS_SECTIONS[0].id;
+
+/** The first section, in the order of the tabs, that holds one of these fields. */
+export const firstSectionWith = (fields: Iterable<SettingsField>): SettingsSection | null => {
+  const wanted = new Set(fields);
+
+  return SETTINGS_SECTIONS.find((section) => section.fields.some((field) => wanted.has(field)))?.id ?? null;
+};
