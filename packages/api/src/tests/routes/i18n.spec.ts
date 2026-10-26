@@ -1400,9 +1400,9 @@ describe('PATCH /i18n/repositories/:id', () => {
 
     expect(res.status).toBe(400);
 
-    const answer = (await res.json()) as { issues: Array<{ field: string; message: string }> };
+    const answer = (await res.json()) as { errors: Array<{ field: string; message: string }> };
 
-    expect(answer.issues).toEqual([
+    expect(answer.errors).toEqual([
       { field: 'pullRequestTitleTemplate', message: expect.stringMatching(/\{author\} is not a variable/) },
     ]);
     expect((await rowOf(repoRow.id)).pullRequestTitleTemplate).toBeNull();
@@ -1471,13 +1471,32 @@ describe('PATCH /i18n/repositories/:id', () => {
       const res = await patch(repoRow.id, admin.headers, body);
 
       expect(res.status, JSON.stringify(body)).toBe(400);
-      const answer = (await res.json()) as { message: string; issues: Array<{ field: string }> };
+      const answer = (await res.json()) as { message: string; errors: Array<{ field: string }> };
 
       expect(answer.message).toMatch(reason);
-      expect(answer.issues).toEqual([{ field: Object.keys(body)[0], message: answer.message }]);
+      expect(answer.errors).toEqual([{ field: Object.keys(body)[0], message: answer.message }]);
     }
 
     expect(await rowOf(repoRow.id)).toMatchObject({ branch: 'main', localesPath: LOCALES, manifestPath: null });
+  });
+
+  it('answers 502 with the reason when GitHub fails the check, and writes nothing', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+    const repo = withRepo();
+    const answering = repo.fetch.getMockImplementation()!;
+
+    repo.fetch.mockImplementation(async (url, init) =>
+      String(url).includes('/branches/')
+        ? { ok: false, status: 500, json: async () => ({ message: 'Server Error' }) }
+        : answering(url, init),
+    );
+
+    const res = await patch(repoRow.id, admin.headers, { branch: 'next' });
+
+    expect(res.status).toBe(502);
+    expect(((await res.json()) as { message: string }).message).toMatch(/GitHub answered 500/);
+    expect((await rowOf(repoRow.id)).branch).toBe('main');
   });
 
   it('writes the next proposal and publication in the formats of the repository', async () => {

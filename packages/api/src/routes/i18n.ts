@@ -5,7 +5,7 @@ import { getUser } from '@/utils/context';
 import { withAuth } from '@/auth';
 import { authorAddressOf, mayPropose, mayPublish, mayWriteSource, rightsOf } from '@/services/i18n-rights.service';
 import { createKeys, propose, proposedKeys, publish, waiting, type Author } from '@/services/i18n-git.service';
-import { GithubAppNotConfiguredError, installations, repositoriesOf } from '@/services/github-app.service';
+import { GithubAppNotConfiguredError, GithubError, installations, repositoriesOf } from '@/services/github-app.service';
 import { forgetCatalogues, getCatalogue, manifestPathOf } from '@/services/i18n-catalogue.service';
 import { forgetProgress, progressOf } from '@/services/i18n-progress.service';
 import {
@@ -159,26 +159,37 @@ router.patch('/repositories/:id', signedIn, async (c) => {
 
   const { data, error, success } = await parsed(c, repositoryChangeSchema);
 
-  // The page shows each refusal under its field, so it reads them by field.
+  // A refusal takes the shape of the other validation errors of the API
+  // (`errorHandler`): a message, and one entry by field in `errors`. The page
+  // shows each one under its field.
   if (!success) {
-    const issues = error.issues.map((issue) => ({ field: String(issue.path[0] ?? ''), message: issue.message }));
+    const errors = error.issues.map((issue) => ({ field: issue.path.join('.'), message: issue.message }));
 
     return c.json(
-      { success: false, message: issues.map((issue) => `${issue.field}: ${issue.message}`).join('; '), issues },
+      {
+        message: errors.map((entry) => (entry.field ? `${entry.field}: ${entry.message}` : entry.message)).join('; '),
+        errors,
+      },
       400,
     );
   }
 
   const repository = await answer(() =>
     updateRepository(c.req.param('id'), data).catch((error: unknown) => {
-      if (!(error instanceof NotOnGithubError)) throw error;
+      if (error instanceof NotOnGithubError) return { refused: { field: error.field, message: error.message } };
 
-      return { refused: { field: error.field, message: error.message } };
+      // GitHub failed to answer the check, for a reason other than a missing
+      // path. The change is not written, and the reason stays readable.
+      if (error instanceof GithubError) {
+        throw new HTTPException(502, { message: `GitHub did not answer the check of the change: ${error.message}` });
+      }
+
+      throw error;
     }),
   );
 
   if ('refused' in repository) {
-    return c.json({ success: false, message: repository.refused.message, issues: [repository.refused] }, 400);
+    return c.json({ message: repository.refused.message, errors: [repository.refused] }, 400);
   }
 
   return c.json({ success: true, data: { ...repository, ...languagesOf(repository) } });

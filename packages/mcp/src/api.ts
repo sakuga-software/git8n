@@ -362,8 +362,8 @@ export interface Publication {
 /**
  * Changes a connected repository, for an admin (DB-606, DB-609).
  *
- * A refusal of a field answers 400. Its message is JSON with `issues`, one
- * for each field, which `issuesOf` reads.
+ * A refusal answers 400. Its body holds `errors`, one entry for each field,
+ * as the other validation errors of the API do. `issuesOf` reads them.
  */
 export const updateRepository = (config: ApiConfig, repository: string, change: RepositoryChange) =>
   ask<Repository>(config, `/i18n/repositories/${encodeURIComponent(repository)}`, change, 'PATCH');
@@ -373,9 +373,9 @@ export const issuesOf = (error: unknown): Array<{ field: string; message: string
   if (!(error instanceof ApiError) || error.status !== 400) return [];
 
   try {
-    const parsed = JSON.parse(error.message) as { issues?: Array<{ field?: unknown; message?: unknown }> };
+    const parsed = JSON.parse(error.message) as { errors?: Array<{ field?: unknown; message?: unknown }> };
 
-    return (parsed.issues ?? []).map((issue) => ({
+    return (parsed.errors ?? []).map((issue) => ({
       field: String(issue.field ?? ''),
       message: String(issue.message ?? ''),
     }));

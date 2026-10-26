@@ -123,7 +123,10 @@ changed. An absent field keeps its value.
 
 - A new branch, folder or manifest is read on GitHub before it is written. If
   GitHub does not hold it, the API answers 400 and changes nothing.
-- A refusal names its field in `issues`: `[{ "field": "branch", "message": "…" }]`.
+- A refusal names its field in `errors`, as the other validation errors of the
+  API do: `{ "message": "…", "errors": [{ "field": "branch", "message": "…" }] }`.
+- If GitHub fails to answer the check for another reason, the API answers 502
+  with the reason, and changes nothing.
 - `null`, or an empty string, gives a format its default back. A `null`
   manifest gives back `<localesPath>/manifest.json`.
 
