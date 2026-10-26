@@ -855,12 +855,21 @@ function Editor({
           <>
             <span className="inline-flex items-center gap-2">
               <OwnerAvatar owner={repository.owner} src={repository.avatarUrl} />
-              {repositories.value.length > 1 ? (
+              {repositories.value.length > 1 || installUrl ? (
                 <Choice
                   label="Changer de projet"
                   value={repository.id}
                   items={repositories.value.map((row) => ({ value: row.id, label: row.name }))}
                   onChange={(next) => next !== repository.id && mayLeave(changed.length) && openRepository(next)}
+                  action={
+                    installUrl
+                      ? {
+                          label: 'Ajouter un dépôt',
+                          icon: <Plus size={14} />,
+                          onAction: () => mayLeave(changed.length) && setConnecting(true),
+                        }
+                      : undefined
+                  }
                   className="min-w-[170px]"
                 />
               ) : (
@@ -873,17 +882,6 @@ function Editor({
                 </Outside>
               )}
             </span>
-            {installUrl && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onPress={() => mayLeave(changed.length) && setConnecting(true)}
-                className="text-sub text-[13px]"
-              >
-                <Plus size={14} />
-                Ajouter un dépôt
-              </Button>
-            )}
             {me.value.admin && (
               <Link
                 to={`/repositories/${encodeURIComponent(repository.id)}/settings`}

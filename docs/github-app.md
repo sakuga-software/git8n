@@ -110,7 +110,8 @@ not included in the list »). Add it by hand after the creation, at step 5.
 
 An admin does it from the page:
 
-1. « Brancher un dépôt » (or « Ajouter un dépôt » beside the open one) opens
+1. « Brancher un dépôt » (or « Ajouter un dépôt », the last entry of the
+   select of the repositories) opens
    `https://github.com/apps/<slug>/installations/new` in the same tab.
    `GITHUB_APP_SLUG` gives the slug.
 2. After the installation, GitHub sends the browser to the Setup URL,
