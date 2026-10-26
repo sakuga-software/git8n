@@ -9,6 +9,18 @@ export const scopeIdOf = (node: Scope): string => `${node.file}\n${node.path}`;
 const idOf = scopeIdOf;
 const countOf = (value: number): string => value.toLocaleString('fr-FR');
 
+/** The number of missing keys beside a name. The word is for a screen reader and the tooltip. */
+function MissingCount({ count, className = '' }: { count: number; className?: string }) {
+  const label = `${countOf(count)} ${count > 1 ? 'manquantes' : 'manquante'}`;
+
+  return (
+    <span title={label} className={`text-missing-ink ml-auto text-xs ${className}`}>
+      <span aria-hidden="true">{countOf(count)}</span>
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 /** The sections of a node. A key is not one: the panel stops at the sections. */
 const sectionsOf = (node: TreeNode): TreeNode[] => node.children.filter((child) => child.children.length > 0);
 
@@ -83,9 +95,7 @@ function Node({
         >
           <span className="truncate">{node.name}</span>
           {/* Zero is not written: the node can still hold keys that are proposed or published. */}
-          {node.counts.missing > 0 && (
-            <span className="text-missing-ink ml-auto text-xs">{countOf(node.counts.missing)}</span>
-          )}
+          {node.counts.missing > 0 && <MissingCount count={node.counts.missing} />}
         </button>
       </div>
 
@@ -193,10 +203,7 @@ export function FilesTree({
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="mx-2 mb-1 flex items-baseline justify-between">
-        <h2 className="text-muted text-xs font-semibold">Fichiers</h2>
-        <span className="text-muted text-[11.5px]">manquantes</span>
-      </div>
+      <h2 className="text-muted mx-2 mb-1 text-xs font-semibold">Fichiers</h2>
       <ul role="tree" aria-label="Fichiers et sections" onKeyDown={onKeyDown} className="flex flex-col gap-px">
         <li role="treeitem" aria-selected={scope === null}>
           <button
@@ -210,7 +217,7 @@ export function FilesTree({
           >
             <span className="w-3.5 flex-none" />
             Tous les fichiers
-            {missing > 0 && <span className="text-missing-ink ml-auto font-mono text-xs">{countOf(missing)}</span>}
+            {missing > 0 && <MissingCount count={missing} className="font-mono" />}
           </button>
         </li>
         {files.map((file) => (
