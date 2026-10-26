@@ -28,7 +28,7 @@ interface Props {
   /** Control or Command with Enter, from a field. */
   onSubmit: () => void;
   /** What the table says when it holds no row. */
-  empty: string;
+  empty: React.ReactNode;
   /** The page that shows the source file of a row, as it was read. */
   fileHref: (file: string) => string;
   /** The page of the batch that proposed a value. */
