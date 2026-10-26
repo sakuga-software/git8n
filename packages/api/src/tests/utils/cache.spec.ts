@@ -66,6 +66,25 @@ describe('createCache', () => {
     expect(await cache.get('r1:en', async () => 'after the write', 1)).toBe('after the write');
   });
 
+  it('holds the read that started after a write, even if a read of before it ends last', async () => {
+    const cache = createCache<string>(1000);
+    const before = later<string>();
+    const after = later<string>();
+    const first = cache.get('r1', () => before.promise, 0);
+
+    cache.forget('r1');
+
+    const second = cache.get('r1', () => after.promise, 0);
+
+    after.resolve('after the write');
+    await second;
+    before.resolve('before the write');
+    await first;
+
+    expect(cache.peek('r1', 1)?.value).toBe('after the write');
+    expect(await cache.get('r1', async () => 'a third read', 1)).toBe('after the write');
+  });
+
   it('forgets a key and the keys under it, and no other repository', async () => {
     const cache = createCache<string>(1000);
 
