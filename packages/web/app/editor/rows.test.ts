@@ -13,11 +13,14 @@ import {
   idOf,
   linesOf,
   matching,
+  matchIn,
   neighboursOf,
   newKeyProblem,
   pageOf,
   type Row,
   rowsOf,
+  SUGGESTIONS_SHOWN,
+  suggestionsOf,
   withPublished,
   withWrites,
 } from './rows';
@@ -315,6 +318,41 @@ describe('a search of the table', () => {
   it('keeps every row for an empty query, and none for a text that is nowhere', () => {
     expect(matching(rows, '   ')).toBe(rows);
     expect(keys('zzz')).toEqual([]);
+  });
+
+  it('places a match in the text as it is written, accents and case included', () => {
+    expect(matchIn('Choisissez votre enquête', 'ENQUETE')).toEqual([17, 24]);
+    expect(matchIn('Déconnexion', 'deco')).toEqual([0, 4]);
+    expect(matchIn('Déconnexion', 'zzz')).toBeNull();
+    expect(matchIn('Déconnexion', '  ')).toBeNull();
+  });
+
+  it('suggests the keys that start with the query first, then the keys that hold it, then the texts', () => {
+    const suggested = [
+      row('pause.title', 'Titre', null),
+      row('timer.paused', 'Chrono en pause', 'Timer paused'),
+      row('menu.stop', 'Mettre en pause', null),
+    ];
+
+    expect(suggestionsOf(suggested, 'pause').map((found) => found.row.key)).toEqual([
+      'pause.title',
+      'timer.paused',
+      'menu.stop',
+    ]);
+    expect(suggestionsOf(suggested, '  ')).toEqual([]);
+  });
+
+  it('shows under the key the text that holds the query, the translation when the source does not', () => {
+    const [found] = suggestionsOf(rows, 'your case');
+
+    expect(found).toMatchObject({ text: 'Choose your case', keyMatch: null, textMatch: [7, 16] });
+    expect(suggestionsOf(rows, 'logout')[0]).toMatchObject({ text: 'Déconnexion', keyMatch: [9, 15], textMatch: null });
+  });
+
+  it(`stops at ${SUGGESTIONS_SHOWN} suggestions`, () => {
+    const many = Array.from({ length: 20 }, (_, index) => row(`list.item_${index}`, 'Objet', null));
+
+    expect(suggestionsOf(many, 'item')).toHaveLength(SUGGESTIONS_SHOWN);
   });
 });
 
