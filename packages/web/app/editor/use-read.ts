@@ -60,6 +60,23 @@ export const reads = new QueryClient({
   },
 });
 
+let owner: string | null = null;
+
+/**
+ * Gives the cache to the account `id`, or to nobody (`null`).
+ *
+ * The answers of one account must never show to another: `me` says who
+ * administers, and the lists say what the account reads. If the account
+ * changes, the cache forgets every answer. The same account keeps them.
+ */
+export const readsFor = (id: string | null): void => {
+  if (id === owner) return;
+
+  owner = id;
+  reads.clear();
+  dropOnLeave.clear();
+};
+
 /** A key names what a read reads. Its lines are the segments that `forgetReads` matches from the start. */
 const queryKeyOf = (key: string): string[] => key.split('\n');
 

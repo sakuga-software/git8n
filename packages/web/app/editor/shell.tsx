@@ -5,7 +5,7 @@ import { signOut, useSession } from '~/utils/auth-client';
 import { ChevronDown, Lock, Wrench } from '~/editor/icons';
 import { SignIn } from '~/editor/sign-in';
 import { Blocked, Failure, Loading } from '~/editor/states';
-import type { ReadError } from '~/editor/use-read';
+import { readsFor, type ReadError } from '~/editor/use-read';
 
 /**
  * The frame of every page once signed in: the header with the brand and the
@@ -209,6 +209,9 @@ export function Signed({
 }) {
   const session = useSession();
   const waiting = useRef(0);
+
+  // This runs before the pages read the cache in this render: an effect would run after them, too late.
+  if (!session.isPending) readsFor(session.data?.user.id ?? null);
 
   if (session.isPending) {
     return (
