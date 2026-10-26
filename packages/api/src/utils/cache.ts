@@ -10,6 +10,9 @@ export interface Cache<T> {
   /**
    * The held answer if it is fresh, else the read in flight for the key, else a new read.
    *
+   * The time of an answer starts at `now`, when the read starts, as in the
+   * caches before this helper. Then a test can give its own clock.
+   *
    * A failed read is not held: the next caller reads again. If the key is
    * forgotten while a read is in flight, the answer of that read is not held,
    * because it can be of before the write that forgot the key.
