@@ -106,6 +106,37 @@ const EMPTY_NARROWED: Record<RowState, string> = {
 /** « 1 671 », as French writes a count. */
 const countOf = (value: number): string => value.toLocaleString('fr-FR');
 
+/**
+ * The table of the missing keys, empty while proposals still wait (DB-614).
+ * The language is translated on the editor, but not on the repository yet.
+ */
+function NothingMissing({
+  narrowed,
+  proposed,
+  mayPublish,
+  onShow,
+}: {
+  narrowed: boolean;
+  proposed: number;
+  mayPublish: boolean;
+  onShow: () => void;
+}) {
+  const many = proposed > 1;
+
+  return (
+    <span className="flex flex-col items-center gap-2">
+      <span>{narrowed ? EMPTY_NARROWED.missing : 'Toutes les clés ont une traduction.'}</span>
+      <span>
+        {countOf(proposed)} {many ? 'propositions attendent' : 'proposition attend'}{' '}
+        {mayPublish ? 'votre relecture avant de partir sur le dépôt.' : "la relecture d'un relecteur."}
+      </span>
+      <button type="button" onClick={onShow} className="text-signal cursor-pointer hover:underline">
+        Voir {many ? 'les propositions' : 'la proposition'}
+      </button>
+    </span>
+  );
+}
+
 /** Why a publication left a key where it was, as `RefusedKey.reason` names it. */
 const REFUSAL: Record<RefusedKey['reason'], string> = {
   'source-changed': 'Le texte source a changé depuis la proposition.',
@@ -569,6 +600,25 @@ function Editor({
   // The counts follow the file and the search, so a tab never says more than its table shows.
   const counts = countsOf(narrowed);
   const visible = narrowed.filter((row) => row.state === filter);
+  const isNarrowed = scope !== null || query.trim() !== '';
+  const empty =
+    filter === 'missing' && counts.proposed > 0 ? (
+      <NothingMissing
+        narrowed={isNarrowed}
+        proposed={counts.proposed}
+        mayPublish={mayPublish}
+        onShow={() => {
+          setFilter('proposed');
+          setPage(1);
+          setOpenId(null);
+          openIndex.current = 0;
+        }}
+      />
+    ) : isNarrowed ? (
+      EMPTY_NARROWED[filter]
+    ) : (
+      EMPTY[filter]
+    );
   const open = openOf(visible, openId, openIndex.current);
   // In the view of one key, the page of the list is the page of the open key.
   const paged = pageOf(visible, view === 'key' && open ? Math.floor(open.index / PAGE) + 1 : page, PAGE);
@@ -1217,7 +1267,7 @@ function Editor({
               onApprove={approve}
               refused={refusedWhy}
               onSubmit={save}
-              empty={scope === null && query.trim() === '' ? EMPTY[filter] : EMPTY_NARROWED[filter]}
+              empty={empty}
               fileHref={(name) => fileUrl(repository, catalogue.value.commit, catalogue.value.source, name)}
               commitHref={(commit) => commitUrl(repository, commit)}
               neighbours={open ? neighboursOf(rows, open.row, drafts) : null}
@@ -1263,7 +1313,7 @@ function Editor({
                 refused={refusedWhy}
                 leaving={leaving}
                 onSubmit={save}
-                empty={scope === null && query.trim() === '' ? EMPTY[filter] : EMPTY_NARROWED[filter]}
+                empty={empty}
                 fileHref={(name) => fileUrl(repository, catalogue.value.commit, catalogue.value.source, name)}
                 commitHref={(commit) => commitUrl(repository, commit)}
               />

@@ -93,7 +93,7 @@ interface Props {
   refused: ReadonlyMap<string, string>;
   /** Control or Command with Enter, from the field. */
   onSubmit: () => void;
-  empty: string;
+  empty: React.ReactNode;
   fileHref: (file: string) => string;
   commitHref: (commit: string) => string;
   /** The keys beside the open one (DB-277). `null` while no key is open. */
