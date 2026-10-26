@@ -14,6 +14,9 @@ import { vi, type Mock } from 'vitest';
  * not how git stores them, but it answers every question these tests ask.
  */
 
+/** A file given as a string is held as written, so a test can pin its exact bytes. */
+const textOf = (content: unknown): string => (typeof content === 'string' ? content : JSON.stringify(content, null, 2));
+
 interface Commit {
   sha: string;
   message: string;
@@ -96,7 +99,7 @@ export const fakeRepo = (options: {
       const at = state.refs.get(branch);
       const carried = new Map(at ? (state.commits.get(at)?.files ?? []) : []);
 
-      for (const [path, content] of Object.entries(files)) carried.set(path, JSON.stringify(content, null, 2));
+      for (const [path, content] of Object.entries(files)) carried.set(path, textOf(content));
 
       const made = sha('c');
 
@@ -141,7 +144,7 @@ export const fakeRepo = (options: {
     message: 'the first commit',
     parents: [],
     author: { name: 'Somebody', email: 'somebody@example.test', date: '2026-09-01T00:00:00Z' },
-    files: new Map(Object.entries(options.files).map(([path, content]) => [path, JSON.stringify(content, null, 2)])),
+    files: new Map(Object.entries(options.files).map(([path, content]) => [path, textOf(content)])),
   });
   state.refs.set(options.baseBranch, first);
 

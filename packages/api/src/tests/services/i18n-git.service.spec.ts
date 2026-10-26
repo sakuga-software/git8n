@@ -4,6 +4,7 @@ import type { I18nRepository } from '@i18n-editor/db';
 import { clearI18nCatalogueCache, getCatalogue } from '@/services/i18n-catalogue.service';
 import { branchOf, createKeys, propose, proposedKeys, publish, waiting } from '@/services/i18n-git.service';
 import { fakeRepo, type FakeRepo } from './fake-github-repo';
+import { lineDiff } from './line-diff';
 
 /** What the write asked its token for, so the ask itself can be checked. */
 const asked: Array<[number, unknown]> = [];
@@ -1073,5 +1074,83 @@ describe('creating keys in the source', () => {
     await createKeys(repository, [{ file: 'common', key: 'bye', value: 'Au revoir' }], writer);
 
     expect(asked).toContainEqual([42, { repository: 'acme-app', permissions: { contents: 'write' } }]);
+  });
+});
+
+/**
+ * Every write keeps the order and the bytes of the file it changes (DB-608).
+ *
+ * A proposal of one key used to rewrite the order of a whole object: the keys
+ * that look like integers went first. The file is shaped like the hints of
+ * `en/woodlock.json`, where the bug showed, with a tab indentation that
+ * `JSON.stringify` would not keep either.
+ */
+describe('the order of a file', () => {
+  const HINTS_FR =
+    '{\n\t"hints": {\n\t\t"1": "Un",\n\t\t"3": "Trois",\n\t\t"3_image": "/img/3.png",\n\t\t"5_image": "/img/5.png",\n\t\t"12": "Douze"\n\t}\n}\n';
+  const HINTS_EN =
+    '{\n\t"hints": {\n\t\t"1": "One",\n\t\t"3": "Three",\n\t\t"3_image": "",\n\t\t"5_image": "/img/5.png",\n\t\t"12": "Twelve"\n\t}\n}\n';
+  const EN = `${LOCALES}/en/woodlock.json`;
+  const FR = `${LOCALES}/fr/woodlock.json`;
+
+  const seed = () => start({ [FR]: HINTS_FR, [EN]: HINTS_EN });
+
+  it('changes one line of the file when a key is proposed', async () => {
+    seed();
+
+    const proposal = await propose(
+      repository,
+      'en',
+      [{ file: 'woodlock', key: 'hints.3_image', value: '/img/3.png' }],
+      translator,
+      readCommit(),
+    );
+
+    expect(lineDiff(HINTS_EN, repo.filesAt(proposal.commit).get(EN)!)).toEqual({
+      removed: ['\t\t"3_image": "",'],
+      added: ['\t\t"3_image": "/img/3.png",'],
+    });
+  });
+
+  it.each(['commit', 'pull_request'] as const)(
+    'changes one line of the file when a key is published (%s)',
+    async (mode) => {
+      seed();
+
+      const connected = { ...repository, publishMode: mode };
+      const proposal = await propose(
+        connected,
+        'en',
+        [{ file: 'woodlock', key: 'hints.12', value: 'Twelve!' }],
+        translator,
+        readCommit(),
+      );
+      const published = await publish(
+        connected,
+        'en',
+        [{ file: 'woodlock', key: 'hints.12', commit: proposal.commit }],
+        reviewer,
+      );
+
+      expect(published.refused).toEqual([]);
+      expect(lineDiff(HINTS_EN, repo.filesAt(published.commit!).get(EN)!)).toEqual({
+        removed: ['\t\t"12": "Twelve"'],
+        added: ['\t\t"12": "Twelve!"'],
+      });
+    },
+  );
+
+  it('adds one line, and a comma on the line before, when a key is created in the source', async () => {
+    seed();
+
+    const created = await createKeys(repository, [{ file: 'woodlock', key: 'hints.13', value: 'Treize' }], {
+      name: 'Morgane',
+      email: 'morgane@users.noreply.invalid',
+    });
+
+    expect(lineDiff(HINTS_FR, repo.filesAt(created.commit).get(FR)!)).toEqual({
+      removed: ['\t\t"12": "Douze"'],
+      added: ['\t\t"12": "Douze",', '\t\t"13": "Treize"'],
+    });
   });
 });

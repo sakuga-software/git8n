@@ -144,13 +144,19 @@ export const filesOf = async (
  * its own: the guard below is the one that keeps a file too large for the API
  * from being written back as an empty translation.
  */
-export const contentOf = async (
+/**
+ * The text of one locale file at one revision, as the repository holds it.
+ *
+ * A write edits this text (DB-608). A parse and a serialize would reorder the
+ * keys that look like integers.
+ */
+export const fileTextOf = async (
   repository: I18nRepository,
   token: string,
   language: string,
   file: string,
   ref: string,
-): Promise<Record<string, unknown>> => {
+): Promise<string> => {
   const { owner, name, localesPath } = repository;
   const answer = await ask<ContentsEntry>(
     `/repos/${insideRepository(owner, name)}/contents/${insideRepository(localesPath, language, `${file}.json`)}?ref=${ref}`,
@@ -163,8 +169,17 @@ export const contentOf = async (
     throw new Error(`${localesPath}/${language}/${file}.json came back without content — too large for the API?`);
   }
 
-  return JSON.parse(Buffer.from(answer.content, 'base64').toString('utf8')) as Record<string, unknown>;
+  return Buffer.from(answer.content, 'base64').toString('utf8');
 };
+
+export const contentOf = async (
+  repository: I18nRepository,
+  token: string,
+  language: string,
+  file: string,
+  ref: string,
+): Promise<Record<string, unknown>> =>
+  JSON.parse(await fileTextOf(repository, token, language, file, ref)) as Record<string, unknown>;
 
 /** Says what a language is for a file. */
 export type StateOf = (file: string, language: string) => FileState;
