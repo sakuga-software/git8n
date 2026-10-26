@@ -26,10 +26,12 @@ import {
 import { UnwritableKeyError } from '@/services/i18n-git.service';
 import { detect } from '@/services/i18n-detection.service';
 import { reachableRepositories } from '@/services/i18n-reachable.service';
+import { overview } from '@/services/i18n-overview.service';
 import { env } from '@/config/env';
 import {
   detectionQuerySchema,
   reachableQuerySchema,
+  overviewQuerySchema,
   newKeysSchema,
   newRepositorySchema,
   proposalSchema,
@@ -116,6 +118,30 @@ router.get('/repositories', signedIn, async (c) => {
       publishMode: row.publishMode,
       ...languagesOf(row),
     })),
+  });
+});
+
+/**
+ * The page of every repository (DB-610): one page of them, searched and
+ * sorted, with how far each language is and the pull request that waits.
+ *
+ * `/repositories` keeps its answer, the whole list with no progress: the MCP
+ * server and the picker of the table read it.
+ */
+router.get('/overview', signedIn, async (c) => {
+  await refuseAStranger(c);
+
+  const { data, error, success } = overviewQuerySchema.safeParse(c.req.query());
+
+  if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
+
+  const user = getUser(c);
+  const rights = await rightsOf(user.id);
+  const everyLanguage = user.admin === true || rights?.writesSource === true;
+
+  return c.json({
+    success: true,
+    data: await answer(() => overview({ ...data, languages: everyLanguage ? undefined : (rights?.languages ?? []) })),
   });
 });
 

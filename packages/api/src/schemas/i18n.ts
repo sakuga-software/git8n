@@ -175,3 +175,15 @@ export const newKeysSchema = z.object({
     .min(1)
     .max(200),
 });
+
+/** The orders of the page of every repository (DB-610). */
+export const OVERVIEW_SORTS = ['name', 'created', 'progress'] as const;
+
+/** One page of the connected repositories, searched and sorted (DB-610). */
+export const overviewQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  perPage: z.coerce.number().int().min(1).max(100, 'A page holds at most 100 repositories').default(20),
+  q: z.string().max(200).optional(),
+  sort: z.enum(OVERVIEW_SORTS).default('name'),
+  order: z.enum(['asc', 'desc']).default('asc'),
+});

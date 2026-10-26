@@ -391,3 +391,52 @@ export interface LanguageProgress {
  */
 export const progress = (config: ApiConfig, repository: string) =>
   ask<LanguageProgress[]>(config, `/i18n/progress?repository=${encodeURIComponent(repository)}`);
+
+/** The orders of the page of every repository. */
+export type OverviewSort = 'name' | 'created' | 'progress';
+
+/** One connected repository, as the page of every repository shows it (DB-610). */
+export interface RepositoryOverview {
+  id: string;
+  owner: string;
+  name: string;
+  branch: string;
+  publishMode: PublishMode;
+  source: string;
+  targets: string[];
+  /** When the repository was connected, ISO 8601. */
+  createdAt: string;
+  /** The target languages the account can open. Null when GitHub did not answer. */
+  progress: LanguageProgress[] | null;
+  /** Why `progress` is null. */
+  progressError?: string;
+  /** The open pull request of the publications, for a repository that publishes by pull request. */
+  pullRequest: { number: number; url: string } | null;
+}
+
+export interface OverviewPage {
+  rows: RepositoryOverview[];
+  page: number;
+  perPage: number;
+  /** How many repositories match the search, over every page. */
+  total: number;
+  hasMore: boolean;
+}
+
+/** One page of the connected repositories, searched on `owner/name` and sorted. */
+export const overview = (
+  config: ApiConfig,
+  query: { page?: number; perPage?: number; q?: string; sort?: OverviewSort; order?: 'asc' | 'desc' } = {},
+) => {
+  const params = new URLSearchParams();
+
+  if (query.page) params.set('page', String(query.page));
+  if (query.perPage) params.set('perPage', String(query.perPage));
+  if (query.q) params.set('q', query.q);
+  if (query.sort) params.set('sort', query.sort);
+  if (query.order) params.set('order', query.order);
+
+  const search = params.toString();
+
+  return ask<OverviewPage>(config, `/i18n/overview${search ? `?${search}` : ''}`);
+};
