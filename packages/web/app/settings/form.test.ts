@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { Repository } from '@i18n-editor/mcp/api';
-import { changeOf, fieldOfIssue, formOf, previewOf, problemsOf } from './form';
+import {
+  changeOf,
+  fieldOfIssue,
+  firstSectionWith,
+  formOf,
+  previewOf,
+  problemsOf,
+  sectionOf,
+  SETTINGS_SECTIONS,
+} from './form';
 
 const repository: Repository = {
   id: 'repo-1',
@@ -106,9 +115,56 @@ describe('previewOf', () => {
 });
 
 describe('fieldOfIssue', () => {
+  it('names a field of the page for each field that changeOf sends', () => {
+    const before = formOf(repository);
+    const after = {
+      ...before,
+      branch: 'develop',
+      languages: 'fr, de',
+      publishMode: 'pull_request' as const,
+      pullRequestTitle: '',
+    };
+
+    expect(Object.keys(changeOf(before, after)).map(fieldOfIssue)).toEqual([
+      'branch',
+      'languages',
+      'publishMode',
+      'pullRequestTitle',
+    ]);
+  });
+
   it('names the field of the page that a field of the API names', () => {
     expect(fieldOfIssue('pullRequestTitleTemplate')).toBe('pullRequestTitle');
     expect(fieldOfIssue('branch')).toBe('branch');
     expect(fieldOfIssue('installationId')).toBeNull();
+  });
+});
+
+describe('SETTINGS_SECTIONS', () => {
+  it('puts each field of the page in one section, and in one only', () => {
+    const fields = SETTINGS_SECTIONS.flatMap((section) => section.fields);
+
+    expect([...fields].sort()).toEqual(Object.keys(formOf(repository)).sort());
+  });
+});
+
+describe('sectionOf', () => {
+  it('opens the section that the address names', () => {
+    expect(sectionOf('messages')).toBe('messages');
+  });
+
+  it('opens the first section when the address names none, or one that does not exist', () => {
+    expect(sectionOf(null)).toBe('repository');
+    expect(sectionOf('members')).toBe('repository');
+  });
+});
+
+describe('firstSectionWith', () => {
+  it('names the first section in the order of the tabs, whatever the order of the fields', () => {
+    expect(firstSectionWith(['pullRequestTitle', 'publishMode'])).toBe('publication');
+  });
+
+  it('names no section for no field', () => {
+    expect(firstSectionWith([])).toBeNull();
   });
 });
