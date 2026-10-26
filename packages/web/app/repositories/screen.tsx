@@ -217,7 +217,7 @@ function Repositories() {
             </SearchField.Group>
           </SearchField>
           {admin && (
-            <Link to="/setup" className="button button--primary button--sm">
+            <Link to="/setup" className="button button--primary button--sm md:h-9">
               <Plus size={14} />
               Brancher un dépôt
             </Link>
