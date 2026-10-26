@@ -41,6 +41,10 @@ const repository: I18nRepository = {
   manifestPath: null,
   languages: ['fr', 'en'],
   publishMode: 'commit',
+  proposalCommitTemplate: null,
+  publicationCommitTemplate: null,
+  pullRequestTitleTemplate: null,
+  pullRequestBodyTemplate: null,
   createdAt: new Date('2026-09-24T00:00:00Z'),
 };
 

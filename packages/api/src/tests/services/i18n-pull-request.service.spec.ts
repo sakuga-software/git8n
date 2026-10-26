@@ -57,6 +57,10 @@ const repository: I18nRepository = {
   manifestPath: null,
   languages: ['fr', 'en'],
   publishMode: 'pull_request',
+  proposalCommitTemplate: null,
+  publicationCommitTemplate: null,
+  pullRequestTitleTemplate: null,
+  pullRequestBodyTemplate: null,
   createdAt: new Date('2026-10-26T00:00:00Z'),
 };
 
@@ -310,20 +314,40 @@ describe('the last pull request', () => {
 
 describe('describePull', () => {
   it('counts the keys of every publication commit, and leaves the merges of the base branch out', () => {
-    const described = describePull([
-      'i18n(en): 2 keys published by Dominique\n\n- en common:a\n- en common:b',
-      'Merge main into i18n/publish',
-      'i18n(de): 1 key published by Dominique\n\n- de admin:c',
-      'i18n(en): 1 key published by Dominique\n\n- en common:a',
-    ]);
+    const described = describePull(
+      [
+        'i18n(en): 2 keys published by Dominique\n\n- en common:a\n- en common:b',
+        'Merge main into i18n/publish',
+        'i18n(de): 1 key published by Dominique\n\n- de admin:c',
+        'i18n(en): 1 key published by Dominique\n\n- en common:a',
+      ],
+      repository,
+    );
 
     expect(described.title).toBe('i18n: 3 keys published (de, en)');
     expect(described.body).toContain('### de');
     expect(described.body).toContain('- `admin:c`');
   });
 
+  it('counts the keys of a commit whose subject the repository formats its own way (DB-609)', () => {
+    const described = describePull(['Translations (en) by Dominique\n\n- en common:a\n- en common:b'], repository);
+
+    expect(described.title).toBe('i18n: 2 keys published (en)');
+  });
+
+  it('writes the title and the body in the formats of the repository (DB-609)', () => {
+    const described = describePull(['i18n(en): 1 key published by D\n\n- en common:a'], {
+      ...repository,
+      pullRequestTitleTemplate: '[{repository}] {count_keys} for {languages} into {branch}',
+      pullRequestBodyTemplate: 'Read before you merge.\n\n{keys_list}',
+    });
+
+    expect(described.title).toBe('[acme/acme-app] 1 key for en into main');
+    expect(described.body).toBe('Read before you merge.\n\n### en\n\n- `common:a`');
+  });
+
   it('adds the keys a long commit only counted', () => {
-    expect(describePull(['i18n(en): 105 keys published by D\n\n- en common:a\n… and 104 more']).title).toBe(
+    expect(describePull(['i18n(en): 105 keys published by D\n\n- en common:a\n… and 104 more'], repository).title).toBe(
       'i18n: 105 keys published (en)',
     );
   });

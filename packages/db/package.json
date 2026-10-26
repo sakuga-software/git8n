@@ -6,7 +6,8 @@
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
-    "./migrations": "./src/migrations.ts"
+    "./migrations": "./src/migrations.ts",
+    "./messages": "./src/messages.ts"
   },
   "scripts": {
     "db:generate": "drizzle-kit generate",

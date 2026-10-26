@@ -13,7 +13,8 @@ import {
   languagesOf,
   listRepositories,
   repositoryOrReason,
-  setPublishMode,
+  NotOnGithubError,
+  updateRepository,
   UnknownLanguageError,
   UnknownRepositoryError,
 } from '@/services/i18n-repositories.service';
@@ -116,6 +117,10 @@ router.get('/repositories', signedIn, async (c) => {
       localesPath: row.localesPath,
       manifestPath: manifestPathOf(row),
       publishMode: row.publishMode,
+      proposalCommitTemplate: row.proposalCommitTemplate,
+      publicationCommitTemplate: row.publicationCommitTemplate,
+      pullRequestTitleTemplate: row.pullRequestTitleTemplate,
+      pullRequestBodyTemplate: row.pullRequestBodyTemplate,
       ...languagesOf(row),
     })),
   });
@@ -145,15 +150,36 @@ router.get('/overview', signedIn, async (c) => {
   });
 });
 
-/** Changes how a connected repository publishes: a commit, or a pull request (DB-606). */
+/**
+ * Changes a connected repository: its place, its languages, how it publishes
+ * (DB-606) and the formats of its messages (DB-609). An absent field keeps its value.
+ */
 router.patch('/repositories/:id', signedIn, async (c) => {
   refuseANonAdmin(c);
 
   const { data, error, success } = await parsed(c, repositoryChangeSchema);
 
-  if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
+  // The page shows each refusal under its field, so it reads them by field.
+  if (!success) {
+    const issues = error.issues.map((issue) => ({ field: String(issue.path[0] ?? ''), message: issue.message }));
 
-  const repository = await answer(() => setPublishMode(c.req.param('id'), data.publishMode));
+    return c.json(
+      { success: false, message: issues.map((issue) => `${issue.field}: ${issue.message}`).join('; '), issues },
+      400,
+    );
+  }
+
+  const repository = await answer(() =>
+    updateRepository(c.req.param('id'), data).catch((error: unknown) => {
+      if (!(error instanceof NotOnGithubError)) throw error;
+
+      return { refused: { field: error.field, message: error.message } };
+    }),
+  );
+
+  if ('refused' in repository) {
+    return c.json({ success: false, message: repository.refused.message, issues: [repository.refused] }, 400);
+  }
 
   return c.json({ success: true, data: { ...repository, ...languagesOf(repository) } });
 });

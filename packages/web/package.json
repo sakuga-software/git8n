@@ -13,6 +13,7 @@
   "dependencies": {
     "@heroui/react": "3.2.6",
     "@heroui/styles": "3.2.6",
+    "@i18n-editor/db": "workspace:*",
     "@i18n-editor/mcp": "workspace:*",
     "@react-router/node": "catalog:",
     "@react-router/serve": "catalog:",

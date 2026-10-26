@@ -82,8 +82,8 @@ server and the picker of the table read it.
 ## How a publication reaches the base branch
 
 A repository publishes in one of two modes. An admin chooses it in the form
-« Brancher un dépôt », and changes it later from the header of the editor,
-which sends `PATCH /i18n/repositories/<id>` with `{"publishMode": "…"}`.
+« Brancher un dépôt », and changes it later on the page of the settings of the
+repository, which sends `PATCH /i18n/repositories/<id>` with `{"publishMode": "…"}`.
 
 | Mode           | A publication is                                          | For                                              |
 | -------------- | --------------------------------------------------------- | ------------------------------------------------ |
@@ -112,6 +112,56 @@ In the mode `pull_request`:
 
 The App needs the permission « Pull requests: write » for this mode:
 [github-app.md](github-app.md) tells how to add it to an App that exists.
+
+## The settings of a repository
+
+An admin opens « Réglages » in the header of the editor, at
+`/repositories/<id>/settings`. The page changes the branch, the folder of the
+locales, the manifest, the languages, the mode of publication and the formats
+of the messages. It sends `PATCH /i18n/repositories/<id>` with the fields that
+changed. An absent field keeps its value.
+
+- A new branch, folder or manifest is read on GitHub before it is written. If
+  GitHub does not hold it, the API answers 400 and changes nothing.
+- A refusal names its field in `issues`: `[{ "field": "branch", "message": "…" }]`.
+- `null`, or an empty string, gives a format its default back. A `null`
+  manifest gives back `<localesPath>/manifest.json`.
+
+### The formats of the messages
+
+A format is a text with variables between braces. `{{` writes `{`, and `}}`
+writes `}`. A variable that the format of its kind does not list is refused.
+
+| Format                        | Field of the API            | Variables                                                                     | Default                                               |
+| ----------------------------- | --------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------- |
+| The commit of a proposal      | `proposalCommitTemplate`    | `language`, `count`, `count_keys`, `author`, `repository`, `branch`           | `i18n({language}): {count_keys} proposed by {author}` |
+| The commit of a publication   | `publicationCommitTemplate` | `language`, `count`, `count_keys`, `action`, `author`, `repository`, `branch` | `i18n({language}): {count_keys} {action} by {author}` |
+| The title of the pull request | `pullRequestTitleTemplate`  | `count`, `count_keys`, `languages`, `repository`, `branch`                    | `i18n: {count_keys} published ({languages})`          |
+| The body of the pull request  | `pullRequestBodyTemplate`   | `count`, `count_keys`, `languages`, `keys_list`, `repository`, `branch`       | a sentence, a blank line, then `{keys_list}`          |
+
+| Variable     | What it writes                                                                |
+| ------------ | ----------------------------------------------------------------------------- |
+| `language`   | the language of the commit: `en`                                              |
+| `languages`  | the languages of the pull request, in alphabetical order: `de, en`            |
+| `count`      | how many keys: `3`                                                            |
+| `count_keys` | the same, with the word: `1 key`, `3 keys`                                    |
+| `action`     | `published`, or `created` for a key that « Nouvelle clé » added to the source |
+| `author`     | the name of the account that proposed or published                            |
+| `repository` | `owner/name`                                                                  |
+| `branch`     | the base branch                                                               |
+| `keys_list`  | the keys of the pull request, one Markdown section for each language          |
+
+Rules:
+
+- A commit format and the title are one line. The body takes several.
+- A commit subject longer than 100 characters, or a title longer than 256, is
+  cut and ends with `…`.
+- The editor adds the lines it reads back under the format, whatever the
+  format says: the `Read-at:` trailer of a proposal, and one line for each key
+  of a publication (`- en common:hello`). The title and the body of the pull
+  request are built from these lines, so a format can change the subject freely.
+- A format that a hand wrote in the database and that the API would refuse is
+  not used: the message takes the default format.
 
 ## The manifest
 

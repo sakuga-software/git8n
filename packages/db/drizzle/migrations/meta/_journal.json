@@ -29,6 +29,13 @@
       "when": 1793017488876,
       "tag": "0003_publish_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793019365208,
+      "tag": "0004_message_templates",
+      "breakpoints": true
     }
   ]
 }
