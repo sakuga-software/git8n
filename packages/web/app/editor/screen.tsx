@@ -27,7 +27,7 @@ import { branchUrl, commitUrl, fileUrl, repositoryUrl } from '~/editor/github';
 import { NewKey } from '~/editor/new-key';
 import { OwnerAvatar } from '~/editor/owner-avatar';
 import { Busy, Choice } from '~/editor/ui';
-import { PullState } from '~/editor/pull-state';
+import { PullBand } from '~/editor/pull-state';
 import { publishedWhere } from '~/editor/publication';
 import { AccountFailure, mayLeave, ShellSlots, Signed } from '~/editor/shell';
 import { FilesTree, scopeIdOf, type Scope } from '~/editor/files-tree';
@@ -630,6 +630,11 @@ function Editor({
       EMPTY[filter]
     );
   const open = openOf(visible, openId, openIndex.current);
+  // The pull request is where the proposals go when they are published.
+  const pullBand =
+    repository.publishMode === 'pull_request' && filter === 'proposed' ? (
+      <PullBand read={publication} branch={repository.branch} onRetry={reloadPublication} />
+    ) : null;
   // In the view of one key, the page of the list is the page of the open key.
   const paged = pageOf(visible, view === 'key' && open ? Math.floor(open.index / PAGE) + 1 : page, PAGE);
   // What waits and is not on the screen. The table shows a page; the view of one key walks the whole list.
@@ -910,7 +915,6 @@ function Editor({
                 '–'
               )}
             </span>
-            {repository.publishMode === 'pull_request' && <PullState read={publication} onRetry={reloadPublication} />}
           </>,
           slots.project,
         )}
@@ -1279,6 +1283,7 @@ function Editor({
               refused={refusedWhy}
               onSubmit={save}
               empty={empty}
+              notice={pullBand}
               fileHref={(name) => fileUrl(repository, catalogue.value.commit, catalogue.value.source, name)}
               commitHref={(commit) => commitUrl(repository, commit)}
               neighbours={open ? neighboursOf(rows, open.row, drafts) : null}
@@ -1309,7 +1314,8 @@ function Editor({
             />
           ) : (
             <>
-              <div ref={swapped}>
+              <div ref={swapped} className="flex flex-col gap-3">
+                {pullBand}
                 <KeyTable
                   rows={paged.rows}
                   language={{ name: nameOf(opened), code: opened }}

@@ -95,6 +95,8 @@ interface Props {
   /** Control or Command with Enter, from the field. */
   onSubmit: () => void;
   empty: React.ReactNode;
+  /** A band above the list, for what the open tab must say. */
+  notice?: React.ReactNode;
   fileHref: (file: string) => string;
   commitHref: (commit: string) => string;
   /** The keys beside the open one (DB-277). `null` while no key is open. */
@@ -137,6 +139,7 @@ export function KeyByKey({
   refused,
   onSubmit,
   empty,
+  notice,
   fileHref,
   commitHref,
   neighbours,
@@ -250,6 +253,8 @@ export function KeyByKey({
             </SearchField.Group>
           </SearchField>
         </div>
+
+        {notice && <div className="border-line border-b p-3">{notice}</div>}
 
         <ul ref={list} aria-label="Clés" className="flex max-h-[520px] min-h-40 flex-1 flex-col overflow-y-auto p-1.5">
           {page.rows.map((entry) => {
