@@ -1,6 +1,13 @@
 import type { I18nRepository } from '@i18n-editor/db';
 import { ask, GithubError, insideRepository, installationToken } from '@/services/github-app.service';
-import { contentOf, filesOf, forgetCatalogues, manifestOf, pathsOf } from '@/services/i18n-catalogue.service';
+import {
+  contentOf,
+  filesOf,
+  fileTextOf,
+  forgetCatalogues,
+  manifestOf,
+  pathsOf,
+} from '@/services/i18n-catalogue.service';
 import { languagesOf, UnknownLanguageError } from '@/services/i18n-repositories.service';
 import {
   ensurePull,
@@ -12,6 +19,9 @@ import {
   publishToken,
   type PublishPull,
 } from '@/services/i18n-pull-request.service';
+import { LocaleFile, UnwritableKeyError } from '@/services/locale-file';
+
+export { UnwritableKeyError } from '@/services/locale-file';
 
 /**
  * The git path of the translations (DB-212).
@@ -102,55 +112,10 @@ const headOf = async (repository: I18nRepository, token: string, branch: string)
   return answer?.object.sha ?? null;
 };
 
-/**
- * A segment that names a property every object already has.
- *
- * `__proto__.x` does not write into the file: it walks to `Object.prototype`
- * and writes there, so every object made afterwards in this process carries
- * the value. A translator sends these keys, so the check is not optional.
- */
-const UNSAFE_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
-
-/** A key that cannot be written, and why. The route answers 400. */
-export class UnwritableKeyError extends Error {
-  constructor(reason: string) {
-    super(reason);
-
-    this.name = 'UnwritableKeyError';
-  }
-}
-
-/** Sets a dotted path of an object, making the objects on the way. */
-const setAt = (node: Record<string, unknown>, key: string, value: string): void => {
-  const parts = key.split('.');
-
-  for (const part of parts) {
-    if (part.length === 0) throw new UnwritableKeyError(`${key} holds an empty segment.`);
-    if (UNSAFE_SEGMENTS.has(part)) throw new UnwritableKeyError(`${key} names ${part}, which every object holds.`);
-  }
-
-  let at = node;
-
-  for (const part of parts.slice(0, -1)) {
-    const next = at[part];
-
-    if (next === undefined) {
-      at[part] = {};
-    } else if (typeof next !== 'object' || next === null || Array.isArray(next)) {
-      // Writing here would replace a translation that is already in the file.
-      throw new UnwritableKeyError(`${key} passes through ${part}, which the file holds as a value.`);
-    }
-
-    at = at[part] as Record<string, unknown>;
-  }
-
-  at[parts[parts.length - 1]] = value;
-};
-
 /** A file to write, by its path in the repository. */
 interface FileToWrite {
   path: string;
-  content: Record<string, unknown>;
+  content: LocaleFile;
 }
 
 /**
@@ -191,9 +156,9 @@ const commitBatch = async (
       type: 'blob' as const,
       sha: (
         await ask<{ sha: string }>(`${repo}/git/blobs`, token, 'POST', {
-          // The files end with a newline, as a file written by hand does. A
-          // publication then shows no change nobody made.
-          content: Buffer.from(`${JSON.stringify(file.content, null, 2)}\n`, 'utf8').toString('base64'),
+          // The text keeps every byte that the batch did not change: the key
+          // order, the indentation and the last newline (DB-608).
+          content: Buffer.from(file.content.toString(), 'utf8').toString('base64'),
           encoding: 'base64',
         })
       ).sha,
@@ -354,9 +319,11 @@ export const propose = async (
   const files: FileToWrite[] = [];
 
   for (const file of touched) {
-    const content = known.has(file) ? await contentOf(repository, token, language, file, parent) : {};
+    const content = known.has(file)
+      ? LocaleFile.parse(await fileTextOf(repository, token, language, file, parent))
+      : LocaleFile.empty();
 
-    for (const value of values.filter((row) => row.file === file)) setAt(content, value.key, value.value);
+    for (const value of values.filter((row) => row.file === file)) content.set(value.key, value.value);
 
     files.push({ path: `${repository.localesPath}/${language}/${file}.json`, content });
   }
@@ -613,8 +580,8 @@ export interface Publication {
   pullRequest: PublishPull | null;
 }
 
-const stringAt = (content: Record<string, unknown>, key: string): string | null => {
-  const found = new Map(pathsOf(content)).get(key);
+const stringAt = (file: LocaleFile, key: string): string | null => {
+  const found = new Map(pathsOf(file.content)).get(key);
 
   return typeof found === 'string' ? found : null;
 };
@@ -663,7 +630,7 @@ export const publish = async (
 
     const published: ApprovedKey[] = [];
     const refused: RefusedKey[] = [];
-    const files = new Map<string, Record<string, unknown>>();
+    const files = new Map<string, LocaleFile>();
     const branchFiles = await filesOf(repository, token, language, head, { absentIsEmpty: true });
     // What the target says is what is published already. In the mode
     // `pull_request`, it holds the keys of the open pull request too, so a
@@ -674,14 +641,14 @@ export const publish = async (
     // same source twenty times. The caches are made per attempt, so a replay
     // after a stale ref reads the new content rather than the old.
     const batches = new Map<string, { readAt: string; onTheBranch: boolean }>();
-    const reads = new Map<string, Record<string, unknown>>();
+    const reads = new Map<string, LocaleFile>();
     const readOnce = async (lang: string, file: string, ref: string) => {
       const key = `${ref}:${lang}/${file}`;
       const held = reads.get(key);
 
       if (held) return held;
 
-      const read = await contentOf(repository, token, lang, file, ref);
+      const read = LocaleFile.parse(await fileTextOf(repository, token, lang, file, ref));
 
       reads.set(key, read);
 
@@ -729,7 +696,7 @@ export const publish = async (
       }
 
       const proposed = await readOnce(language, file, head);
-      const current = targetFiles.has(file) ? await readOnce(language, file, target.parent) : {};
+      const current = targetFiles.has(file) ? await readOnce(language, file, target.parent) : LocaleFile.empty();
       const sourceNow = await readOnce(source, file, base);
       let changed = false;
 
@@ -780,7 +747,7 @@ export const publish = async (
           continue;
         }
 
-        setAt(current, row.key, value);
+        current.set(row.key, value);
         published.push(row);
         changed = true;
       }
@@ -911,16 +878,16 @@ export const createKeys = async (
     const files: FileToWrite[] = [];
 
     for (const file of touched) {
-      const content = await contentOf(repository, token, source, file, target.parent);
+      const content = LocaleFile.parse(await fileTextOf(repository, token, source, file, target.parent));
 
       for (const value of values.filter((row) => row.file === file)) {
         // It also refuses a key named twice in the batch: the first one is in
         // the content by the time the second is read.
-        if (holds(content, value.key)) {
+        if (holds(content.content, value.key)) {
           throw new UnwritableKeyError(`${value.key} is already in ${file}. A creation changes no key.`);
         }
 
-        setAt(content, value.key, value.value);
+        content.set(value.key, value.value);
       }
 
       files.push({ path: `${repository.localesPath}/${source}/${file}.json`, content });
