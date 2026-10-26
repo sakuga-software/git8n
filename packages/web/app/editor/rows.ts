@@ -300,6 +300,65 @@ export const matching = (rows: readonly Row[], query: string): readonly Row[] =>
   );
 };
 
+/** Where a text holds a query, as `[start, end)` in the text itself, with the folding of `matching`. */
+export const matchIn = (text: string, query: string): readonly [number, number] | null => {
+  const wanted = fold(query.trim());
+
+  if (wanted === '') return null;
+
+  // The fold of a character can change the length: each folded character keeps the place of its character.
+  let folded = '';
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let at = 0;
+
+  for (const character of text) {
+    for (const part of fold(character)) {
+      folded += part;
+      starts.push(at);
+      ends.push(at + character.length);
+    }
+
+    at += character.length;
+  }
+
+  const found = folded.indexOf(wanted);
+
+  return found === -1 ? null : [starts[found]!, ends[found + wanted.length - 1]!];
+};
+
+export interface Suggestion {
+  row: Row;
+  /** The text under the key: the first of the source and the translation that holds the query, or the source. */
+  text: string;
+  keyMatch: readonly [number, number] | null;
+  textMatch: readonly [number, number] | null;
+}
+
+/** The suggestions of the search (DB-619). */
+export const SUGGESTIONS_SHOWN = 8;
+
+/**
+ * The keys that the search suggests, from the rows a search keeps.
+ *
+ * A key that starts with the query comes first, then a key that holds it, then a key whose text holds it.
+ */
+export const suggestionsOf = (rows: readonly Row[], query: string): Suggestion[] => {
+  if (fold(query.trim()) === '') return [];
+
+  const rank = (suggestion: Suggestion) => (suggestion.keyMatch === null ? 2 : suggestion.keyMatch[0] === 0 ? 0 : 1);
+
+  return matching(rows, query)
+    .map((row) => {
+      const texts = [row.source, row.proposal?.value ?? row.published ?? ''];
+      const text = texts.find((candidate) => matchIn(candidate, query) !== null) ?? row.source;
+
+      return { row, text, keyMatch: matchIn(row.key, query), textMatch: matchIn(text, query) };
+    })
+    .sort((a, b) => rank(a) - rank(b))
+    .slice(0, SUGGESTIONS_SHOWN);
+};
+
 /** The characters a line of the translation column holds at the narrowest width of the table. */
 const LINE = 50;
 

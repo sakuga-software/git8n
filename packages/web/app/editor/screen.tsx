@@ -1,5 +1,4 @@
 import { Button } from '@heroui/react/button';
-import { SearchField } from '@heroui/react/search-field';
 import { ToggleButton } from '@heroui/react/toggle-button';
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group';
 import { Tooltip } from '@heroui/react/tooltip';
@@ -34,6 +33,7 @@ import { FilesTree, scopeIdOf, type Scope } from '~/editor/files-tree';
 import { KeyByKey } from '~/editor/key-by-key';
 import { LanguageHeader } from '~/editor/language-header';
 import { PendingBar } from '~/editor/pending-bar';
+import { KeySearch } from '~/editor/search';
 import { Languages } from '~/editor/languages';
 import { treeOf, under } from '~/editor/tree';
 import { Blocked, Failure, Loading } from '~/editor/states';
@@ -1086,29 +1086,22 @@ function Editor({
             </Sliding>
 
             <div className="my-[5px] flex flex-wrap items-center gap-2.5">
-              <SearchField
-                aria-label="Chercher une clé ou un texte"
-                aria-keyshortcuts="/"
-                value={query}
+              <KeySearch
+                rows={scope ? under(rows, scope) : rows}
+                query={query}
                 isDisabled={!read}
-                onChange={(next) => {
+                onQuery={(next) => {
                   setQuery(next);
                   setPage(1);
                 }}
-                className="w-[280px]"
-              >
-                <SearchField.Group className="h-9">
-                  <SearchField.SearchIcon />
-                  <SearchField.Input ref={search} placeholder="Chercher une clé ou un texte" />
-                  {/* The key gives way to the button that clears, which takes its place. */}
-                  {query === '' && (
-                    <kbd aria-hidden="true" className="kbd mr-2">
-                      /
-                    </kbd>
-                  )}
-                  <SearchField.ClearButton />
-                </SearchField.Group>
-              </SearchField>
+                onPick={(row) => {
+                  // The key opens in its own list, with the search that found it.
+                  setFilter(row.state);
+                  setOpenId(idOf(row));
+                  setView('key');
+                }}
+                inputRef={search}
+              />
               {viewSwitch}
             </div>
           </div>
