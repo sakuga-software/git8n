@@ -1,3 +1,4 @@
+import { PUBLISH_MODES } from '@i18n-editor/db';
 import { z } from 'zod';
 
 /**
@@ -46,7 +47,12 @@ export const newRepositorySchema = z.object({
     .optional(),
   /** The source language first, and the rest translated from it. A tag, not a path. */
   languages: z.array(z.string().regex(/^[A-Za-z0-9_-]+$/, 'A language is a tag such as fr or pt-BR')).min(1),
+  /** How a publication reaches the base branch (DB-606). Absent means `commit`. */
+  publishMode: z.enum(PUBLISH_MODES).optional(),
 });
+
+/** What an admin changes on a connected repository (DB-606). */
+export const repositoryChangeSchema = z.object({ publishMode: z.enum(PUBLISH_MODES) });
 
 export type NewRepositoryBody = z.infer<typeof newRepositorySchema>;
 

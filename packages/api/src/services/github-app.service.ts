@@ -157,6 +157,9 @@ export const asked = async <T>(
     );
   }
 
+  // A merge with nothing to merge answers 204, with no body to read.
+  if (response.status === 204) return { body: null as T, next: null };
+
   return { body: (await response.json()) as T, next: nextOf(response.headers.get('link')) };
 };
 

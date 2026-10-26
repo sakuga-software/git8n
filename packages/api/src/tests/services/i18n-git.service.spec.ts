@@ -39,6 +39,7 @@ const repository: I18nRepository = {
   localesPath: LOCALES,
   manifestPath: null,
   languages: ['fr', 'en'],
+  publishMode: 'commit',
   createdAt: new Date('2026-09-24T00:00:00Z'),
 };
 
@@ -934,7 +935,10 @@ describe('creating keys in the source', () => {
 
     expect(created).toMatchObject({ keys: 2, commit: commit.sha });
     expect(commit.parents).toEqual([before]);
-    expect(commit.message).toBe('i18n(fr): 2 keys created by Morgane');
+    // The lines under the summary name each key: the pull request of a protected repository is written from them.
+    expect(commit.message).toBe(
+      'i18n(fr): 2 keys created by Morgane\n\n- fr common:buttons.next\n- fr admin:analysis.title',
+    );
     expect(commit.author).toMatchObject(writer);
     expect(parsed(repo, commit.sha, `${LOCALES}/fr/common.json`)).toEqual({
       hello: 'Bonjour',

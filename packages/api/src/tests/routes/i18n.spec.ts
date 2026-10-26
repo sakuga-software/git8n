@@ -514,11 +514,16 @@ describe('GET /i18n/detection', () => {
   ];
 
   /** GitHub, for one repository whose default branch is `trunk`. */
-  const repositoryOnGithub = (options: { manifest?: unknown } = {}) =>
+  const repositoryOnGithub = (options: { manifest?: unknown; rules?: unknown[] | 'refused' } = {}) =>
     vi.fn(async (url: string) => {
       const path = new URL(url).pathname;
 
       if (path === '/repos/acme/acme-app') return ok({ default_branch: 'trunk' });
+      if (path === '/repos/acme/acme-app/rules/branches/trunk') {
+        return options.rules === 'refused'
+          ? { ok: false, status: 403, json: async () => ({ message: 'Forbidden' }) }
+          : ok(options.rules ?? []);
+      }
       if (path === '/repos/acme/acme-app/git/trees/trunk') return ok({ tree: TREE, truncated: false });
       if (path.startsWith('/repos/acme/acme-app/git/trees/')) {
         return { ok: false, status: 404, json: async () => ({ message: 'Not Found' }) };
@@ -551,7 +556,22 @@ describe('GET /i18n/detection', () => {
       manifestPath: 'src/locales/manifest.json',
       source: 'fr',
       languages: ['fr', 'en'],
+      requiresPullRequest: false,
     });
+  });
+
+  it('says that a ruleset requires a pull request on the branch, and says nothing when GitHub refuses', async () => {
+    vi.stubGlobal('fetch', repositoryOnGithub({ rules: [{ type: 'deletion' }, { type: 'pull_request' }] }));
+
+    const required = await detection('installationId=42&owner=acme&name=acme-app');
+
+    expect(((await required.json()) as { data: { requiresPullRequest: unknown } }).data.requiresPullRequest).toBe(true);
+
+    vi.stubGlobal('fetch', repositoryOnGithub({ rules: 'refused' }));
+
+    const unknown = await detection('installationId=42&owner=acme&name=acme-app');
+
+    expect(((await unknown.json()) as { data: { requiresPullRequest: unknown } }).data.requiresPullRequest).toBeNull();
   });
 
   it('answers the folder that the admin chose, with no manifest beside it', async () => {
@@ -1122,5 +1142,183 @@ describe('the write path', () => {
 
       expect((await read(repoRow.id, await authHeaders(userId))).status).toBe(403);
     });
+  });
+});
+
+/**
+ * A repository that publishes through a pull request (DB-606): how an admin
+ * chooses it, what the page reads of the pull request, and what a publication
+ * answers when GitHub refuses.
+ */
+describe('the mode pull_request', () => {
+  const LOCALES = 'src/locales';
+
+  const withRepo = () => {
+    const repo = fakeRepo({
+      owner: 'acme',
+      name: 'acme-app',
+      baseBranch: 'main',
+      files: {
+        [`${LOCALES}/fr/common.json`]: { hello: 'Bonjour' },
+        [`${LOCALES}/en/common.json`]: { hello: 'Hello' },
+      },
+    });
+
+    vi.stubGlobal('fetch', repo.fetch);
+
+    return repo;
+  };
+
+  const send = (method: string, path: string, headers: Record<string, string>, body: unknown) =>
+    app.request(path, {
+      method,
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  /** A proposal of `hello`, then its publication by a reviewer. */
+  const proposeThenPublish = async (repositoryId: string, readAt: string) => {
+    const author = await translator(['en']);
+    const proposed = await send('POST', '/i18n/proposals', author.headers, {
+      repository: repositoryId,
+      language: 'en',
+      readAt,
+      values: [{ file: 'common', key: 'hello', value: 'Hi' }],
+    });
+    const { data } = (await proposed.json()) as { data: { commit: string } };
+    const publisher = await translator(['en'], 'reviewer');
+
+    return send('POST', '/i18n/publications', publisher.headers, {
+      repository: repositoryId,
+      language: 'en',
+      approved: [{ file: 'common', key: 'hello', commit: data.commit }],
+    });
+  };
+
+  it('lets an admin connect a repository in the mode pull_request, and lists the mode', async () => {
+    const admin = await signedInAdmin();
+    const res = await send('POST', '/i18n/repositories', admin.headers, {
+      installationId: 42,
+      owner: 'acme',
+      name: 'acme-app',
+      localesPath: 'src/locales',
+      languages: ['fr', 'en'],
+      publishMode: 'pull_request',
+    });
+
+    expect(res.status).toBe(200);
+
+    const listed = (await (await app.request('/i18n/repositories', { headers: admin.headers })).json()) as {
+      data: Array<{ publishMode: string }>;
+    };
+
+    expect(listed.data[0].publishMode).toBe('pull_request');
+  });
+
+  it('connects a repository in the mode commit when the body names none', async () => {
+    const admin = await signedInAdmin();
+
+    await send('POST', '/i18n/repositories', admin.headers, {
+      installationId: 42,
+      owner: 'acme',
+      name: 'acme-app',
+      localesPath: 'src/locales',
+      languages: ['fr', 'en'],
+    });
+
+    const [row] = await db().select().from(i18nRepositories);
+
+    expect(row.publishMode).toBe('commit');
+  });
+
+  it('lets an admin change the mode of a connected repository', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+    const res = await send('PATCH', `/i18n/repositories/${repoRow.id}`, admin.headers, { publishMode: 'pull_request' });
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { data: { publishMode: string } }).data.publishMode).toBe('pull_request');
+  });
+
+  it('refuses the change to a reviewer who is no admin', async () => {
+    const repoRow = await repository();
+    const { headers } = await translator(['en'], 'reviewer');
+
+    expect(
+      (await send('PATCH', `/i18n/repositories/${repoRow.id}`, headers, { publishMode: 'pull_request' })).status,
+    ).toBe(403);
+  });
+
+  it('refuses a mode it does not know, and a repository that is not there', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+
+    expect(
+      (await send('PATCH', `/i18n/repositories/${repoRow.id}`, admin.headers, { publishMode: 'push' })).status,
+    ).toBe(400);
+    expect((await send('PATCH', '/i18n/repositories/nope', admin.headers, { publishMode: 'commit' })).status).toBe(400);
+  });
+
+  it('publishes into a pull request, and the page then reads it open', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+
+    await send('PATCH', `/i18n/repositories/${repoRow.id}`, admin.headers, { publishMode: 'pull_request' });
+
+    const repo = withRepo();
+    const res = await proposeThenPublish(repoRow.id, repo.refs.get('main')!);
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { data: { pullRequest: { number: number } } }).data.pullRequest.number).toBe(1);
+
+    const state = await app.request(`/i18n/publication?repository=${repoRow.id}`, { headers: admin.headers });
+
+    expect(((await state.json()) as { data: unknown }).data).toEqual({
+      publishMode: 'pull_request',
+      pullRequest: { number: 1, url: 'https://github.com/acme/acme-app/pull/1', state: 'open', mergeable: true },
+    });
+  });
+
+  it('answers no pull request for a repository that publishes by commit', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+    const state = await app.request(`/i18n/publication?repository=${repoRow.id}`, { headers: admin.headers });
+
+    expect(((await state.json()) as { data: unknown }).data).toEqual({ publishMode: 'commit', pullRequest: null });
+  });
+
+  it('answers 503 naming the permission when GitHub refuses the pull request', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+
+    await send('PATCH', `/i18n/repositories/${repoRow.id}`, admin.headers, { publishMode: 'pull_request' });
+
+    const repo = withRepo();
+
+    repo.refuse.pulls = true;
+
+    const res = await proposeThenPublish(repoRow.id, repo.refs.get('main')!);
+
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { message: string }).message).toMatch(/Pull requests: write/);
+  });
+
+  it('answers 409 when the branch of the publications conflicts with the base branch', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+
+    await send('PATCH', `/i18n/repositories/${repoRow.id}`, admin.headers, { publishMode: 'pull_request' });
+
+    const repo = withRepo();
+
+    expect((await proposeThenPublish(repoRow.id, repo.refs.get('main')!)).status).toBe(200);
+
+    repo.moveBranch('main', { [`${LOCALES}/en/common.json`]: { hello: 'Hey' } });
+    repo.refuse.mergeConflict = true;
+
+    const res = await proposeThenPublish(repoRow.id, repo.refs.get('main')!);
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { message: string }).message).toMatch(/Resolve the conflict/);
   });
 });

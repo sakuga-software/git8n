@@ -13,9 +13,16 @@ import {
   languagesOf,
   listRepositories,
   repositoryOrReason,
+  setPublishMode,
   UnknownLanguageError,
   UnknownRepositoryError,
 } from '@/services/i18n-repositories.service';
+import {
+  lastPullOf,
+  MissingPermissionError,
+  PublishConflictError,
+  publishToken,
+} from '@/services/i18n-pull-request.service';
 import { UnwritableKeyError } from '@/services/i18n-git.service';
 import { detect } from '@/services/i18n-detection.service';
 import { reachableRepositories } from '@/services/i18n-reachable.service';
@@ -27,6 +34,7 @@ import {
   newRepositorySchema,
   proposalSchema,
   publicationSchema,
+  repositoryChangeSchema,
 } from '@/schemas/i18n';
 
 const router = new Hono<HonoEnv>();
@@ -66,8 +74,14 @@ const answer = async <T>(read: () => Promise<T>): Promise<T> => {
   try {
     return await read();
   } catch (error) {
-    if (error instanceof GithubAppNotConfiguredError) {
+    // An installation that lacks a permission is a setup to finish, as an App
+    // with no secrets is: an owner of the installation acts, not the caller.
+    if (error instanceof GithubAppNotConfiguredError || error instanceof MissingPermissionError) {
       throw new HTTPException(503, { message: error.message });
+    }
+
+    if (error instanceof PublishConflictError) {
+      throw new HTTPException(409, { message: error.message });
     }
 
     // The caller named something that is not there. A 500 would hide the list
@@ -99,9 +113,43 @@ router.get('/repositories', signedIn, async (c) => {
       branch: row.branch,
       localesPath: row.localesPath,
       manifestPath: manifestPathOf(row),
+      publishMode: row.publishMode,
       ...languagesOf(row),
     })),
   });
+});
+
+/** Changes how a connected repository publishes: a commit, or a pull request (DB-606). */
+router.patch('/repositories/:id', signedIn, async (c) => {
+  refuseANonAdmin(c);
+
+  const { data, error, success } = await parsed(c, repositoryChangeSchema);
+
+  if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
+
+  const repository = await answer(() => setPublishMode(c.req.param('id'), data.publishMode));
+
+  return c.json({ success: true, data: { ...repository, ...languagesOf(repository) } });
+});
+
+/**
+ * The pull request that carries the publications of a repository (DB-606).
+ *
+ * `pullRequest` is the last one, open or not, so the page says « fusionnée »
+ * after a merge. A repository that publishes by commit has none.
+ */
+router.get('/publication', signedIn, async (c) => {
+  await refuseAStranger(c);
+
+  const repository = await answer(() => repositoryOrReason(c.req.query('repository')));
+
+  if (repository.publishMode !== 'pull_request') {
+    return c.json({ success: true, data: { publishMode: repository.publishMode, pullRequest: null } });
+  }
+
+  const pullRequest = await answer(async () => lastPullOf(repository, await publishToken(repository)));
+
+  return c.json({ success: true, data: { publishMode: repository.publishMode, pullRequest } });
 });
 
 /**

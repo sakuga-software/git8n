@@ -99,8 +99,28 @@ export interface Repository {
   localesPath: string;
   /** From the root of the repository. Absent from an API older than DB-571. */
   manifestPath?: string;
+  /** How a publication reaches the base branch. Absent from an API older than DB-606, which publishes by commit. */
+  publishMode?: PublishMode;
   source: string;
   targets: string[];
+}
+
+/** `commit`: straight onto the base branch. `pull_request`: through one open pull request (DB-606). */
+export type PublishMode = 'commit' | 'pull_request';
+
+/** The pull request that carries the publications of a repository. */
+export interface PublishPull {
+  number: number;
+  url: string;
+  state: 'open' | 'merged' | 'closed';
+  /** Null while GitHub computes it, and for a pull request that is not open. */
+  mergeable: boolean | null;
+}
+
+export interface PublicationState {
+  publishMode: PublishMode;
+  /** The last pull request of the publications, open or not. Null in the mode `commit`. */
+  pullRequest: PublishPull | null;
 }
 
 export interface Rights {
@@ -137,9 +157,9 @@ export interface WaitingBatch {
   readAt: string;
 }
 
-const ask = async <T>(config: ApiConfig, path: string, body?: unknown): Promise<T> => {
+const ask = async <T>(config: ApiConfig, path: string, body?: unknown, method?: 'PATCH'): Promise<T> => {
   const response = await fetch(`${config.url}${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
+    method: method ?? (body === undefined ? 'GET' : 'POST'),
     signal: AbortSignal.timeout(60 * 1000),
     ...(config.token === undefined ? { credentials: 'include' as const } : {}),
     headers: {
@@ -232,6 +252,8 @@ export interface Detection {
   source: string | null;
   /** The source first when it is known. */
   languages: string[];
+  /** Whether a ruleset requires a pull request on the branch. Null when GitHub did not say, absent before DB-606. */
+  requiresPullRequest?: boolean | null;
 }
 
 export const detection = (
@@ -259,6 +281,7 @@ export interface NewRepository {
   manifestPath?: string;
   /** The source first. */
   languages: string[];
+  publishMode?: PublishMode;
 }
 
 /** Connects a repository. `created` is false when it was connected already: the API answers that row. */
@@ -307,7 +330,17 @@ export interface Publication {
   commit: string | null;
   published: ApprovedKey[];
   refused: RefusedKey[];
+  /** The pull request that carries it. Null in the mode `commit`, and absent from an API older than DB-606. */
+  pullRequest?: PublishPull | null;
 }
+
+/** Changes how a connected repository publishes. For an admin. */
+export const setPublishMode = (config: ApiConfig, repository: string, publishMode: PublishMode) =>
+  ask<Repository>(config, `/i18n/repositories/${encodeURIComponent(repository)}`, { publishMode }, 'PATCH');
+
+/** The pull request that carries the publications of a repository. */
+export const publicationState = (config: ApiConfig, repository: string) =>
+  ask<PublicationState>(config, `/i18n/publication?repository=${encodeURIComponent(repository)}`);
 
 export const proposedKeys = (config: ApiConfig, repository: string, language: string) =>
   ask<ProposedKey[]>(
@@ -331,10 +364,13 @@ export interface CreatedKeys {
   commit: string;
   keys: number;
   files: string[];
+  /** The pull request that carries them, in the mode `pull_request`. */
+  pullRequest?: PublishPull | null;
 }
 
 /**
- * Adds keys to the source language, on the base branch. The MCP server exposes
+ * Adds keys to the source language: on the base branch, or in the pull request
+ * of the publications in the mode `pull_request`. The MCP server exposes
  * no tool for it: a person writes the texts of the product, an agent translates
  * them.
  */

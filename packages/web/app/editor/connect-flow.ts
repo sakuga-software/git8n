@@ -1,4 +1,4 @@
-import type { Repository } from '@i18n-editor/mcp/api';
+import type { PublishMode, Repository } from '@i18n-editor/mcp/api';
 
 /**
  * The rules of the flow that connects a repository (DB-581), with no React,
@@ -120,7 +120,7 @@ export const problemsOf = (form: ConnectForm): Partial<Record<ConnectField, stri
 };
 
 /** The body of `POST /i18n/repositories`. A manifest left empty is the one beside the languages. */
-export const bodyOf = (choice: RepositoryChoice, form: ConnectForm) => {
+export const bodyOf = (choice: RepositoryChoice, form: ConnectForm, publishMode: PublishMode = 'commit') => {
   const manifestPath = form.manifestPath.trim();
 
   return {
@@ -131,5 +131,6 @@ export const bodyOf = (choice: RepositoryChoice, form: ConnectForm) => {
     localesPath: form.localesPath.trim().replace(/\/+$/, ''),
     ...(manifestPath === '' ? {} : { manifestPath }),
     languages: languagesOf(form.languages),
+    publishMode,
   };
 };

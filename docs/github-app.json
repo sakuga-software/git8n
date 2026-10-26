@@ -14,7 +14,8 @@
   "setup_on_update": true,
   "default_permissions": {
     "contents": "write",
-    "metadata": "read"
+    "metadata": "read",
+    "pull_requests": "write"
   },
   "default_events": []
 }

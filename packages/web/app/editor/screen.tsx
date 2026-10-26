@@ -11,9 +11,13 @@ import {
   progress as readProgress,
   propose,
   proposedKeys as readProposedKeys,
+  publicationState as readPublication,
   publish,
   repositories as readRepositories,
   rightsOf,
+  setPublishMode,
+  type PublishMode,
+  type PublishPull,
   type RefusedKey,
 } from '@i18n-editor/mcp/api';
 import { api } from '~/utils/api';
@@ -24,6 +28,8 @@ import { SETUP_PATH, setupReturnOf } from '~/editor/connect-flow';
 import { branchUrl, commitUrl, fileUrl, repositoryUrl } from '~/editor/github';
 import { NewKey } from '~/editor/new-key';
 import { Busy, Choice } from '~/editor/ui';
+import { PullState } from '~/editor/pull-state';
+import { PUBLISH_MODE_LABEL, publishedWhere } from '~/editor/publication';
 import { SignIn } from '~/editor/sign-in';
 import { FilesTree, scopeIdOf, type Scope } from '~/editor/files-tree';
 import { KeyByKey } from '~/editor/key-by-key';
@@ -492,6 +498,13 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
   const [progress, reloadProgress] = useRead(repository ? `progress\n${repository.id}` : null, () =>
     readProgress(api, repository!.id),
   );
+  // The pull request that carries the publications, for a repository that publishes through one (DB-606).
+  const [publication, reloadPublication] = useRead(
+    repository?.publishMode === 'pull_request' ? `publication\n${repository.id}` : null,
+    () => readPublication(api, repository!.id),
+  );
+  const [modeBusy, setModeBusy] = useState(false);
+  const [modeError, setModeError] = useState<ReadError | null>(null);
 
   const [filter, setFilter] = useState<RowState>('missing');
   const [query, setQuery] = useState('');
@@ -501,7 +514,12 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
   const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(new Set());
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<ReadError | null>(null);
-  const [createdNote, setCreatedNote] = useState<{ file: string; key: string; commit: string } | null>(null);
+  const [createdNote, setCreatedNote] = useState<{
+    file: string;
+    key: string;
+    commit: string;
+    pullRequest: PublishPull | null;
+  } | null>(null);
   const [page, setPage] = useState(1);
   const [view, setViewState] = useState<View>(viewAtStart);
   // The key that the view of one key shows. A key that left the list gives its place to the next one.
@@ -516,7 +534,11 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
     error: ReadError;
     of: 'proposal' | 'publication';
   } | null>(null);
-  const [report, setReport] = useState<{ published: number; refused: RefusedKey[] } | null>(null);
+  const [report, setReport] = useState<{
+    published: number;
+    refused: RefusedKey[];
+    pullRequest: PublishPull | null;
+  } | null>(null);
   const [writes, setWrites] = useState<Writes | null>(null);
   const [sentNote, setSentNote] = useState<{ keys: number; commit: string } | null>(null);
 
@@ -803,7 +825,12 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
       });
       const values = new Map(sent.map((row) => [idOf(row), row.proposal!.value]));
 
-      setReport({ published: answer.published.length, refused: answer.refused });
+      setReport({
+        published: answer.published.length,
+        refused: answer.refused,
+        pullRequest: answer.pullRequest ?? null,
+      });
+      if (answer.pullRequest) reloadPublication();
 
       setApproved(new Set());
       settle(filter === 'published' ? [] : answer.published.map(idOf), () => {
@@ -817,13 +844,36 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
         reloadProgress();
       });
     } catch (error) {
+      const failed = readErrorOf(error);
+
       setWriteError({
-        title: "Les clés n'ont pas été publiées. Les cases cochées le sont toujours.",
-        error: readErrorOf(error),
+        title:
+          failed.status === 503 && repository.publishMode === 'pull_request'
+            ? "Les clés n'ont pas été publiées : l'App GitHub n'a pas encore la permission « Pull requests ». Les cases cochées le sont toujours."
+            : failed.status === 409 && repository.publishMode === 'pull_request'
+              ? "Les clés n'ont pas été publiées : la pull request des publications est en conflit avec la branche. Les cases cochées le sont toujours."
+              : "Les clés n'ont pas été publiées. Les cases cochées le sont toujours.",
+        error: failed,
         of: 'publication',
       });
     } finally {
       setBusy(null);
+    }
+  };
+
+  const changeMode = async (mode: PublishMode) => {
+    if (mode === (repository.publishMode ?? 'commit')) return;
+
+    setModeBusy(true);
+    setModeError(null);
+
+    try {
+      await setPublishMode(api, repository.id, mode);
+      reloadRepositories();
+    } catch (error) {
+      setModeError(readErrorOf(error));
+    } finally {
+      setModeBusy(false);
     }
   };
 
@@ -889,9 +939,27 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
                 '–'
               )}
             </span>
+            {repository.publishMode === 'pull_request' && <PullState read={publication} onRetry={reloadPublication} />}
+            {installUrl && (
+              <Choice
+                label="Publier par"
+                value={repository.publishMode ?? 'commit'}
+                items={(['commit', 'pull_request'] as const).map((mode) => ({
+                  value: mode,
+                  label: `Publier : ${PUBLISH_MODE_LABEL[mode].toLowerCase()}`,
+                }))}
+                onChange={(next) => void changeMode(next as PublishMode)}
+                isDisabled={modeBusy}
+                className="min-w-[190px]"
+              />
+            )}
           </>,
           slots.project,
         )}
+
+      {modeError && (
+        <Failure title="Le mode de publication n'a pas changé." error={modeError} onRetry={() => setModeError(null)} />
+      )}
 
       {slots.side &&
         createPortal(
@@ -976,7 +1044,13 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
               const answer = await createKeys(api, { repository: repository.id, values: [created] });
 
               setCreating(false);
-              setCreatedNote({ file: created.file, key: created.key, commit: answer.commit });
+              setCreatedNote({
+                file: created.file,
+                key: created.key,
+                commit: answer.commit,
+                pullRequest: answer.pullRequest ?? null,
+              });
+              if (answer.pullRequest) reloadPublication();
               // The table goes to the key: it is missing in this language, and that is where it shows.
               setFilter('missing');
               setScope({ file: created.file, path: '' });
@@ -1008,6 +1082,15 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
             <Outside href={commitUrl(repository, createdNote.commit)} className="font-mono text-[13px] underline">
               {createdNote.commit.slice(0, 7)}
             </Outside>
+            {createdNote.pullRequest && (
+              <>
+                {' '}
+                dans la{' '}
+                <Outside href={createdNote.pullRequest.url} className="underline">
+                  PR #{createdNote.pullRequest.number}
+                </Outside>
+              </>
+            )}
             . Elle est maintenant à traduire.
           </span>
           <button type="button" onClick={() => setCreatedNote(null)} className="link ml-auto text-[13px]">
@@ -1141,8 +1224,13 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
           <div className="flex items-center gap-2.5 text-sm font-semibold">
             {report.published > 0 ? <Published /> : <Info size={18} className="text-muted" />}
             {report.published === 0
-              ? `Aucune clé publiée sur ${repository.branch}.`
-              : `${countOf(report.published)} ${report.published > 1 ? 'clés publiées' : 'clé publiée'} sur ${repository.branch}.`}
+              ? `Aucune clé publiée ${publishedWhere(repository.branch, report.pullRequest)}.`
+              : `${countOf(report.published)} ${report.published > 1 ? 'clés publiées' : 'clé publiée'} ${publishedWhere(repository.branch, report.pullRequest)}.`}
+            {report.pullRequest && (
+              <Outside href={report.pullRequest.url} className="text-[13px] font-normal underline">
+                Ouvrir la PR #{report.pullRequest.number}
+              </Outside>
+            )}
             <button type="button" onClick={() => setReport(null)} className="link ml-auto text-[13px] font-normal">
               Fermer
             </button>

@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { i18nRepositories, newId, type I18nRepository } from '@i18n-editor/db';
+import { i18nRepositories, newId, type I18nRepository, type PublishMode } from '@i18n-editor/db';
 import { db } from '@/db';
 import { withoutTrailingSlashes } from '@/utils/trailing-slashes';
 import { GithubAppNotConfiguredError, GithubError, repositoriesOf } from '@/services/github-app.service';
@@ -90,6 +90,7 @@ export interface NewRepository {
   manifestPath?: string;
   /** The source language first. */
   languages: string[];
+  publishMode?: PublishMode;
 }
 
 /**
@@ -163,8 +164,22 @@ export const addRepository = async (input: NewRepository): Promise<Added> => {
       localesPath: withoutTrailingSlashes(input.localesPath),
       manifestPath: input.manifestPath ?? null,
       languages: input.languages,
+      publishMode: input.publishMode ?? 'commit',
     })
     .returning();
 
   return { repository: created, created: true };
+};
+
+/** Changes how a connected repository publishes (DB-606). */
+export const setPublishMode = async (id: string, publishMode: PublishMode): Promise<I18nRepository> => {
+  const [changed] = await db()
+    .update(i18nRepositories)
+    .set({ publishMode })
+    .where(eq(i18nRepositories.id, id))
+    .returning();
+
+  if (!changed) throw new UnknownRepositoryError(`No repository ${id}.`);
+
+  return changed;
 };
