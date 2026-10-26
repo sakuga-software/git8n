@@ -237,8 +237,8 @@
     background: none;
   }
 
+  /* The line of the accent is the mark of Sliding, which slides to the open tab. */
   .tabs .toggle-button[data-selected='true'] {
-    border-bottom-color: var(--color-signal);
     font-weight: 600;
     color: var(--color-ink);
     background: none;
@@ -299,9 +299,41 @@
     background: none;
   }
 
+  /* The raised segment is the mark of Sliding. The buttons stay over it. */
+  .segments .toggle-button {
+    position: relative;
+  }
+
   .segments .toggle-button[data-selected='true'] {
     font-weight: 600;
     color: var(--color-ink);
+    background: none;
+  }
+
+  .slide-mark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .slide-mark[data-placed] {
+    opacity: 1;
+  }
+
+  .slide-mark[data-moves] {
+    transition:
+      transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+      width 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .tabs-mark {
+    border-bottom: 2px solid var(--color-signal);
+  }
+
+  .segments-mark {
+    border-radius: 6px;
     background: #fff;
     box-shadow: 0 1px 2px rgba(21, 23, 28, 0.12);
   }
@@ -422,6 +454,10 @@
   }
 
   .shut[data-leaving] {
+    transition: none;
+  }
+
+  .slide-mark[data-moves] {
     transition: none;
   }
 }

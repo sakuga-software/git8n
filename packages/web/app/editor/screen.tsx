@@ -37,6 +37,7 @@ import { PendingBar } from '~/editor/pending-bar';
 import { Languages } from '~/editor/languages';
 import { treeOf, under } from '~/editor/tree';
 import { Blocked, Failure, Loading } from '~/editor/states';
+import { Sliding, useSwap } from '~/editor/motion';
 import { KeyTable } from '~/editor/table';
 import {
   accessOf,
@@ -509,6 +510,9 @@ function Editor({
   const [leaving, setLeaving] = useState<ReadonlySet<string>>(new Set());
   const settling = useRef<number | undefined>(undefined);
   const top = useRef<HTMLDivElement>(null);
+  const swapped = useRef<HTMLDivElement>(null);
+
+  useSwap(swapped, filter);
 
   useEffect(
     () => () => {
@@ -1055,29 +1059,31 @@ function Editor({
       {view === 'table' && (
         <div className="sticky top-0 z-10 -mx-8 flex flex-col bg-white px-8">
           <div className="border-line flex flex-wrap items-end justify-between gap-x-6 border-b">
-            <ToggleButtonGroup
-              aria-label="Filtrer par état"
-              selectionMode="single"
-              disallowEmptySelection
-              isDisabled={!read}
-              // Nothing is pressed while nothing is read: a pressed tab would name a list that is not there.
-              selectedKeys={read ? [filter] : []}
-              onSelectionChange={(keys) => {
-                const [next] = [...keys];
+            <Sliding selected={read ? filter : null} markClassName="tabs-mark">
+              <ToggleButtonGroup
+                aria-label="Filtrer par état"
+                selectionMode="single"
+                disallowEmptySelection
+                isDisabled={!read}
+                // Nothing is pressed while nothing is read: a pressed tab would name a list that is not there.
+                selectedKeys={read ? [filter] : []}
+                onSelectionChange={(keys) => {
+                  const [next] = [...keys];
 
-                if (next) {
-                  setFilter(next as RowState);
-                  setPage(1);
-                }
-              }}
-              className="tabs"
-            >
-              {states.map((state) => (
-                <ToggleButton key={state} id={state}>
-                  {FILTER_LABEL[state]} <Count value={read ? counts[state] : null} state={state} />
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
+                  if (next) {
+                    setFilter(next as RowState);
+                    setPage(1);
+                  }
+                }}
+                className="tabs"
+              >
+                {states.map((state) => (
+                  <ToggleButton key={state} id={state}>
+                    {FILTER_LABEL[state]} <Count value={read ? counts[state] : null} state={state} />
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+            </Sliding>
 
             <div className="my-[5px] flex flex-wrap items-center gap-2.5">
               <SearchField
@@ -1307,25 +1313,27 @@ function Editor({
             />
           ) : (
             <>
-              <KeyTable
-                rows={paged.rows}
-                language={{ name: nameOf(opened), code: opened }}
-                source={{ name: nameOf(catalogue.value.source), code: catalogue.value.source }}
-                drafts={drafts}
-                onDraft={(id, value) => setDrafts((before) => new Map(before).set(id, value))}
-                readOnly={!mayPropose}
-                editsSource={editsSource}
-                ticksKeep={filter === 'review'}
-                // The column of the ticks shows where a tick acts: under « Proposées », and under « À revoir ».
-                approved={tickable}
-                onApprove={approve}
-                refused={refusedWhy}
-                leaving={leaving}
-                onSubmit={save}
-                empty={empty}
-                fileHref={(name) => fileUrl(repository, catalogue.value.commit, catalogue.value.source, name)}
-                commitHref={(commit) => commitUrl(repository, commit)}
-              />
+              <div ref={swapped}>
+                <KeyTable
+                  rows={paged.rows}
+                  language={{ name: nameOf(opened), code: opened }}
+                  source={{ name: nameOf(catalogue.value.source), code: catalogue.value.source }}
+                  drafts={drafts}
+                  onDraft={(id, value) => setDrafts((before) => new Map(before).set(id, value))}
+                  readOnly={!mayPropose}
+                  editsSource={editsSource}
+                  ticksKeep={filter === 'review'}
+                  // The column of the ticks shows where a tick acts: under « Proposées », and under « À revoir ».
+                  approved={tickable}
+                  onApprove={approve}
+                  refused={refusedWhy}
+                  leaving={leaving}
+                  onSubmit={save}
+                  empty={empty}
+                  fileHref={(name) => fileUrl(repository, catalogue.value.commit, catalogue.value.source, name)}
+                  commitHref={(commit) => commitUrl(repository, commit)}
+                />
+              </div>
               <Pager
                 page={paged}
                 onPage={(next) => {
