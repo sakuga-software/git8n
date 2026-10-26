@@ -901,7 +901,11 @@ function Editor({
         name={opened === repository.source ? `${titleOf(nameOf(opened))} (source)` : titleOf(nameOf(opened))}
         code={opened}
         // The source is translated from nothing.
-        sourceName={read && opened !== repository.source ? nameOf(catalogue.value.source) : null}
+        source={
+          read && opened !== repository.source
+            ? { name: nameOf(catalogue.value.source), code: catalogue.value.source }
+            : null
+        }
         // The whole language, not what the file or the search keeps.
         counts={read ? countsOf(rows) : null}
         readOnly={read && !mayPropose}
