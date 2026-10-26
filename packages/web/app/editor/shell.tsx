@@ -95,8 +95,8 @@ export function Shell({
   );
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="border-line border-b bg-white">
+    <div className="flex min-h-screen flex-col bg-white md:h-dvh md:min-h-0">
+      <header className="border-line shrink-0 border-b bg-white">
         <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-6 gap-y-2.5 px-5 py-2.5">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
             <Link
@@ -148,17 +148,20 @@ export function Shell({
         </div>
       </header>
 
-      <div className="flex flex-wrap items-stretch">
+      <div className="flex flex-wrap items-stretch md:min-h-0 md:flex-1 md:flex-nowrap">
         {/* The panel takes no room while the editor has put nothing in it. */}
         <aside
           ref={setSide}
           aria-label="Langues et fichiers"
-          className={`border-line bg-side flex min-w-0 flex-col gap-[22px] border-r pt-3.5 pb-5 empty:hidden ${
+          className={`border-line bg-side flex min-w-0 flex-col gap-[22px] border-r pt-3.5 pb-5 empty:hidden md:relative md:overflow-y-auto ${
             folded ? 'flex-[0_0_60px] px-2.5' : 'flex-[1_1_264px] px-3'
           }`}
         />
-        <main className="flex min-w-0 flex-[999_1_560px] flex-col gap-5 px-8 pt-6 pb-10">
-          <ShellSlots value={slots}>{children}</ShellSlots>
+        {/* The inner column keeps its blocks at their own height: a flex item that scrolls would shrink. */}
+        <main className="relative min-w-0 flex-[999_1_560px] md:overflow-y-auto">
+          <div className="flex flex-col gap-5 px-8 pt-6 pb-10">
+            <ShellSlots value={slots}>{children}</ShellSlots>
+          </div>
         </main>
       </div>
     </div>
