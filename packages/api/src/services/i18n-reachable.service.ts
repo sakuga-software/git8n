@@ -1,4 +1,5 @@
 import { installations, repositoriesOf, type InstallationRepository } from '@/services/github-app.service';
+import { createCache } from '@/utils/cache';
 
 /**
  * The repositories that the installations of the App reach, one page at a
@@ -32,17 +33,16 @@ export interface ReachablePage {
   hasMore: boolean;
 }
 
-let held: { at: number; rows: ReachableRepository[] } | null = null;
+const listings = createCache<ReachableRepository[]>(CACHE_MS);
+
+/** One listing for all the installations. */
+const ALL = 'installations';
 
 /** Empties the cache. The tests call it, and so does a request that asks for a fresh listing. */
-export const clearReachableCache = (): void => {
-  held = null;
-};
+export const clearReachableCache = (): void => listings.clear();
 
 /** Every repository the installations reach, each once, sorted by `owner/name`. */
-const everyReachable = async (now: number): Promise<ReachableRepository[]> => {
-  if (held && now - held.at < CACHE_MS) return held.rows;
-
+const readEveryReachable = async (): Promise<ReachableRepository[]> => {
   const found = await installations();
   const listed = await Promise.all(
     found.map(async (installation) =>
@@ -67,10 +67,11 @@ const everyReachable = async (now: number): Promise<ReachableRepository[]> => {
   }
 
   rows.sort((a, b) => `${a.owner}/${a.name}`.localeCompare(`${b.owner}/${b.name}`, 'en', { sensitivity: 'base' }));
-  held = { at: now, rows };
 
   return rows;
 };
+
+const everyReachable = (now: number): Promise<ReachableRepository[]> => listings.get(ALL, readEveryReachable, now);
 
 /**
  * One page of the reachable repositories whose `owner/name` holds `q`, whatever its case.

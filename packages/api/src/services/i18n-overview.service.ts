@@ -1,5 +1,6 @@
 import type { I18nRepository, PublishMode } from '@i18n-editor/db';
 import type { OVERVIEW_SORTS } from '@/schemas/i18n';
+import { createCache } from '@/utils/cache';
 import { describeError } from '@/utils/describe-error';
 import { type LanguageProgress, progressOf } from '@/services/i18n-progress.service';
 import { openPullOf, publishToken } from '@/services/i18n-pull-request.service';
@@ -58,12 +59,10 @@ const PARALLEL_READS = 4;
 /** How long the pull request of a repository is held. */
 const PULL_HELD_MS = 60 * 1000;
 
-const heldPulls = new Map<string, { at: number; value: RepositoryOverview['pullRequest'] }>();
+const openPulls = createCache<RepositoryOverview['pullRequest']>(PULL_HELD_MS);
 
 /** Empties the cache. The tests call it; nothing else needs it. */
-export const clearOverviewCache = (): void => {
-  heldPulls.clear();
-};
+export const clearOverviewCache = (): void => openPulls.clear();
 
 /** Maps every item with at most `limit` calls in flight, in the order of the items. */
 const mapLimited = async <T, R>(items: readonly T[], limit: number, map: (item: T) => Promise<R>): Promise<R[]> => {
@@ -111,17 +110,16 @@ const readProgress = async (row: I18nRepository, languages?: readonly string[]):
 const readPull = async (row: I18nRepository, now: number): Promise<RepositoryOverview['pullRequest']> => {
   if (row.publishMode !== 'pull_request') return null;
 
-  const hit = heldPulls.get(row.id);
-
-  if (hit && now - hit.at < PULL_HELD_MS) return hit.value;
-
   try {
-    const pull = await openPullOf(row, await publishToken(row));
-    const value = pull ? { number: pull.number, url: pull.html_url } : null;
+    return await openPulls.get(
+      row.id,
+      async () => {
+        const pull = await openPullOf(row, await publishToken(row));
 
-    heldPulls.set(row.id, { at: now, value });
-
-    return value;
+        return pull ? { number: pull.number, url: pull.html_url } : null;
+      },
+      now,
+    );
   } catch {
     // The table of the repository says why. The list only leaves the cell empty.
     return null;

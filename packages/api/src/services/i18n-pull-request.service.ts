@@ -1,6 +1,7 @@
 import type { I18nRepository } from '@i18n-editor/db';
 import { countKeys, messageOf } from '@i18n-editor/db/messages';
 import { ask, GithubError, insideRepository, installationToken } from '@/services/github-app.service';
+import { createCache } from '@/utils/cache';
 
 /**
  * The pull request that carries the publications of a protected repository (DB-606).
@@ -134,6 +135,19 @@ export const lastPullOf = async (repository: I18nRepository, token: string): Pro
   // The listing leaves `mergeable` out. Only the pull request itself says it.
   return summaryOf(await ask<GithubPull>(`${repoPath(repository)}/pulls/${last.number}`, token));
 };
+
+/** How long the pull request of a page is held. A merge on GitHub shows after this. */
+const PULL_HELD_MS = 60 * 1000;
+
+const lastPulls = createCache<PublishPull | null>(PULL_HELD_MS);
+
+/**
+ * `lastPullOf` for a page that reads, held by repository.
+ *
+ * A write must not use it: it decides on what GitHub says now.
+ */
+export const heldLastPullOf = (repository: I18nRepository): Promise<PublishPull | null> =>
+  lastPulls.get(repository.id, async () => lastPullOf(repository, await publishToken(repository)));
 
 /** One line of a publication commit that names a key: `- en common:hints.title`. */
 const KEY_LINE = /^- ([A-Za-z0-9_-]+) ([A-Za-z0-9_-]+):(\S+)$/;

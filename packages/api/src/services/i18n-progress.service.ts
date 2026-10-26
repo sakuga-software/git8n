@@ -2,6 +2,7 @@ import type { I18nRepository } from '@i18n-editor/db';
 import { getCatalogue } from '@/services/i18n-catalogue.service';
 import { proposedKeys } from '@/services/i18n-git.service';
 import { languagesOf } from '@/services/i18n-repositories.service';
+import { createCache } from '@/utils/cache';
 
 /** How far one language is: every key of the source is in one of the four counts. */
 export interface LanguageProgress {
@@ -24,8 +25,7 @@ export interface LanguageProgress {
  */
 const HELD_MS = 60 * 1000;
 
-const held = new Map<string, { at: number; value: LanguageProgress[] }>();
-const reading = new Map<string, Promise<LanguageProgress[]>>();
+const progress = createCache<LanguageProgress[]>(HELD_MS);
 
 /**
  * Drops what is held of one repository.
@@ -33,16 +33,10 @@ const reading = new Map<string, Promise<LanguageProgress[]>>();
  * A proposal, a publication and a new key each change a count. The route that
  * writes calls this, so whoever wrote does not read the numbers of before.
  */
-export const forgetProgress = (repositoryId: string): void => {
-  held.delete(repositoryId);
-  reading.delete(repositoryId);
-};
+export const forgetProgress = (repositoryId: string): void => progress.forget(repositoryId);
 
 /** Empties the cache. The tests call it; nothing else needs it. */
-export const clearI18nProgressCache = (): void => {
-  held.clear();
-  reading.clear();
-};
+export const clearI18nProgressCache = (): void => progress.clear();
 
 const idOf = (row: { file: string; key: string }): string => `${row.file}\n${row.key}`;
 
@@ -79,31 +73,9 @@ const read = async (repository: I18nRepository, language: string): Promise<Langu
  * reads next, and they are held for five minutes, so this costs GitHub no read
  * that opening a language would not have cost.
  */
-export const progressOf = async (
-  repository: I18nRepository,
-  options: { now?: Date } = {},
-): Promise<LanguageProgress[]> => {
-  const now = (options.now ?? new Date()).getTime();
-  const hit = held.get(repository.id);
-
-  if (hit && now - hit.at < HELD_MS) return hit.value;
-
-  const shared = reading.get(repository.id);
-
-  if (shared) return shared;
-
-  const started = Promise.all(languagesOf(repository).targets.map((language) => read(repository, language)))
-    .then((value) => {
-      // A write that came during the read dropped this entry: its answer is of before the write.
-      if (reading.get(repository.id) === started) held.set(repository.id, { at: now, value });
-
-      return value;
-    })
-    .finally(() => {
-      if (reading.get(repository.id) === started) reading.delete(repository.id);
-    });
-
-  reading.set(repository.id, started);
-
-  return started;
-};
+export const progressOf = (repository: I18nRepository, options: { now?: Date } = {}): Promise<LanguageProgress[]> =>
+  progress.get(
+    repository.id,
+    () => Promise.all(languagesOf(repository).targets.map((language) => read(repository, language))),
+    (options.now ?? new Date()).getTime(),
+  );

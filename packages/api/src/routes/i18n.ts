@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { HonoEnv } from '@/types/hono';
+import { forgetRepository } from '@/utils/cache';
 import { getUser } from '@/utils/context';
 import { withAuth } from '@/auth';
 import { authorAddressOf, mayPropose, mayPublish, mayWriteSource, rightsOf } from '@/services/i18n-rights.service';
@@ -8,15 +9,15 @@ import {
   acknowledge,
   createKeys,
   propose,
-  proposedKeys,
+  heldProposedKeys,
   publish,
-  waiting,
+  heldWaiting,
   type Author,
 } from '@/services/i18n-git.service';
 import { avatarsByInstallation } from '@/services/i18n-avatars.service';
 import { GithubAppNotConfiguredError, GithubError, installations, repositoriesOf } from '@/services/github-app.service';
-import { forgetCatalogues, getCatalogue, manifestPathOf } from '@/services/i18n-catalogue.service';
-import { forgetProgress, progressOf } from '@/services/i18n-progress.service';
+import { getCatalogue, manifestPathOf } from '@/services/i18n-catalogue.service';
+import { progressOf } from '@/services/i18n-progress.service';
 import {
   addRepository,
   languagesOf,
@@ -27,12 +28,7 @@ import {
   UnknownLanguageError,
   UnknownRepositoryError,
 } from '@/services/i18n-repositories.service';
-import {
-  lastPullOf,
-  MissingPermissionError,
-  PublishConflictError,
-  publishToken,
-} from '@/services/i18n-pull-request.service';
+import { heldLastPullOf, MissingPermissionError, PublishConflictError } from '@/services/i18n-pull-request.service';
 import { UnwritableKeyError } from '@/services/i18n-git.service';
 import { detect } from '@/services/i18n-detection.service';
 import { reachableRepositories } from '@/services/i18n-reachable.service';
@@ -108,6 +104,20 @@ const answer = async <T>(read: () => Promise<T>): Promise<T> => {
     }
 
     throw error;
+  }
+};
+
+/**
+ * Does a write to a repository, then drops every answer held of it.
+ *
+ * The drop also runs if the write fails: a write can fail after its commit,
+ * for example when the pull request is not opened.
+ */
+const write = async <T>(repositoryId: string, change: () => Promise<T>): Promise<T> => {
+  try {
+    return await answer(change);
+  } finally {
+    forgetRepository(repositoryId);
   }
 };
 
@@ -221,7 +231,7 @@ router.get('/publication', signedIn, async (c) => {
     return c.json({ success: true, data: { publishMode: repository.publishMode, pullRequest: null } });
   }
 
-  const pullRequest = await answer(async () => lastPullOf(repository, await publishToken(repository)));
+  const pullRequest = await answer(() => heldLastPullOf(repository));
 
   return c.json({ success: true, data: { publishMode: repository.publishMode, pullRequest } });
 });
@@ -380,9 +390,9 @@ router.post('/proposals', signedIn, async (c) => {
     throw new HTTPException(403, { message: `This account may not propose in ${data.language}.` });
   }
 
-  const proposal = await answer(() => propose(repository, data.language, data.values, authorOf(c), data.readAt));
-
-  forgetProgress(repository.id);
+  const proposal = await write(repository.id, () =>
+    propose(repository, data.language, data.values, authorOf(c), data.readAt),
+  );
 
   return c.json({ success: true, data: proposal });
 });
@@ -399,7 +409,7 @@ router.get('/proposals', signedIn, async (c) => {
 
   const repository = await answer(() => repositoryOrReason(c.req.query('repository')));
 
-  return c.json({ success: true, data: await answer(() => waiting(repository, language)) });
+  return c.json({ success: true, data: await answer(() => heldWaiting(repository, language)) });
 });
 
 /** The keys that wait on the branch of a language, with the batch a publication names for each. */
@@ -414,7 +424,7 @@ router.get('/proposals/keys', signedIn, async (c) => {
 
   const repository = await answer(() => repositoryOrReason(c.req.query('repository')));
 
-  return c.json({ success: true, data: await answer(() => proposedKeys(repository, language)) });
+  return c.json({ success: true, data: await answer(() => heldProposedKeys(repository, language)) });
 });
 
 /**
@@ -438,14 +448,7 @@ router.post('/publications', signedIn, async (c) => {
     throw new HTTPException(403, { message: `This account may not publish ${data.language}.` });
   }
 
-  const publication = await answer(() => publish(repository, data.language, data.approved, authorOf(c)));
-
-  // A publication changes the base branch, which the catalogue holds for five
-  // minutes. Kept, the key that was just published would still count as
-  // missing: the keys that wait no longer name it, and the catalogue not yet.
-  if (publication.commit !== null) forgetCatalogues(repository.id);
-
-  forgetProgress(repository.id);
+  const publication = await write(repository.id, () => publish(repository, data.language, data.approved, authorOf(c)));
 
   return c.json({ success: true, data: publication });
 });
@@ -467,9 +470,7 @@ router.post('/reviews', signedIn, async (c) => {
     throw new HTTPException(403, { message: `This account may not review ${data.language}.` });
   }
 
-  const reviewed = await answer(() => acknowledge(repository, data.language, data.keys, authorOf(c)));
-
-  forgetProgress(repository.id);
+  const reviewed = await write(repository.id, () => acknowledge(repository, data.language, data.keys, authorOf(c)));
 
   return c.json({ success: true, data: reviewed });
 });
@@ -491,9 +492,7 @@ router.post('/keys', signedIn, async (c) => {
 
   const repository = await answer(() => repositoryOrReason(data.repository));
 
-  const created = await answer(() => createKeys(repository, data.values, authorOf(c)));
-
-  forgetProgress(repository.id);
+  const created = await write(repository.id, () => createKeys(repository, data.values, authorOf(c)));
 
   return c.json({ success: true, data: created });
 });

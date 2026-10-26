@@ -22,6 +22,7 @@ import {
 import { proposalSubject, publicationSubject } from '@/services/i18n-messages';
 import { LocaleFile, UnwritableKeyError } from '@/services/locale-file';
 import { reviewedLine, reviewsOf } from '@/services/i18n-review.service';
+import { createCache } from '@/utils/cache';
 
 export { UnwritableKeyError } from '@/services/locale-file';
 
@@ -41,6 +42,9 @@ export { UnwritableKeyError } from '@/services/locale-file';
 
 /** The branch a language is proposed on. */
 export const branchOf = (language: string): string => `i18n/${language}`;
+
+/** How long the proposals of a language are held. */
+const WAITING_MS = 60 * 1000;
 
 /**
  * Refuses a language that is not the source and not a target.
@@ -427,6 +431,17 @@ export const waiting = async (repository: I18nRepository, language: string): Pro
   }));
 };
 
+const waitingBatches = createCache<WaitingBatch[]>(WAITING_MS);
+
+/**
+ * `waiting` for a page that reads, held by `<repository>:<language>`.
+ *
+ * Each write of the editor drops it at once. A push to the branch that does
+ * not come from the editor shows after `WAITING_MS`.
+ */
+export const heldWaiting = (repository: I18nRepository, language: string): Promise<WaitingBatch[]> =>
+  waitingBatches.get(`${repository.id}:${language}`, () => waiting(repository, language));
+
 /** One key that a batch proposed, and that the base branch does not say yet. */
 export interface ProposedKey {
   file: string;
@@ -574,6 +589,12 @@ export const proposedKeys = async (repository: I18nRepository, language: string)
 
   return rows.sort((a, b) => a.file.localeCompare(b.file) || a.key.localeCompare(b.key));
 };
+
+const waitingKeys = createCache<ProposedKey[]>(WAITING_MS);
+
+/** `proposedKeys` for a page that reads, held as `heldWaiting` is. A write must not use it. */
+export const heldProposedKeys = (repository: I18nRepository, language: string): Promise<ProposedKey[]> =>
+  waitingKeys.get(`${repository.id}:${language}`, () => proposedKeys(repository, language));
 
 /** A key a reviewer approves, and the batch it comes from. */
 export interface ApprovedKey {
