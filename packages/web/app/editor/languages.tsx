@@ -1,3 +1,5 @@
+import { ListBox } from '@heroui/react/list-box';
+import { Select } from '@heroui/react/select';
 import { useEffect, useRef } from 'react';
 import { PanelFold } from './icons';
 import { shareOf, type RowState } from './rows';
@@ -34,11 +36,27 @@ function Bar({ counts }: { counts: LanguageCard['counts'] }) {
   );
 }
 
+function LanguageLine({ language, selected }: { language: LanguageCard; selected: boolean }) {
+  return (
+    <span className="flex min-w-0 flex-1 flex-col gap-2 text-left">
+      <span className="flex items-baseline gap-1.5">
+        <span className={`truncate text-sm ${selected ? 'font-semibold' : 'font-medium'}`}>{language.name}</span>
+        <span className="text-muted font-mono text-[11.5px]">{language.code}</span>
+        <span className="text-sub ml-auto text-xs whitespace-nowrap">
+          {percentOf(language.counts)}
+          {language.readOnly && ' · lecture'}
+        </span>
+      </span>
+      <Bar counts={language.counts} />
+    </span>
+  );
+}
+
 /**
  * The languages of the repository, in the side panel (DB-269).
  *
- * Unfolded, a card says the name, the share that is published, and a bar.
- * Folded, the panel is a rail of language codes: the name and the share are
+ * Unfolded, a select gives the count of languages. Each option says the name,
+ * the share that is published, and a bar. Folded, the panel is a rail of language codes: the name and the share are
  * then in the label of each button.
  */
 export function Languages({
@@ -120,37 +138,45 @@ export function Languages({
     );
   }
 
+  const current = languages.find((language) => language.code === opened);
+  const count = languages.length;
+
   return (
     <nav aria-label="Langues" className="flex flex-col gap-1">
       <div className="mb-1 flex items-center justify-between pl-2">
-        <h2 className="text-muted text-xs font-semibold">Langues</h2>
+        <h2 id="languages-title" className="text-muted text-xs font-semibold">
+          Langues · {count}
+        </h2>
         {toggle}
       </div>
-      {languages.map((language) => (
-        <button
-          key={language.code}
-          type="button"
-          aria-current={language.code === opened ? 'true' : undefined}
-          onClick={() => onOpen(language.code)}
-          className={`flex cursor-pointer flex-col gap-2 rounded-[9px] border px-3 py-2.5 text-left ${
-            language.code === opened
-              ? 'border-line bg-white shadow-[0_1px_2px_rgba(21,23,28,0.06)]'
-              : 'hover:bg-hover border-transparent'
-          }`}
-        >
-          <span className="flex items-baseline gap-1.5">
-            <span className={`text-sm ${language.code === opened ? 'font-semibold' : 'font-medium'}`}>
-              {language.name}
-            </span>
-            <span className="text-muted font-mono text-[11.5px]">{language.code}</span>
-            <span className="text-sub ml-auto text-xs">
-              {percentOf(language.counts)}
-              {language.readOnly && ' · lecture'}
-            </span>
-          </span>
-          <Bar counts={language.counts} />
-        </button>
-      ))}
+      <Select
+        aria-labelledby="languages-title"
+        selectedKey={opened}
+        onSelectionChange={(key) => key !== null && onOpen(String(key))}
+        className="w-full"
+      >
+        <Select.Trigger className="h-auto min-h-0 py-2.5 ps-3 pe-8">
+          <Select.Value className="min-w-0 flex-1">
+            {() => current && <LanguageLine language={current} selected />}
+          </Select.Value>
+          <Select.Indicator />
+        </Select.Trigger>
+        <Select.Popover className="max-h-80">
+          <ListBox aria-label={`${count} ${count > 1 ? 'langues' : 'langue'}`}>
+            {languages.map((language) => (
+              <ListBox.Item
+                key={language.code}
+                id={language.code}
+                textValue={`${language.name}, ${percentOf(language.counts)}${language.readOnly ? ', lecture seule' : ''}`}
+                className="pe-8"
+              >
+                <LanguageLine language={language} selected={language.code === opened} />
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Select.Popover>
+      </Select>
       {onRetry && (
         <p role="status" className="text-sub px-3 pt-1 text-xs leading-normal">
           L'avancement des autres langues n'a pas pu être lu.{' '}
