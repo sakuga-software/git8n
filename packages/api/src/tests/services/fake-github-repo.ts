@@ -405,6 +405,13 @@ export const fakeRepo = (options: {
       return json({ sha: mergeCommit(into, String(body!.head), String(body!.commit_message)) });
     }
 
+    if (method === 'GET' && rest.startsWith('/branches/')) {
+      const branch = decodeURIComponent(rest.replace('/branches/', ''));
+      const head = state.refs.get(branch);
+
+      return head ? json({ name: branch, commit: { sha: head } }) : fail(404, 'Branch not found');
+    }
+
     if (method === 'GET' && rest.startsWith('/contents/')) {
       const ref = at.searchParams.get('ref') ?? '';
       const files = state.commits.get(ref)?.files ?? state.commits.get(state.refs.get(ref) ?? '')?.files;

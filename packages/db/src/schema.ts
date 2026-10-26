@@ -139,6 +139,15 @@ export const i18nRepositories = pgTable(
     /** The languages, **the source first** — the one the others translate. */
     languages: text('languages').array().notNull(),
     publishMode: publishMode('publish_mode').notNull().default('commit'),
+    /**
+     * The formats of the messages the editor writes (DB-609). Null means the
+     * default format. `packages/api/src/services/i18n-messages.ts` lists the
+     * variables of each one.
+     */
+    proposalCommitTemplate: text('proposal_commit_template'),
+    publicationCommitTemplate: text('publication_commit_template'),
+    pullRequestTitleTemplate: text('pull_request_title_template'),
+    pullRequestBodyTemplate: text('pull_request_body_template'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   // One row per repository: two would each answer for it, with a branch of

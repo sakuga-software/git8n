@@ -5,7 +5,7 @@ import { getUser } from '@/utils/context';
 import { withAuth } from '@/auth';
 import { authorAddressOf, mayPropose, mayPublish, mayWriteSource, rightsOf } from '@/services/i18n-rights.service';
 import { createKeys, propose, proposedKeys, publish, waiting, type Author } from '@/services/i18n-git.service';
-import { GithubAppNotConfiguredError, installations, repositoriesOf } from '@/services/github-app.service';
+import { GithubAppNotConfiguredError, GithubError, installations, repositoriesOf } from '@/services/github-app.service';
 import { forgetCatalogues, getCatalogue, manifestPathOf } from '@/services/i18n-catalogue.service';
 import { forgetProgress, progressOf } from '@/services/i18n-progress.service';
 import {
@@ -13,7 +13,8 @@ import {
   languagesOf,
   listRepositories,
   repositoryOrReason,
-  setPublishMode,
+  NotOnGithubError,
+  updateRepository,
   UnknownLanguageError,
   UnknownRepositoryError,
 } from '@/services/i18n-repositories.service';
@@ -116,6 +117,10 @@ router.get('/repositories', signedIn, async (c) => {
       localesPath: row.localesPath,
       manifestPath: manifestPathOf(row),
       publishMode: row.publishMode,
+      proposalCommitTemplate: row.proposalCommitTemplate,
+      publicationCommitTemplate: row.publicationCommitTemplate,
+      pullRequestTitleTemplate: row.pullRequestTitleTemplate,
+      pullRequestBodyTemplate: row.pullRequestBodyTemplate,
       ...languagesOf(row),
     })),
   });
@@ -145,15 +150,47 @@ router.get('/overview', signedIn, async (c) => {
   });
 });
 
-/** Changes how a connected repository publishes: a commit, or a pull request (DB-606). */
+/**
+ * Changes a connected repository: its place, its languages, how it publishes
+ * (DB-606) and the formats of its messages (DB-609). An absent field keeps its value.
+ */
 router.patch('/repositories/:id', signedIn, async (c) => {
   refuseANonAdmin(c);
 
   const { data, error, success } = await parsed(c, repositoryChangeSchema);
 
-  if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
+  // A refusal takes the shape of the other validation errors of the API
+  // (`errorHandler`): a message, and one entry by field in `errors`. The page
+  // shows each one under its field.
+  if (!success) {
+    const errors = error.issues.map((issue) => ({ field: issue.path.join('.'), message: issue.message }));
 
-  const repository = await answer(() => setPublishMode(c.req.param('id'), data.publishMode));
+    return c.json(
+      {
+        message: errors.map((entry) => (entry.field ? `${entry.field}: ${entry.message}` : entry.message)).join('; '),
+        errors,
+      },
+      400,
+    );
+  }
+
+  const repository = await answer(() =>
+    updateRepository(c.req.param('id'), data).catch((error: unknown) => {
+      if (error instanceof NotOnGithubError) return { refused: { field: error.field, message: error.message } };
+
+      // GitHub failed to answer the check, for a reason other than a missing
+      // path. The change is not written, and the reason stays readable.
+      if (error instanceof GithubError) {
+        throw new HTTPException(502, { message: `GitHub did not answer the check of the change: ${error.message}` });
+      }
+
+      throw error;
+    }),
+  );
+
+  if ('refused' in repository) {
+    return c.json({ message: repository.refused.message, errors: [repository.refused] }, 400);
+  }
 
   return c.json({ success: true, data: { ...repository, ...languagesOf(repository) } });
 });

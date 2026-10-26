@@ -1,4 +1,5 @@
 import { PUBLISH_MODES } from '@i18n-editor/db';
+import { templateProblem, type TemplateKind, type TemplateProblem } from '@i18n-editor/db/messages';
 import { z } from 'zod';
 
 /**
@@ -51,8 +52,65 @@ export const newRepositorySchema = z.object({
   publishMode: z.enum(PUBLISH_MODES).optional(),
 });
 
-/** What an admin changes on a connected repository (DB-606). */
-export const repositoryChangeSchema = z.object({ publishMode: z.enum(PUBLISH_MODES) });
+/**
+ * A format of a message (DB-609). An empty string, or null, gives the default
+ * format back. `templateProblem` says what is wrong with the rest.
+ */
+const templateField = (kind: TemplateKind) =>
+  z
+    .string()
+    .nullable()
+    .transform((value) => (value === null || value.trim() === '' ? null : value))
+    .superRefine((value, context) => {
+      const problem = value === null ? null : templateProblem(kind, value);
+
+      if (problem) context.addIssue({ code: 'custom', message: describeTemplateProblem(problem) });
+    })
+    .optional();
+
+/**
+ * What an admin changes on a connected repository (DB-606, DB-609).
+ *
+ * Every field is optional, and an absent one keeps its value. The rules of a
+ * field are the ones of the connection, so a row stays one that the connection
+ * could have written.
+ */
+export const repositoryChangeSchema = z
+  .object({
+    branch: newRepositorySchema.shape.branch,
+    localesPath: newRepositorySchema.shape.localesPath.optional(),
+    manifestPath: newRepositorySchema.shape.manifestPath.unwrap().nullable().optional(),
+    languages: newRepositorySchema.shape.languages
+      .refine((languages) => new Set(languages).size === languages.length, 'A language is named once')
+      .optional(),
+    publishMode: z.enum(PUBLISH_MODES).optional(),
+    proposalCommitTemplate: templateField('proposalCommit'),
+    publicationCommitTemplate: templateField('publicationCommit'),
+    pullRequestTitleTemplate: templateField('pullRequestTitle'),
+    pullRequestBodyTemplate: templateField('pullRequestBody'),
+  })
+  .strict()
+  .refine((change) => Object.keys(change).length > 0, 'Name at least one field to change');
+
+export type RepositoryChange = z.infer<typeof repositoryChangeSchema>;
+
+/** Says in English why a format is refused, for the API. The page says it in French. */
+export const describeTemplateProblem = (problem: TemplateProblem): string => {
+  switch (problem.code) {
+    case 'unknown_variable':
+      return `{${problem.variable}} is not a variable of this message. Known: ${problem.known.map((name) => `{${name}}`).join(', ')}`;
+    case 'unclosed_brace':
+      return `The { at ${problem.at + 1} opens no variable. Write {{ for a brace.`;
+    case 'lone_closing_brace':
+      return `The } at ${problem.at + 1} closes no variable. Write }} for a brace.`;
+    case 'multiline':
+      return 'This message is one line.';
+    case 'too_long':
+      return `A format holds at most ${problem.max} characters.`;
+    case 'empty':
+      return 'This format writes nothing.';
+  }
+};
 
 export type NewRepositoryBody = z.infer<typeof newRepositorySchema>;
 

@@ -1,4 +1,5 @@
 import type { I18nRepository } from '@i18n-editor/db';
+import { countKeys, messageOf } from '@i18n-editor/db/messages';
 import { ask, GithubError, insideRepository, installationToken } from '@/services/github-app.service';
 
 /**
@@ -159,13 +160,20 @@ export const publicationMessage = (
  * between the base branch and the branch of the publications say what the pull
  * request holds. A merge of the base branch into it names no key, and is left out.
  */
-export const describePull = (messages: string[]): { title: string; body: string } => {
+export const describePull = (
+  messages: string[],
+  repository: Pick<
+    I18nRepository,
+    'owner' | 'name' | 'branch' | 'pullRequestTitleTemplate' | 'pullRequestBodyTemplate'
+  >,
+): { title: string; body: string } => {
   const byLanguage = new Map<string, Set<string>>();
   let unnamed = 0;
 
   for (const message of messages) {
-    if (!message.startsWith('i18n(')) continue;
-
+    // Every commit is read, whatever its subject: the format of the subject
+    // belongs to the repository (DB-609). Only a line of a key counts, and a
+    // merge of the base branch holds none.
     for (const line of message.split('\n').slice(1)) {
       const match = line.match(KEY_LINE);
 
@@ -184,10 +192,7 @@ export const describePull = (messages: string[]): { title: string; body: string 
 
   const languages = [...byLanguage.keys()].sort();
   const count = languages.reduce((total, language) => total + byLanguage.get(language)!.size, 0) + unnamed;
-  const title = `i18n: ${count} ${count === 1 ? 'key' : 'keys'} published${languages.length > 0 ? ` (${languages.join(', ')})` : ''}`;
-  const body = [
-    'Translations published from the translation editor. Each commit names the person who published it.',
-    '',
+  const keysList = [
     ...languages.flatMap((language) => [
       `### ${language}`,
       '',
@@ -196,6 +201,15 @@ export const describePull = (messages: string[]): { title: string; body: string 
     ]),
     ...(unnamed > 0 ? [`And ${unnamed} more keys, named in the commits.`, ''] : []),
   ].join('\n');
+  const values = {
+    count: String(count),
+    count_keys: countKeys(count),
+    languages: languages.join(', '),
+    repository: `${repository.owner}/${repository.name}`,
+    branch: repository.branch,
+  };
+  const title = messageOf('pullRequestTitle', repository.pullRequestTitleTemplate, values);
+  const body = messageOf('pullRequestBody', repository.pullRequestBodyTemplate, { ...values, keys_list: keysList });
 
   return { title, body };
 };
@@ -209,7 +223,10 @@ export const ensurePull = async (repository: I18nRepository, token: string): Pro
     `${repoPath(repository)}/compare/${insideRepository(repository.branch)}...${insideRepository(PUBLISH_BRANCH)}`,
     token,
   );
-  const { title, body } = describePull(compared.commits.map((row) => row.commit.message));
+  const { title, body } = describePull(
+    compared.commits.map((row) => row.commit.message),
+    repository,
+  );
   const open = await openPullOf(repository, token);
 
   try {

@@ -15,8 +15,6 @@ import {
   publish,
   repositories as readRepositories,
   rightsOf,
-  setPublishMode,
-  type PublishMode,
   type PublishPull,
   type RefusedKey,
 } from '@i18n-editor/mcp/api';
@@ -28,7 +26,7 @@ import { branchUrl, commitUrl, fileUrl, repositoryUrl } from '~/editor/github';
 import { NewKey } from '~/editor/new-key';
 import { Busy, Choice } from '~/editor/ui';
 import { PullState } from '~/editor/pull-state';
-import { PUBLISH_MODE_LABEL, publishedWhere } from '~/editor/publication';
+import { publishedWhere } from '~/editor/publication';
 import { AccountFailure, mayLeave, ShellSlots, Signed } from '~/editor/shell';
 import { FilesTree, scopeIdOf, type Scope } from '~/editor/files-tree';
 import { KeyByKey } from '~/editor/key-by-key';
@@ -341,8 +339,6 @@ function Editor({
     repository?.publishMode === 'pull_request' ? `publication\n${repository.id}` : null,
     () => readPublication(api, repository!.id),
   );
-  const [modeBusy, setModeBusy] = useState(false);
-  const [modeError, setModeError] = useState<ReadError | null>(null);
 
   const [filter, setFilter] = useState<RowState>('missing');
   const [query, setQuery] = useState('');
@@ -713,22 +709,6 @@ function Editor({
     }
   };
 
-  const changeMode = async (mode: PublishMode) => {
-    if (mode === (repository.publishMode ?? 'commit')) return;
-
-    setModeBusy(true);
-    setModeError(null);
-
-    try {
-      await setPublishMode(api, repository.id, mode);
-      reloadRepositories();
-    } catch (error) {
-      setModeError(readErrorOf(error));
-    } finally {
-      setModeBusy(false);
-    }
-  };
-
   const notices: string[] = read
     ? [
         ...filesIn(catalogue.value, 'disabled').map(
@@ -803,26 +783,9 @@ function Editor({
               )}
             </span>
             {repository.publishMode === 'pull_request' && <PullState read={publication} onRetry={reloadPublication} />}
-            {installUrl && (
-              <Choice
-                label="Publier par"
-                value={repository.publishMode ?? 'commit'}
-                items={(['commit', 'pull_request'] as const).map((mode) => ({
-                  value: mode,
-                  label: `Publier : ${PUBLISH_MODE_LABEL[mode].toLowerCase()}`,
-                }))}
-                onChange={(next) => void changeMode(next as PublishMode)}
-                isDisabled={modeBusy}
-                className="min-w-[190px]"
-              />
-            )}
           </>,
           slots.project,
         )}
-
-      {modeError && (
-        <Failure title="Le mode de publication n'a pas changé." error={modeError} onRetry={() => setModeError(null)} />
-      )}
 
       {slots.side &&
         createPortal(

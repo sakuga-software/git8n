@@ -19,6 +19,7 @@ import {
   publishToken,
   type PublishPull,
 } from '@/services/i18n-pull-request.service';
+import { proposalSubject, publicationSubject } from '@/services/i18n-messages';
 import { LocaleFile, UnwritableKeyError } from '@/services/locale-file';
 
 export { UnwritableKeyError } from '@/services/locale-file';
@@ -249,13 +250,6 @@ export interface Proposal {
   files: string[];
 }
 
-const messageOf = (language: string, count: number, author: Author, readAt: string) =>
-  [
-    `i18n(${language}): ${count} ${count === 1 ? 'key' : 'keys'} proposed by ${author.name}`,
-    '',
-    `${READ_AT}: ${readAt}`,
-  ].join('\n');
-
 /**
  * Writes a batch of translations on the branch of its language.
  *
@@ -333,7 +327,7 @@ export const propose = async (
     parent,
     expected: head,
     files,
-    message: messageOf(language, values.length, author, readAt),
+    message: [proposalSubject(repository, language, values.length, author), '', `${READ_AT}: ${readAt}`].join('\n'),
     author,
     at: options.now ?? new Date(),
   });
@@ -775,7 +769,7 @@ export const publish = async (
         force: target.force,
         files: [...files].map(([path, content]) => ({ path, content })),
         message: publicationMessage(
-          `i18n(${language}): ${published.length} ${published.length === 1 ? 'key' : 'keys'} published by ${reviewer.name}`,
+          publicationSubject(repository, language, published.length, 'published', reviewer),
           language,
           published,
         ),
@@ -901,7 +895,7 @@ export const createKeys = async (
         force: target.force,
         files,
         message: publicationMessage(
-          `i18n(${source}): ${values.length} ${values.length === 1 ? 'key' : 'keys'} created by ${author.name}`,
+          publicationSubject(repository, source, values.length, 'created', author),
           source,
           values,
         ),

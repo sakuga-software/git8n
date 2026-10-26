@@ -2,7 +2,16 @@ import { and, eq } from 'drizzle-orm';
 import { i18nRepositories, newId, type I18nRepository, type PublishMode } from '@i18n-editor/db';
 import { db } from '@/db';
 import { withoutTrailingSlashes } from '@/utils/trailing-slashes';
-import { GithubAppNotConfiguredError, GithubError, repositoriesOf } from '@/services/github-app.service';
+import {
+  ask,
+  GithubAppNotConfiguredError,
+  GithubError,
+  insideRepository,
+  installationToken,
+  repositoriesOf,
+} from '@/services/github-app.service';
+import { forgetCatalogues } from '@/services/i18n-catalogue.service';
+import { forgetProgress } from '@/services/i18n-progress.service';
 
 /**
  * The repositories the editor translates (DB-210).
@@ -171,15 +180,107 @@ export const addRepository = async (input: NewRepository): Promise<Added> => {
   return { repository: created, created: true };
 };
 
-/** Changes how a connected repository publishes (DB-606). */
-export const setPublishMode = async (id: string, publishMode: PublishMode): Promise<I18nRepository> => {
-  const [changed] = await db()
-    .update(i18nRepositories)
-    .set({ publishMode })
-    .where(eq(i18nRepositories.id, id))
-    .returning();
+/** What an admin changes on a connected repository. An absent field keeps its value (DB-609). */
+export interface RepositoryChange {
+  branch?: string;
+  localesPath?: string;
+  /** Null gives back `<localesPath>/manifest.json`. */
+  manifestPath?: string | null;
+  /** The source language first. */
+  languages?: string[];
+  publishMode?: PublishMode;
+  /** Null gives back the default format. */
+  proposalCommitTemplate?: string | null;
+  publicationCommitTemplate?: string | null;
+  pullRequestTitleTemplate?: string | null;
+  pullRequestBodyTemplate?: string | null;
+}
 
-  if (!changed) throw new UnknownRepositoryError(`No repository ${id}.`);
+/** A branch, a folder or a manifest that GitHub does not hold, and the field that names it. */
+export class NotOnGithubError extends UnknownRepositoryError {
+  readonly field: 'branch' | 'localesPath' | 'manifestPath';
+
+  constructor(field: NotOnGithubError['field'], reason: string) {
+    super(reason);
+
+    this.name = 'NotOnGithubError';
+    this.field = field;
+  }
+}
+
+const repositoryPath = (row: Pick<I18nRepository, 'owner' | 'name'>) =>
+  `/repos/${insideRepository(row.owner)}/${insideRepository(row.name)}`;
+
+/**
+ * Refuses a branch, a folder or a manifest that the repository does not hold.
+ *
+ * A row that names a path GitHub does not have would read as a catalogue with
+ * no key, and every write would fail at GitHub with a bare 404. The check reads
+ * the branch the row will hold, so a new branch and an old path are read together.
+ */
+const ensureOnGithub = async (row: I18nRepository, next: I18nRepository): Promise<void> => {
+  const branchMoved = next.branch !== row.branch;
+  const branchOrPathMoved = branchMoved || next.localesPath !== row.localesPath;
+  const manifestToRead = next.manifestPath && (branchOrPathMoved || next.manifestPath !== row.manifestPath);
+
+  // A change of the mode or of a format reads nothing on GitHub.
+  if (!branchOrPathMoved && !manifestToRead) return;
+
+  const token = await installationToken(row.installationId, { repository: row.name });
+  const repository = repositoryPath(row);
+  const ref = `?ref=${encodeURIComponent(next.branch)}`;
+  const exists = async (path: string): Promise<unknown> =>
+    ask<unknown>(path, token).catch((error: unknown) => {
+      if (error instanceof GithubError && error.status === 404) return null;
+
+      throw error;
+    });
+
+  if (branchMoved && !(await exists(`${repository}/branches/${insideRepository(next.branch)}`))) {
+    throw new NotOnGithubError('branch', `${row.owner}/${row.name} has no branch ${next.branch}.`);
+  }
+
+  if (branchOrPathMoved) {
+    const folder = await exists(`${repository}/contents/${insideRepository(next.localesPath)}${ref}`);
+
+    if (!Array.isArray(folder)) {
+      throw new NotOnGithubError('localesPath', `${next.branch} holds no folder ${next.localesPath}.`);
+    }
+  }
+
+  if (manifestToRead) {
+    const manifest = await exists(`${repository}/contents/${insideRepository(next.manifestPath!)}${ref}`);
+
+    if (!manifest || Array.isArray(manifest)) {
+      throw new NotOnGithubError('manifestPath', `${next.branch} holds no file ${next.manifestPath}.`);
+    }
+  }
+};
+
+/**
+ * Changes a connected repository (DB-606, DB-609).
+ *
+ * A change of the branch or of a path is read on GitHub before it is written.
+ * The catalogue and the progress held for the repository are then dropped,
+ * because they were read from the old place.
+ */
+export const updateRepository = async (id: string, change: RepositoryChange): Promise<I18nRepository> => {
+  const [row] = await db().select().from(i18nRepositories).where(eq(i18nRepositories.id, id)).limit(1);
+
+  if (!row) throw new UnknownRepositoryError(`No repository ${id}.`);
+
+  const set: Partial<I18nRepository> = {
+    ...change,
+    ...(change.localesPath === undefined ? {} : { localesPath: withoutTrailingSlashes(change.localesPath) }),
+  };
+  const next = { ...row, ...set };
+
+  await ensureOnGithub(row, next);
+
+  const [changed] = await db().update(i18nRepositories).set(set).where(eq(i18nRepositories.id, id)).returning();
+
+  forgetCatalogues(id);
+  forgetProgress(id);
 
   return changed;
 };

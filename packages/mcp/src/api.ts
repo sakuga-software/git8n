@@ -101,8 +101,32 @@ export interface Repository {
   manifestPath?: string;
   /** How a publication reaches the base branch. Absent from an API older than DB-606, which publishes by commit. */
   publishMode?: PublishMode;
+  /**
+   * The formats of the messages (DB-609). Null means the default format, and
+   * an API older than DB-609 sends none.
+   */
+  proposalCommitTemplate?: string | null;
+  publicationCommitTemplate?: string | null;
+  pullRequestTitleTemplate?: string | null;
+  pullRequestBodyTemplate?: string | null;
   source: string;
   targets: string[];
+}
+
+/** What an admin changes on a connected repository. An absent field keeps its value (DB-609). */
+export interface RepositoryChange {
+  branch?: string;
+  localesPath?: string;
+  /** Null gives back `<localesPath>/manifest.json`. */
+  manifestPath?: string | null;
+  /** The source language first. */
+  languages?: string[];
+  publishMode?: PublishMode;
+  /** Null gives back the default format. */
+  proposalCommitTemplate?: string | null;
+  publicationCommitTemplate?: string | null;
+  pullRequestTitleTemplate?: string | null;
+  pullRequestBodyTemplate?: string | null;
 }
 
 /** `commit`: straight onto the base branch. `pull_request`: through one open pull request (DB-606). */
@@ -335,8 +359,30 @@ export interface Publication {
 }
 
 /** Changes how a connected repository publishes. For an admin. */
-export const setPublishMode = (config: ApiConfig, repository: string, publishMode: PublishMode) =>
-  ask<Repository>(config, `/i18n/repositories/${encodeURIComponent(repository)}`, { publishMode }, 'PATCH');
+/**
+ * Changes a connected repository, for an admin (DB-606, DB-609).
+ *
+ * A refusal answers 400. Its body holds `errors`, one entry for each field,
+ * as the other validation errors of the API do. `issuesOf` reads them.
+ */
+export const updateRepository = (config: ApiConfig, repository: string, change: RepositoryChange) =>
+  ask<Repository>(config, `/i18n/repositories/${encodeURIComponent(repository)}`, change, 'PATCH');
+
+/** The refusals of a change, by field, when the API named them. */
+export const issuesOf = (error: unknown): Array<{ field: string; message: string }> => {
+  if (!(error instanceof ApiError) || error.status !== 400) return [];
+
+  try {
+    const parsed = JSON.parse(error.message) as { errors?: Array<{ field?: unknown; message?: unknown }> };
+
+    return (parsed.errors ?? []).map((issue) => ({
+      field: String(issue.field ?? ''),
+      message: String(issue.message ?? ''),
+    }));
+  } catch {
+    return [];
+  }
+};
 
 /** The pull request that carries the publications of a repository. */
 export const publicationState = (config: ApiConfig, repository: string) =>

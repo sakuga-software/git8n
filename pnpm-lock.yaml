@@ -368,6 +368,9 @@ importers:
       '@heroui/styles':
         specifier: 3.2.6
         version: 3.2.6(tailwindcss@4.3.3)
+      '@i18n-editor/db':
+        specifier: workspace:*
+        version: link:../db
       '@i18n-editor/mcp':
         specifier: workspace:*
         version: link:../mcp

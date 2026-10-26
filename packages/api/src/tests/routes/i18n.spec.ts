@@ -1322,3 +1322,224 @@ describe('the mode pull_request', () => {
     expect(((await res.json()) as { message: string }).message).toMatch(/Resolve the conflict/);
   });
 });
+
+/**
+ * The settings of a connected repository (DB-609): what an admin changes, what
+ * is read on GitHub first, and what a format of a message refuses.
+ */
+describe('PATCH /i18n/repositories/:id', () => {
+  const LOCALES = 'src/locales';
+
+  const withRepo = () => {
+    const repo = fakeRepo({
+      owner: 'acme',
+      name: 'acme-app',
+      baseBranch: 'main',
+      files: {
+        [`${LOCALES}/fr/common.json`]: { hello: 'Bonjour' },
+        [`${LOCALES}/en/common.json`]: { hello: 'Hello' },
+        'config/i18n.json': { source: 'fr' },
+      },
+    });
+
+    // A branch beside main, at the same commit.
+    repo.refs.set('next', repo.refs.get('main')!);
+    vi.stubGlobal('fetch', repo.fetch);
+
+    return repo;
+  };
+
+  const patch = (id: string, headers: Record<string, string>, body: unknown) =>
+    app.request(`/i18n/repositories/${id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  const rowOf = async (id: string) => (await db().select().from(i18nRepositories)).find((row) => row.id === id)!;
+
+  it('changes the formats, and an empty format gives the default back', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+
+    const set = await patch(repoRow.id, admin.headers, {
+      pullRequestTitleTemplate: 'Translations: {count_keys} ({languages})',
+      pullRequestBodyTemplate: 'Merge me.\n\n{keys_list}',
+    });
+
+    expect(set.status).toBe(200);
+    expect((await rowOf(repoRow.id)).pullRequestTitleTemplate).toBe('Translations: {count_keys} ({languages})');
+
+    expect((await patch(repoRow.id, admin.headers, { pullRequestTitleTemplate: '' })).status).toBe(200);
+    expect((await rowOf(repoRow.id)).pullRequestTitleTemplate).toBeNull();
+    expect((await rowOf(repoRow.id)).pullRequestBodyTemplate).toBe('Merge me.\n\n{keys_list}');
+  });
+
+  it('lists the formats beside the repository', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+
+    await patch(repoRow.id, admin.headers, { proposalCommitTemplate: 'i18n({language}): {count_keys}' });
+
+    const listed = (await (await app.request('/i18n/repositories', { headers: admin.headers })).json()) as {
+      data: Array<Record<string, unknown>>;
+    };
+
+    expect(listed.data[0]).toMatchObject({
+      proposalCommitTemplate: 'i18n({language}): {count_keys}',
+      publicationCommitTemplate: null,
+      pullRequestTitleTemplate: null,
+      pullRequestBodyTemplate: null,
+    });
+  });
+
+  it('refuses an unknown variable, and says it under its field', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+    const res = await patch(repoRow.id, admin.headers, { pullRequestTitleTemplate: 'by {author}' });
+
+    expect(res.status).toBe(400);
+
+    const answer = (await res.json()) as { errors: Array<{ field: string; message: string }> };
+
+    expect(answer.errors).toEqual([
+      { field: 'pullRequestTitleTemplate', message: expect.stringMatching(/\{author\} is not a variable/) },
+    ]);
+    expect((await rowOf(repoRow.id)).pullRequestTitleTemplate).toBeNull();
+  });
+
+  it('refuses a second line in a commit subject, a lone brace, a field it does not know and an empty change', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+
+    for (const body of [
+      { publicationCommitTemplate: 'one\ntwo' },
+      { proposalCommitTemplate: 'i18n({language)' },
+      { installationId: 7 },
+      {},
+      { languages: ['fr', 'en', 'fr'] },
+      { localesPath: '../secrets' },
+    ]) {
+      expect((await patch(repoRow.id, admin.headers, body)).status, JSON.stringify(body)).toBe(400);
+    }
+  });
+
+  it('refuses a reviewer who is no admin, and a repository that is not there', async () => {
+    const repoRow = await repository();
+    const { headers } = await translator(['en'], 'reviewer');
+    const admin = await signedInAdmin();
+
+    expect((await patch(repoRow.id, headers, { pullRequestTitleTemplate: '{count_keys}' })).status).toBe(403);
+    expect((await patch('nope', admin.headers, { pullRequestTitleTemplate: '{count_keys}' })).status).toBe(400);
+  });
+
+  it('moves the branch, the folder and the manifest after it reads them on GitHub', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+
+    withRepo();
+
+    const res = await patch(repoRow.id, admin.headers, {
+      branch: 'next',
+      manifestPath: 'config/i18n.json',
+      languages: ['fr', 'en', 'de'],
+      publishMode: 'pull_request',
+    });
+
+    expect(res.status).toBe(200);
+    expect(await rowOf(repoRow.id)).toMatchObject({
+      branch: 'next',
+      manifestPath: 'config/i18n.json',
+      languages: ['fr', 'en', 'de'],
+      publishMode: 'pull_request',
+    });
+  });
+
+  it('refuses a branch, a folder or a manifest that GitHub does not hold, and writes nothing', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+
+    withRepo();
+
+    const refused = [
+      [{ branch: 'gone' }, /has no branch gone/],
+      [{ localesPath: 'locales' }, /holds no folder locales/],
+      [{ manifestPath: 'config/missing.json' }, /holds no file config\/missing.json/],
+    ] as const;
+
+    for (const [body, reason] of refused) {
+      const res = await patch(repoRow.id, admin.headers, body);
+
+      expect(res.status, JSON.stringify(body)).toBe(400);
+      const answer = (await res.json()) as { message: string; errors: Array<{ field: string }> };
+
+      expect(answer.message).toMatch(reason);
+      expect(answer.errors).toEqual([{ field: Object.keys(body)[0], message: answer.message }]);
+    }
+
+    expect(await rowOf(repoRow.id)).toMatchObject({ branch: 'main', localesPath: LOCALES, manifestPath: null });
+  });
+
+  it('answers 502 with the reason when GitHub fails the check, and writes nothing', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+    const repo = withRepo();
+    const answering = repo.fetch.getMockImplementation()!;
+
+    repo.fetch.mockImplementation(async (url, init) =>
+      String(url).includes('/branches/')
+        ? { ok: false, status: 500, json: async () => ({ message: 'Server Error' }) }
+        : answering(url, init),
+    );
+
+    const res = await patch(repoRow.id, admin.headers, { branch: 'next' });
+
+    expect(res.status).toBe(502);
+    expect(((await res.json()) as { message: string }).message).toMatch(/GitHub answered 500/);
+    expect((await rowOf(repoRow.id)).branch).toBe('main');
+  });
+
+  it('writes the next proposal and publication in the formats of the repository', async () => {
+    const repoRow = await repository();
+    const admin = await signedInAdmin();
+    const repo = withRepo();
+
+    await patch(repoRow.id, admin.headers, {
+      proposalCommitTemplate: 'translate({language}): {count_keys} from {author}',
+      publicationCommitTemplate: 'translate({language}): {count_keys} {action}',
+    });
+
+    const author = await translator(['en']);
+    const proposed = await app.request('/i18n/proposals', {
+      method: 'POST',
+      headers: { ...author.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        repository: repoRow.id,
+        language: 'en',
+        readAt: repo.refs.get('main'),
+        values: [{ file: 'common', key: 'hello', value: 'Hi' }],
+      }),
+    });
+    const { data } = (await proposed.json()) as { data: { commit: string } };
+
+    expect(repo.commits.get(data.commit)!.message).toMatch(
+      new RegExp(`^translate\\(en\\): 1 key from .+\\n\\nRead-at: ${repo.refs.get('main')}$`),
+    );
+
+    const publisher = await translator(['en'], 'reviewer');
+    const published = await app.request('/i18n/publications', {
+      method: 'POST',
+      headers: { ...publisher.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        repository: repoRow.id,
+        language: 'en',
+        approved: [{ file: 'common', key: 'hello', commit: data.commit }],
+      }),
+    });
+
+    expect(published.status).toBe(200);
+    expect(repo.commits.get(repo.refs.get('main')!)!.message).toBe(
+      'translate(en): 1 key published\n\n- en common:hello',
+    );
+  });
+});
