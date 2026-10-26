@@ -10,6 +10,7 @@ import { dayOf, OUTSIDE } from './table';
 import { SameSection } from './neighbours';
 import { WasSource } from './was-source';
 import { Tick } from './ui';
+import { Sliding, useSwap } from './motion';
 
 const STATE_LABEL: Record<RowState, string> = {
   missing: 'Manquante',
@@ -144,6 +145,8 @@ export function KeyByKey({
 }: Props) {
   const field = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLUListElement>(null);
+
+  useSwap(list, filter);
   const [copied, setCopied] = useState<'done' | 'refused' | null>(null);
   const openId = open ? idOf(open.row) : null;
 
@@ -207,28 +210,30 @@ export function KeyByKey({
     <div className="border-line flex flex-wrap items-stretch overflow-hidden rounded-[10px] border">
       <div className="border-line flex min-w-0 flex-[1_1_340px] flex-col border-r">
         <div className="border-line flex flex-col gap-2.5 border-b p-3">
-          <ToggleButtonGroup
-            aria-label="Filtrer par état"
-            selectionMode="single"
-            disallowEmptySelection
-            isDisabled={counts === null}
-            selectedKeys={counts === null ? [] : [filter]}
-            onSelectionChange={(keys) => {
-              const [next] = [...keys];
+          <Sliding selected={counts === null ? null : filter} markClassName="segments-mark">
+            <ToggleButtonGroup
+              aria-label="Filtrer par état"
+              selectionMode="single"
+              disallowEmptySelection
+              isDisabled={counts === null}
+              selectedKeys={counts === null ? [] : [filter]}
+              onSelectionChange={(keys) => {
+                const [next] = [...keys];
 
-              if (next) onFilter(next as RowState);
-            }}
-            className="segments"
-          >
-            {states.map((state) => (
-              <ToggleButton key={state} id={state}>
-                {FILTER_LABEL[state]} {/* A count nobody read is a dash, never a zero. */}
-                <span className={`font-mono text-xs ${COUNT_STYLE[state]}`}>
-                  {counts === null ? '–' : countOf(counts[state])}
-                </span>
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
+                if (next) onFilter(next as RowState);
+              }}
+              className="segments"
+            >
+              {states.map((state) => (
+                <ToggleButton key={state} id={state}>
+                  {FILTER_LABEL[state]} {/* A count nobody read is a dash, never a zero. */}
+                  <span className={`font-mono text-xs ${COUNT_STYLE[state]}`}>
+                    {counts === null ? '–' : countOf(counts[state])}
+                  </span>
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          </Sliding>
 
           <SearchField
             aria-label="Chercher une clé ou un texte"
