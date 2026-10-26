@@ -37,6 +37,7 @@
 @import '@heroui/styles/components/dropdown.css' layer(components);
 @import '@heroui/styles/components/modal.css' layer(components);
 @import '@heroui/styles/components/table.css' layer(components);
+@import '@heroui/styles/components/tooltip.css' layer(components);
 
 /*
  * The colours and the fonts of the editor. HeroUI names `accent`, `danger`,
