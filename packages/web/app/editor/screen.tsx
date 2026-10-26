@@ -876,12 +876,15 @@ function Editor({
         createPortal(
           <>
             <span className="inline-flex items-center gap-2">
-              <OwnerAvatar owner={repository.owner} src={repository.avatarUrl} />
               {repositories.value.length > 1 || installUrl ? (
                 <Choice
                   label="Changer de projet"
                   value={repository.id}
-                  items={repositories.value.map((row) => ({ value: row.id, label: row.name }))}
+                  items={repositories.value.map((row) => ({
+                    value: row.id,
+                    label: row.name,
+                    icon: <OwnerAvatar owner={row.owner} src={row.avatarUrl} />,
+                  }))}
                   onChange={(next) => next !== repository.id && mayLeave(changed.length) && openRepository(next)}
                   action={
                     installUrl
@@ -900,6 +903,7 @@ function Editor({
                   href={repositoryUrl(repository)}
                   className="inline-flex items-center gap-2 text-[13px] font-medium no-underline"
                 >
+                  <OwnerAvatar owner={repository.owner} src={repository.avatarUrl} />
                   {repository.name}
                 </Outside>
               )}
