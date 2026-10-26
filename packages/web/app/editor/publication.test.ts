@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { publishedWhere, pullLabelOf } from './publication';
+import { publishedWhere, pullLabelOf, pullNextOf } from './publication';
 
 const pull = { number: 7, url: 'https://github.com/acme/app/pull/7', mergeable: true } as const;
 
@@ -23,6 +23,23 @@ describe('pullLabelOf', () => {
 
   it('keeps an open pull request open while GitHub computes whether it merges', () => {
     expect(pullLabelOf({ ...pull, state: 'open', mergeable: null }).text).toBe('PR #7 ouverte');
+  });
+});
+
+describe('pullNextOf', () => {
+  it('says where the next publication goes', () => {
+    expect(pullNextOf({ ...pull, state: 'open' }, 'main')).toBe("Les publications s'ajoutent à cette pull request.");
+    expect(pullNextOf(null, 'main')).toBe('La première publication ouvrira une pull request.');
+    expect(pullNextOf({ ...pull, state: 'merged', mergeable: null }, 'main')).toBe(
+      'La prochaine publication ouvrira une nouvelle pull request.',
+    );
+    expect(pullNextOf({ ...pull, state: 'closed', mergeable: null }, 'main')).toBe(
+      'La prochaine publication ouvrira une nouvelle pull request.',
+    );
+  });
+
+  it('names the base branch of a pull request in conflict', () => {
+    expect(pullNextOf({ ...pull, state: 'open', mergeable: false }, 'main')).toContain('en conflit avec main');
   });
 });
 
