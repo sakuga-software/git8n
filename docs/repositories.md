@@ -52,6 +52,33 @@ These settings belong to the repository, so they are in the database and not
 in the environment of the API. To add a language, change the row. You do not
 need to deploy again.
 
+## The page of every repository
+
+`/` lists the connected repositories. `/repositories/<id>` opens the table of
+one of them, and « i18n Traductions » in the header leads back to the list.
+
+The list reads `GET /i18n/overview`:
+
+| Parameter | Values                        | Default |
+| --------- | ----------------------------- | ------- |
+| `page`    | from 1                        | 1       |
+| `perPage` | 1 to 100                      | 20      |
+| `q`       | a part of `owner/name`        | none    |
+| `sort`    | `name`, `created`, `progress` | `name`  |
+| `order`   | `asc`, `desc`                 | `asc`   |
+
+Each row holds the share of keys published in each language that the account
+can open, and the open pull request of a repository that publishes by pull
+request. Both come from GitHub, so the API reads them only for the rows of the
+page. An order by progress reads every repository that the search keeps, four
+at a time. The API holds a progress and a pull request for one minute.
+
+A repository that GitHub does not answer stays in the list, with
+`progress: null` and the reason in `progressError`.
+
+`GET /i18n/repositories` keeps its answer: every row, with no progress. The MCP
+server and the picker of the table read it.
+
 ## How a publication reaches the base branch
 
 A repository publishes in one of two modes. An admin chooses it in the form

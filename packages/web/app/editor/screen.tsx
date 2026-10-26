@@ -2,9 +2,9 @@ import { Button } from '@heroui/react/button';
 import { SearchField } from '@heroui/react/search-field';
 import { ToggleButton } from '@heroui/react/toggle-button';
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group';
-import { Dropdown } from '@heroui/react/dropdown';
-import { createContext, use, useEffect, useMemo, useRef, useState } from 'react';
+import { use, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Link, useNavigate } from 'react-router';
 import {
   catalogue as readCatalogue,
   createKeys,
@@ -21,8 +21,7 @@ import {
   type RefusedKey,
 } from '@i18n-editor/mcp/api';
 import { api } from '~/utils/api';
-import { signOut, useSession } from '~/utils/auth-client';
-import { ChevronDown, Info, KeyView, Lock, Plus, Published, Repository, TableView, Wrench } from '~/editor/icons';
+import { ChevronDown, Info, KeyView, Lock, Plus, Published, Repository, TableView } from '~/editor/icons';
 import { ConnectRepository } from '~/editor/connect';
 import { SETUP_PATH, setupReturnOf } from '~/editor/connect-flow';
 import { branchUrl, commitUrl, fileUrl, repositoryUrl } from '~/editor/github';
@@ -30,7 +29,7 @@ import { NewKey } from '~/editor/new-key';
 import { Busy, Choice } from '~/editor/ui';
 import { PullState } from '~/editor/pull-state';
 import { PUBLISH_MODE_LABEL, publishedWhere } from '~/editor/publication';
-import { SignIn } from '~/editor/sign-in';
+import { AccountFailure, mayLeave, ShellSlots, Signed } from '~/editor/shell';
 import { FilesTree, scopeIdOf, type Scope } from '~/editor/files-tree';
 import { KeyByKey } from '~/editor/key-by-key';
 import { LanguageHeader } from '~/editor/language-header';
@@ -101,29 +100,8 @@ const EMPTY_NARROWED: Record<RowState, string> = {
   published: 'Aucune clé publiée ne correspond à ce filtre.',
 };
 
-/**
- * Asks before an action that drops what was typed and not proposed.
- * It answers yes at once when nothing waits.
- */
-const mayLeave = (waiting: number): boolean =>
-  waiting === 0 ||
-  window.confirm(
-    waiting > 1
-      ? `${waiting} traductions ne sont pas encore proposées. Elles seront perdues. Continuer ?`
-      : "Une traduction n'est pas encore proposée. Elle sera perdue. Continuer ?",
-  );
-
 /** « 1 671 », as French writes a count. */
 const countOf = (value: number): string => value.toLocaleString('fr-FR');
-
-/** « CL » for Camille Laurent, and one letter for an address. */
-const initialsOf = (account: string): string =>
-  account
-    .split(/[\s@.]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]!.toUpperCase())
-    .join('');
 
 /** Why a publication left a key where it was, as `RefusedKey.reason` names it. */
 const REFUSAL: Record<RefusedKey['reason'], string> = {
@@ -257,25 +235,6 @@ function Pager({ page, onPage }: { page: Page<Row>; onPage: (page: number) => vo
   );
 }
 
-/**
- * The places of the frame that the editor fills once it knows what it reads:
- * the project beside the brand, and the side panel.
- *
- * The frame is drawn before the account is read, so that a failure or a
- * refusal sits in the same page as the table does. The editor reaches these
- * places with a portal.
- */
-interface Slots {
-  project: HTMLElement | null;
-  side: HTMLElement | null;
-  /** The side panel is a rail of language codes. */
-  folded: boolean;
-  setFolded: (folded: boolean) => void;
-}
-
-const ShellSlots = createContext<Slots>({ project: null, side: null, folded: false, setFolded: () => {} });
-
-const FOLDED = 'i18n.side-panel.folded';
 const VIEW = 'i18n.view';
 
 type View = 'table' | 'key';
@@ -317,141 +276,16 @@ function ViewSwitch({ view, onView, isDisabled }: { view: View; onView: (view: V
   );
 }
 
-/** The choice of the person, kept by the browser. A browser that refuses the storage keeps the panel open. */
-const foldedAtStart = (): boolean => {
-  try {
-    return window.localStorage.getItem(FOLDED) === '1';
-  } catch {
-    return false;
-  }
-};
-
-function Shell({
+function Editor({
   account,
   waiting,
-  children,
+  repositoryId,
 }: {
   account: string;
-  /** How many translations are typed and not proposed. */
   waiting: React.RefObject<number>;
-  children: React.ReactNode;
+  /** The repository of the address `/repositories/:id`. None on `/setup`, which opens the first one. */
+  repositoryId: string | null;
 }) {
-  const [project, setProject] = useState<HTMLElement | null>(null);
-  const [side, setSide] = useState<HTMLElement | null>(null);
-  const [folded, setFoldedState] = useState(foldedAtStart);
-  const slots = useMemo(
-    () => ({
-      project,
-      side,
-      folded,
-      setFolded: (next: boolean) => {
-        setFoldedState(next);
-
-        try {
-          window.localStorage.setItem(FOLDED, next ? '1' : '0');
-        } catch {
-          // The panel still folds. Only the next visit forgets it.
-        }
-      },
-    }),
-    [project, side, folded],
-  );
-
-  return (
-    <div className="min-h-screen bg-white">
-      <header className="border-line border-b bg-white">
-        <div className="flex min-h-9 flex-wrap items-center justify-between gap-x-6 gap-y-2.5 px-5 py-2.5">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
-            <a href="/" className="text-ink hover:text-ink flex items-center gap-2.5 no-underline">
-              <span
-                aria-hidden="true"
-                className="bg-ink inline-flex size-7 items-center justify-center rounded-[7px] font-mono text-[10px] font-medium text-white"
-              >
-                i18n
-              </span>
-              <span className="text-base font-semibold tracking-[-0.01em]">Traductions</span>
-            </a>
-            <span aria-hidden="true" className="bg-line h-5 w-px" />
-            <div ref={setProject} className="flex flex-wrap items-center gap-x-4 gap-y-2 empty:hidden" />
-          </div>
-
-          <Dropdown>
-            <Dropdown.Trigger
-              aria-label={`Mon compte, ${account}`}
-              className="hover:bg-hover inline-flex h-9 cursor-pointer items-center gap-2 rounded-full pr-1.5 pl-1 text-sm"
-            >
-              <span
-                aria-hidden="true"
-                className="bg-hover text-sub inline-flex size-7 items-center justify-center rounded-full text-xs font-semibold"
-              >
-                {initialsOf(account)}
-              </span>
-              {account}
-              <ChevronDown size={16} className="text-muted" />
-            </Dropdown.Trigger>
-            <Dropdown.Popover placement="bottom end">
-              <Dropdown.Menu
-                aria-label="Mon compte"
-                onAction={(key) => {
-                  if (key === 'sign-out' && mayLeave(waiting.current)) void signOut();
-                }}
-              >
-                <Dropdown.Item id="sign-out" textValue="Se déconnecter">
-                  Se déconnecter
-                </Dropdown.Item>
-              </Dropdown.Menu>
-            </Dropdown.Popover>
-          </Dropdown>
-        </div>
-      </header>
-
-      <div className="flex flex-wrap items-stretch">
-        {/* The panel takes no room while the editor has put nothing in it. */}
-        <aside
-          ref={setSide}
-          aria-label="Langues et fichiers"
-          className={`border-line bg-side flex min-w-0 flex-col gap-[22px] border-r pt-3.5 pb-5 empty:hidden ${
-            folded ? 'flex-[0_0_60px] px-2.5' : 'flex-[1_1_264px] px-3'
-          }`}
-        />
-        <main className="flex min-w-0 flex-[999_1_560px] flex-col gap-5 px-8 pt-6 pb-10">
-          <ShellSlots value={slots}>{children}</ShellSlots>
-        </main>
-      </div>
-    </div>
-  );
-}
-
-/** What stops the page before the table, by the status of the read that failed. */
-function AccountFailure({ error, onRetry }: { error: ReadError; onRetry: () => void }) {
-  if (error.status === 403) {
-    return (
-      <Blocked icon={<Lock size={18} />}>
-        <p className="text-sm leading-normal">Ce compte n'administre pas et ne traduit aucune langue.</p>
-        <button
-          type="button"
-          onClick={() => signOut()}
-          className="hover:text-signal cursor-pointer text-[13px] underline"
-        >
-          Se déconnecter
-        </button>
-      </Blocked>
-    );
-  }
-
-  if (error.status === 503) {
-    return (
-      <Blocked icon={<Wrench size={18} />}>
-        <p className="text-sm leading-normal">L'outil de traduction n'est pas encore configuré.</p>
-        <p className="text-muted max-w-xl font-mono text-xs break-words">{error.message}</p>
-      </Blocked>
-    );
-  }
-
-  return <Failure title="Le compte n'a pas pu être lu." error={error} onRetry={onRetry} />;
-}
-
-function Editor({ account, waiting }: { account: string; waiting: React.RefObject<number> }) {
   const slots = use(ShellSlots);
   const search = useRef<HTMLInputElement>(null);
 
@@ -475,7 +309,9 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
   }, []);
   const [me, reloadMe] = useRead('me', () => rightsOf(api));
   const [repositories, reloadRepositories] = useRead('repositories', () => readRepositories(api));
-  const [repositoryId, setRepositoryId] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const openRepository = (id: string, options?: { replace?: boolean }) =>
+    navigate(`/repositories/${encodeURIComponent(id)}`, options);
   const [language, setLanguage] = useState<string | null>(null);
   // GitHub sends the browser back to `/setup` after an installation of the App (DB-581).
   const [connecting, setConnecting] = useState(() => window.location.pathname === SETUP_PATH);
@@ -483,7 +319,9 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
 
   const repository =
     repositories.state === 'done'
-      ? (repositories.value.find((row) => row.id === repositoryId) ?? repositories.value[0] ?? null)
+      ? repositoryId
+        ? (repositories.value.find((row) => row.id === repositoryId) ?? null)
+        : (repositories.value[0] ?? null)
       : null;
   const access = useMemo(
     () => (me.state === 'done' && repository ? accessOf(me.value, repository.targets) : null),
@@ -641,7 +479,10 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
   const closeConnect = () => {
     setConnecting(false);
 
-    if (window.location.pathname === SETUP_PATH) window.history.replaceState(null, '', '/');
+    if (window.location.pathname !== SETUP_PATH) return;
+
+    if (repository) openRepository(repository.id, { replace: true });
+    else void navigate('/', { replace: true });
   };
 
   if (installUrl && (connecting || !repository)) {
@@ -651,12 +492,23 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
         connected={repositories.value}
         justInstalled={justInstalled}
         onConnected={(id) => {
-          setRepositoryId(id);
-          closeConnect();
+          setConnecting(false);
+          openRepository(id, { replace: window.location.pathname === SETUP_PATH });
           reloadRepositories();
         }}
         onCancel={repository ? closeConnect : undefined}
       />
+    );
+  }
+
+  if (!repository && repositoryId && repositories.value.length > 0) {
+    return (
+      <Blocked icon={<Repository size={18} />}>
+        <p className="text-sm leading-normal">Ce dépôt n'est pas branché, ou il ne l'est plus.</p>
+        <Link to="/" className="hover:text-signal text-[13px] underline">
+          Voir tous les dépôts
+        </Link>
+      </Blocked>
     );
   }
 
@@ -900,7 +752,7 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
                 label="Changer de projet"
                 value={repository.id}
                 items={repositories.value.map((row) => ({ value: row.id, label: row.name }))}
-                onChange={(next) => next !== repository.id && mayLeave(changed.length) && setRepositoryId(next)}
+                onChange={(next) => next !== repository.id && mayLeave(changed.length) && openRepository(next)}
                 className="min-w-[170px]"
               />
             ) : (
@@ -923,6 +775,17 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
                 <Plus size={14} />
                 Ajouter un dépôt
               </Button>
+            )}
+            {me.value.admin && (
+              <Link
+                to={`/repositories/${encodeURIComponent(repository.id)}/settings`}
+                onClick={(event) => {
+                  if (!mayLeave(changed.length)) event.preventDefault();
+                }}
+                className="text-sub hover:text-ink text-[13px] no-underline"
+              >
+                Réglages
+              </Link>
             )}
             {/* The window: a translator must know which state of the repository this is. */}
             <span title="La branche et le commit lus par cette page" className="text-muted font-mono text-xs">
@@ -1409,25 +1272,11 @@ function Editor({ account, waiting }: { account: string; waiting: React.RefObjec
   );
 }
 
-/** The editor behind its sign-in. It imports the client of better-auth, which needs the address of the API. */
-export default function Screen() {
-  const session = useSession();
-  // The header signs out, and the table knows what that would drop.
-  const waiting = useRef(0);
-
-  if (session.isPending) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loading>Lecture de la session…</Loading>
-      </div>
-    );
-  }
-
-  if (!session.data) return <SignIn />;
-
+/** The table of one repository, behind the sign-in. */
+export default function Screen({ repositoryId }: { repositoryId: string | null }) {
   return (
-    <Shell account={session.data.user.name || session.data.user.email} waiting={waiting}>
-      <Editor account={session.data.user.name || session.data.user.email} waiting={waiting} />
-    </Shell>
+    <Signed>
+      {({ account, waiting }) => <Editor account={account} waiting={waiting} repositoryId={repositoryId} />}
+    </Signed>
   );
 }

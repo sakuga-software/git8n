@@ -1,7 +1,10 @@
 import { type RouteConfig, index, route } from '@react-router/dev/routes';
 
 export default [
-  index('routes/editor.tsx'),
+  // Every repository, searched and sorted (DB-610). « i18n Traductions » leads here.
+  index('routes/repositories.tsx'),
+  route('repositories/:id', 'routes/editor.tsx'),
+  route('repositories/:id/settings', 'routes/repository-settings.tsx'),
   // GitHub sends the browser here after an installation of the App. The editor reads the address (DB-581).
   route('setup', 'routes/editor.tsx', { id: 'setup' }),
 ] satisfies RouteConfig;
