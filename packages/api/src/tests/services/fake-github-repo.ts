@@ -451,6 +451,17 @@ export const fakeRepo = (options: {
       return head ? json({ name: branch, commit: { sha: head } }) : fail(404, 'Branch not found');
     }
 
+    if (method === 'GET' && rest.startsWith('/git/blobs/')) {
+      const wanted = rest.replace('/git/blobs/', '');
+      const held = [...state.commits.values()]
+        .flatMap((commit) => [...commit.files.values()])
+        .find((content) => blobSha(content) === wanted);
+
+      if (held === undefined) return fail(404, `no blob ${wanted}`);
+
+      return json({ sha: wanted, content: Buffer.from(held, 'utf8').toString('base64'), encoding: 'base64' });
+    }
+
     if (method === 'GET' && rest.startsWith('/contents/')) {
       const ref = at.searchParams.get('ref') ?? '';
       const files = state.commits.get(ref)?.files ?? state.commits.get(state.refs.get(ref) ?? '')?.files;

@@ -28,6 +28,17 @@ import { logger } from '@/utils/logger';
 /** How long a read is held, as the other outside reads of the API are. */
 const CACHE_MS = 5 * 60 * 1000;
 
+/**
+ * How many locale files a read asks GitHub for at once.
+ *
+ * One by one, the 43 files of a repository took 12 s (DB-654). All at once,
+ * a large repository would reach the secondary rate limit of GitHub.
+ */
+const READS_AT_ONCE = 8;
+
+/** How many parsed locale files the API keeps, the least recently read first out. */
+const BLOB_LIMIT = 2000;
+
 /** What a key is, once the two languages are put side by side. */
 export interface CatalogueEntry {
   /** The file it lives in, without its extension: `common`, `admin`… */
@@ -189,6 +200,65 @@ export const fileTextOf = async (
   return Buffer.from(answer.content, 'base64').toString('utf8');
 };
 
+/**
+ * The parsed locale files, by the SHA of their blob (DB-654).
+ *
+ * A blob SHA names one content and never changes, so an entry is never out
+ * of date. After a push, a read asks only for the files whose SHA changed.
+ */
+const blobs = new Map<string, Record<string, unknown>>();
+
+/** One locale file, parsed, by the SHA that its directory listing gives. */
+const blobOf = async (
+  repository: I18nRepository,
+  token: string,
+  sha: string,
+  path: string,
+): Promise<Record<string, unknown>> => {
+  const held = blobs.get(sha);
+
+  if (held) {
+    blobs.delete(sha);
+    blobs.set(sha, held);
+
+    return held;
+  }
+
+  const answer = await ask<{ content?: string; encoding?: string }>(
+    `/repos/${insideRepository(repository.owner, repository.name)}/git/blobs/${encodeURIComponent(sha)}`,
+    token,
+  );
+
+  if (answer.content === undefined || answer.encoding !== 'base64') {
+    throw new Error(`${path} came back without content`);
+  }
+
+  const parsed = JSON.parse(Buffer.from(answer.content, 'base64').toString('utf8')) as Record<string, unknown>;
+
+  blobs.set(sha, parsed);
+  if (blobs.size > BLOB_LIMIT) blobs.delete(blobs.keys().next().value!);
+
+  return parsed;
+};
+
+/** Calls `task` on each item, at most `limit` at once, and keeps the order of the items. */
+const inParallel = async <T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> => {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next;
+
+      next += 1;
+      results[index] = await task(items[index]);
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+
+  return results;
+};
+
 export const contentOf = async (
   repository: I18nRepository,
   token: string,
@@ -334,21 +404,34 @@ const read = async (repository: I18nRepository, language: string): Promise<Catal
     ...(language === source ? {} : { [language]: Object.fromEntries(targetFiles) }),
   };
 
+  const toRead: string[] = [];
+
   for (const file of [...sourceFiles.keys()].sort()) {
     files[file] = stateOf(file, language);
 
     // A file with no version in this language is not a file of missing keys.
-    if (files[file] === 'disabled') continue;
+    if (files[file] !== 'disabled') toRead.push(file);
+  }
 
-    const [sourceContent, targetContent] = await Promise.all([
-      contentOf(repository, token, source, file, commit),
+  const pathOf = (lang: string, file: string) => `${repository.localesPath}/${lang}/${file}.json`;
+  const contents = await inParallel(toRead, READS_AT_ONCE, (file) => {
+    const sourceContent = blobOf(repository, token, sourceFiles.get(file)!, pathOf(source, file));
+    const targetSha = targetFiles.get(file);
+
+    return Promise.all([
+      sourceContent,
       // A file the target does not hold yet is every key missing, not a
       // failure.
-      language === source || targetFiles.has(file)
-        ? contentOf(repository, token, language, file, commit)
-        : Promise.resolve({}),
+      language === source
+        ? sourceContent
+        : targetSha === undefined
+          ? Promise.resolve({} as Record<string, unknown>)
+          : blobOf(repository, token, targetSha, pathOf(language, file)),
     ]);
+  });
 
+  for (const [index, file] of toRead.entries()) {
+    const [sourceContent, targetContent] = contents[index];
     const target = new Map(pathsOf(targetContent));
 
     for (const [key, value] of pathsOf(sourceContent)) {
@@ -390,13 +473,16 @@ const read = async (repository: I18nRepository, language: string): Promise<Catal
 /**
  * The catalogues, by `<repository>:<language>`.
  *
- * One catalogue costs a request per file per language. Two readers on a cold
- * cache share one read.
+ * A cold catalogue costs a request per file per language that `blobs` does
+ * not hold. Two readers on a cold cache share one read.
  */
 const catalogues = createCache<Catalogue>(CACHE_MS);
 
 /** Empties the cache. The tests call it; nothing else needs it. */
-export const clearI18nCatalogueCache = (): void => catalogues.clear();
+export const clearI18nCatalogueCache = (): void => {
+  catalogues.clear();
+  blobs.clear();
+};
 
 /**
  * Drops what is held of one repository, for every language.
