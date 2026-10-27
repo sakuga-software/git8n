@@ -199,6 +199,9 @@ function Count({ value, state }: { value: number | null; state: RowState }) {
     before.current = value;
   }, [value]);
 
+  // A tab with no row shows no count (DB-657).
+  if (value === 0) return null;
+
   return (
     // The key starts the mark again at each change.
     <span
