@@ -7,6 +7,7 @@ import {
   readMembers,
   removeInvitation,
   removeMember,
+  sendInvitationLink,
   type AddedMember,
   type Invitation,
   type Member,
@@ -87,9 +88,11 @@ const NEW_RIGHTS: MemberRights = { role: 'translator', languages: [], writesSour
 const ADDED_TEXT = (added: AddedMember, who: string): string =>
   added.outcome === 'member'
     ? `${who} est maintenant membre du dépôt.`
-    : added.by === 'email'
-      ? `Invitation envoyée à ${who}. Le lien de connexion expire dans 5 minutes : la personne peut en redemander un depuis la page de connexion.`
-      : `${who} deviendra membre à sa première connexion avec GitHub.`;
+    : added.by === 'github'
+      ? `${who} deviendra membre à sa première connexion avec GitHub.`
+      : added.linkSent === false
+        ? `L'invitation de ${who} est enregistrée, mais le lien de connexion n'est pas parti. Renvoyez-le depuis la liste.`
+        : `Invitation envoyée à ${who}. Le lien de connexion expire dans 5 minutes : la personne peut en redemander un depuis la page de connexion.`;
 
 function AddPerson({ repository, onAdded }: { repository: Repository; onAdded: () => void }) {
   const [who, setWho] = useState('');
@@ -255,6 +258,7 @@ function PersonRow({ repository, entry, onChanged }: { repository: Repository; e
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<ReadError | null>(null);
+  const [linkSent, setLinkSent] = useState(false);
   const changed = !sameRights(saved, draft);
   // A refusal speaks of the draft that was sent. A new draft makes it out of date.
   const edit = (rights: MemberRights) => {
@@ -294,6 +298,20 @@ function PersonRow({ repository, entry, onChanged }: { repository: Repository; e
         ? changeMember(api, repository.id, id, draft)
         : changeInvitation(api, repository.id, id, draft),
     );
+  const resend = async () => {
+    setBusy(true);
+    setError(null);
+    setLinkSent(false);
+
+    try {
+      await sendInvitationLink(api, repository.id, id);
+      setLinkSent(true);
+    } catch (failure) {
+      setError(readErrorOf(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
   const remove = () =>
     run(() =>
       entry.kind === 'member' ? removeMember(api, repository.id, id) : removeInvitation(api, repository.id, id),
@@ -330,9 +348,16 @@ function PersonRow({ repository, entry, onChanged }: { repository: Repository; e
                 </Button>
               </>
             ) : (
-              <Button size="sm" variant="ghost" onPress={() => setConfirming(true)}>
-                {entry.kind === 'member' ? 'Retirer' : "Annuler l'invitation"}
-              </Button>
+              <>
+                {entry.kind === 'invitation' && entry.value.email && (
+                  <Button size="sm" variant="ghost" isDisabled={busy} onPress={resend}>
+                    {linkSent ? 'Lien renvoyé' : 'Renvoyer le lien'}
+                  </Button>
+                )}
+                <Button size="sm" variant="ghost" onPress={() => setConfirming(true)}>
+                  {entry.kind === 'member' ? 'Retirer' : "Annuler l'invitation"}
+                </Button>
+              </>
             ))}
         </div>
       </div>

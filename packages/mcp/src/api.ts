@@ -583,7 +583,13 @@ export interface MemberList {
 /** What adding a person did: a member now, or an invitation that waits for the first sign-in. */
 export type AddedMember =
   | { outcome: 'member'; memberId: string }
-  | { outcome: 'invited'; invitationId: string; by: 'email' | 'github' };
+  | {
+      outcome: 'invited';
+      invitationId: string;
+      by: 'email' | 'github';
+      /** For an invitation by address: false when the magic link did not leave. The list sends it again. */
+      linkSent?: boolean;
+    };
 
 const membersPath = (repository: string) => `/i18n/repositories/${encodeURIComponent(repository)}`;
 
@@ -611,3 +617,7 @@ export const changeInvitation = (
 
 export const removeInvitation = (config: ApiConfig, repository: string, invitationId: string) =>
   ask<null>(config, `${membersPath(repository)}/invitations/${encodeURIComponent(invitationId)}`, undefined, 'DELETE');
+
+/** Sends the magic link of an invitation by address again (DB-645). */
+export const sendInvitationLink = (config: ApiConfig, repository: string, invitationId: string) =>
+  ask<null>(config, `${membersPath(repository)}/invitations/${encodeURIComponent(invitationId)}/link`, {});

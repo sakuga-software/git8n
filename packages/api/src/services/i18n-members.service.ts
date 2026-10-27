@@ -292,19 +292,7 @@ const admit = async (repository: I18nRepository, userId: string, rights: MemberR
 
   if (held) throw new MemberError(409, 'This person is already a member of this repository.');
 
-  const member = await auth().api.addMember({
-    body: { userId, organizationId: repository.organizationId, role: rights.role, writesSource: rights.writesSource },
-  });
-
-  if (!member) throw new Error('better-auth did not answer the member it added.');
-
-  if (rights.languages.length > 0) {
-    await db()
-      .insert(memberLanguages)
-      .values(sorted(rights.languages).map((language) => ({ memberId: member.id, language })));
-  }
-
-  return member.id;
+  return addMemberWithLanguages(repository.organizationId, userId, rights);
 };
 
 /**
@@ -371,14 +359,25 @@ export async function addPerson(
   return { outcome: 'invited', invitationId, by: github ? 'github' : 'email' };
 }
 
-/** How many owners a repository has. */
-const ownersOf = async (organizationId: string): Promise<number> =>
-  (
-    await db()
-      .select({ id: members.id })
-      .from(members)
-      .where(and(eq(members.organizationId, organizationId), eq(members.role, 'owner')))
-  ).length;
+type Transaction = Parameters<Parameters<ReturnType<typeof db>['transaction']>[0]>[0];
+
+/**
+ * Refuses to take the last owner of a repository away. Nobody could then manage it but an admin.
+ *
+ * The rows of the owners stay locked until the end of `tx`. Two requests that
+ * each take one of the two last owners away cannot both pass the check.
+ */
+const keepAnOwner = async (tx: Transaction, member: { id: string; organizationId: string }): Promise<void> => {
+  const owners = await tx
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.organizationId, member.organizationId), eq(members.role, 'owner')))
+    .for('update');
+
+  if (owners.length <= 1 && owners.some((owner) => owner.id === member.id)) {
+    throw new MemberError(409, 'This is the last owner of the repository. Make another member owner first.');
+  }
+};
 
 /** The member of a repository, or a 404. A member of another repository is not there. */
 const memberOf = async (repository: I18nRepository, memberId: string) => {
@@ -392,13 +391,6 @@ const memberOf = async (repository: I18nRepository, memberId: string) => {
   return member;
 };
 
-/** Refuses to take the last owner of a repository away. Nobody could then manage it but an admin. */
-const keepAnOwner = async (member: { role: string; organizationId: string }): Promise<void> => {
-  if (member.role === 'owner' && (await ownersOf(member.organizationId)) === 1) {
-    throw new MemberError(409, 'This is the last owner of the repository. Make another member owner first.');
-  }
-};
-
 /** Changes the rights of a member. An absent field keeps its value. */
 export async function changeMember(
   repository: I18nRepository,
@@ -408,9 +400,10 @@ export async function changeMember(
   const member = await memberOf(repository, memberId);
 
   if (change.languages) checkLanguages(repository, change.languages);
-  if (change.role !== undefined && change.role !== 'owner') await keepAnOwner(member);
 
   await db().transaction(async (tx) => {
+    if (change.role !== undefined && change.role !== 'owner') await keepAnOwner(tx, member);
+
     if (change.role !== undefined || change.writesSource !== undefined) {
       await tx
         .update(members)
@@ -435,12 +428,14 @@ export async function changeMember(
 export async function removeMember(repository: I18nRepository, memberId: string): Promise<void> {
   const member = await memberOf(repository, memberId);
 
-  await keepAnOwner(member);
-  await db().delete(members).where(eq(members.id, memberId));
+  await db().transaction(async (tx) => {
+    await keepAnOwner(tx, member);
+    await tx.delete(members).where(eq(members.id, memberId));
+  });
 }
 
 /** The invitation of a repository, or a 404. */
-const invitationOf = async (repository: I18nRepository, invitationId: string) => {
+export const invitationIn = async (repository: I18nRepository, invitationId: string) => {
   const [invitation] = await db()
     .select()
     .from(pendingMembers)
@@ -457,7 +452,7 @@ export async function changeInvitation(
   invitationId: string,
   change: Partial<MemberRights>,
 ): Promise<void> {
-  await invitationOf(repository, invitationId);
+  await invitationIn(repository, invitationId);
 
   if (change.languages) checkLanguages(repository, change.languages);
 
@@ -486,6 +481,6 @@ export async function changeInvitation(
 
 /** Cancels an invitation. A magic link already sent then opens a session with no right. */
 export async function removeInvitation(repository: I18nRepository, invitationId: string): Promise<void> {
-  await invitationOf(repository, invitationId);
+  await invitationIn(repository, invitationId);
   await db().delete(pendingMembers).where(eq(pendingMembers.id, invitationId));
 }

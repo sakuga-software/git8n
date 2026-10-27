@@ -17,6 +17,7 @@ import {
   addPerson,
   changeInvitation,
   changeMember,
+  invitationIn,
   listMembers,
   MemberError,
   removeInvitation,
@@ -72,6 +73,7 @@ import {
   reviewSchema,
 } from '@/schemas/i18n';
 import { auth } from '@/auth';
+import { logger } from '@/utils/logger';
 
 const router = new Hono<HonoEnv>();
 
@@ -632,11 +634,42 @@ router.post('/repositories/:id/members', signedIn, async (c) => {
     answer(() => addPerson(repository, data as Parameters<typeof addPerson>[1], getUser(c).id, resolveLogin)),
   );
 
-  if (added.outcome === 'invited' && added.by === 'email' && data.email) {
-    await auth().api.signInMagicLink({ body: { email: data.email, callbackURL: '/' }, headers: c.req.raw.headers });
+  // The invitation is written. A link that does not leave is sent again from the list, not by a second add.
+  const linkSent =
+    added.outcome === 'invited' && added.by === 'email' && data.email
+      ? await sendInvitationLink(c, data.email)
+      : undefined;
+
+  return c.json({ success: true, data: { ...added, ...(linkSent === undefined ? {} : { linkSent }) } }, 201);
+});
+
+/** Asks better-auth for the magic link of an invited address. False when it failed: the caller says so. */
+const sendInvitationLink = async (c: Parameters<typeof signedIn>[0], email: string): Promise<boolean> => {
+  try {
+    await auth().api.signInMagicLink({ body: { email, callbackURL: '/' }, headers: c.req.raw.headers });
+
+    return true;
+  } catch (error) {
+    logger.error('The magic link of an invitation was not asked for', { error });
+
+    return false;
+  }
+};
+
+/** Sends the magic link of an invitation by address again (DB-645). */
+router.post('/repositories/:id/invitations/:invitationId/link', signedIn, async (c) => {
+  const repository = await managedRepository(c);
+  const invitation = await membersAnswer(() => invitationIn(repository, c.req.param('invitationId')));
+
+  if (!invitation.email) {
+    throw new HTTPException(400, { message: 'This invitation names a GitHub login. The person signs in with GitHub.' });
   }
 
-  return c.json({ success: true, data: added }, 201);
+  if (!(await sendInvitationLink(c, invitation.email))) {
+    throw new HTTPException(502, { message: 'The link could not be sent. Try again in a moment.' });
+  }
+
+  return c.json({ success: true, data: null });
 });
 
 router.patch('/repositories/:id/members/:memberId', signedIn, async (c) => {

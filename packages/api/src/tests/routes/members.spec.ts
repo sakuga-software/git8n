@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { authAccounts, i18nRepositories, members, newId, pendingMembers } from '@i18n-editor/db';
 import app from '../../app';
+import { auth } from '@/auth';
 import { sentInDevelopment } from '@/services/mail.service';
 import { authHeaders, grant, insertAccount, insertOrganization, signedInAdmin } from '../db/fixtures';
 import { useTestDb } from '../db/test-db';
@@ -281,5 +282,54 @@ describe('changing and removing', () => {
     ]);
     expect((await call('DELETE', base, owner.headers)).status).toBe(200);
     expect((await list(repo, owner.headers)).invitations).toEqual([]);
+  });
+});
+
+describe('the link of an invitation by address', () => {
+  it('sends the link again, to an invitation by address only, for a manager only', async () => {
+    const repo = await repository();
+    const owner = await memberWith(repo, 'owner');
+    const translator = await memberWith(repo, 'translator');
+    const add = (person: object) =>
+      call('POST', `/i18n/repositories/${repo}/members`, owner.headers, {
+        ...person,
+        role: 'translator',
+        languages: [],
+        writesSource: false,
+      });
+
+    expect(await (await add({ email: 'ann@example.test' })).json()).toMatchObject({ data: { linkSent: true } });
+    await add({ githubLogin: 'octo-cat' });
+    await vi.waitFor(() => expect(sentInDevelopment).toHaveLength(1), { timeout: 5000 });
+
+    const { invitations } = await list(repo, owner.headers);
+    const byEmail = invitations.find((row) => row.email)!;
+    const byGithub = invitations.find((row) => row.githubLogin)!;
+    const resend = (id: string, headers: Record<string, string>) =>
+      call('POST', `/i18n/repositories/${repo}/invitations/${id}/link`, headers);
+
+    expect((await resend(byEmail.id, translator.headers)).status).toBe(403);
+    expect((await resend(byGithub.id, owner.headers)).status).toBe(400);
+    expect((await resend(byEmail.id, owner.headers)).status).toBe(200);
+    await vi.waitFor(() => expect(sentInDevelopment).toHaveLength(2), { timeout: 5000 });
+  });
+
+  /** The invitation is written: a second add would answer 409, so the page offers to send the link again. */
+  it('keeps the invitation, and says so, when the link cannot be asked for', async () => {
+    const repo = await repository();
+    const owner = await memberWith(repo, 'owner');
+    const spy = vi.spyOn(auth().api, 'signInMagicLink').mockRejectedValueOnce(new Error('the database is down'));
+    const res = await call('POST', `/i18n/repositories/${repo}/members`, owner.headers, {
+      email: 'ann@example.test',
+      role: 'translator',
+      languages: [],
+      writesSource: false,
+    });
+
+    spy.mockRestore();
+
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ data: { outcome: 'invited', linkSent: false } });
+    expect((await list(repo, owner.headers)).invitations).toHaveLength(1);
   });
 });
