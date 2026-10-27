@@ -235,6 +235,44 @@ in each language.
 The editor reads the manifest on the base branch. A proposal branch cannot
 change the state of a file.
 
+### A key left empty on purpose
+
+A translation can be `""` because the language wants no text there, and not
+because nobody translated it. The manifest says so, per language, with a key
+named `<file>:<key>`:
+
+```json
+{
+  "empty": {
+    "en": { "woodlock:hints.3_image": { "source": "615c50a46c72" } }
+  }
+}
+```
+
+`source` is the first 12 hexadecimal digits of the SHA-256 of the source text
+when the key was marked, UTF-8 encoded:
+`printf '%s' '/img/box2-b-indice3.png' | shasum -a 256 | cut -c1-12`.
+
+| The key in the language    | What the editor does                                                              |
+| -------------------------- | --------------------------------------------------------------------------------- |
+| `""`, and the hash matches | It is translated and counts as published. It shows « Vide voulu », counted apart. |
+| `""`, and the hash differs | The source changed since the mark: the key is « À revoir ».                       |
+| any other value, or no key | The mark is ignored. The key is translated or missing, as without it.             |
+
+- « Marquer vide voulu » proposes `""` and the mark in one batch, on
+  `i18n/<language>`. A reviewer publishes it as a translation, in the mode of
+  the repository. The mark then reaches the manifest of the base branch.
+- « Retirer « vide voulu » » proposes the key with no mark. A text proposed for
+  a marked key removes the mark too, in the same batch.
+- « Garder » on a marked key « À revoir » writes the hash of the new source.
+- The source language has no mark: a source text says something.
+- The rest of the manifest keeps its bytes. A mark that is removed leaves the
+  manifest as it was before the mark.
+
+An application that reads these files must read `empty` too. i18next falls
+back on the source for `""` when `returnEmptyString` is `false`, so a player
+would read the source where the language wants nothing.
+
 Keep the manifest out of the directories of the languages. In one of them, the
 editor reads it as a locale file named `manifest`.
 

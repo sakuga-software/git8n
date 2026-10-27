@@ -85,9 +85,25 @@ describe('the progress of each language', () => {
     const progress = await progressOf(repository);
 
     // English holds no version of `guide`: its key is in no count there.
-    expect(of(progress, 'en')).toEqual({ language: 'en', published: 2, proposed: 0, missing: 2, review: 0, total: 4 });
+    expect(of(progress, 'en')).toEqual({
+      language: 'en',
+      published: 2,
+      proposed: 0,
+      missing: 2,
+      review: 0,
+      empty: 0,
+      total: 4,
+    });
     // German has no manifest entry, so the file counts, and its key is missing.
-    expect(of(progress, 'de')).toEqual({ language: 'de', published: 1, proposed: 0, missing: 4, review: 0, total: 5 });
+    expect(of(progress, 'de')).toEqual({
+      language: 'de',
+      published: 1,
+      proposed: 0,
+      missing: 4,
+      review: 0,
+      empty: 0,
+      total: 5,
+    });
   });
 
   /** The table shows such a key under « Proposées », so it is not published here either. */
@@ -113,6 +129,7 @@ describe('the progress of each language', () => {
       proposed: 2,
       missing: 1,
       review: 0,
+      empty: 0,
       total: 4,
     });
   });

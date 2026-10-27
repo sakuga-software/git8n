@@ -9,6 +9,7 @@ import { idOf, isEdited, ROW_STATES, type Neighbours, type Page, type Row, type 
 import { dayOf, OUTSIDE } from './table';
 import { SameSection } from './neighbours';
 import { WasSource } from './was-source';
+import { EmptyMark, isMarkedEmpty } from './empty-mark';
 import { Tick } from './ui';
 import { Sliding, useSwap } from './motion';
 
@@ -105,6 +106,10 @@ interface Props {
   onNeighbour: (id: string) => void;
   /** Opens the section of the open key in the list. */
   onSection: (section: string) => void;
+  /** Proposes the mark « vide voulu » of a key, or its removal (DB-611). Absent when the account cannot. */
+  onMark?: (row: Row, empty: boolean) => void;
+  /** A write is on its way: a mark waits for it. */
+  markDisabled?: boolean;
 }
 
 /**
@@ -145,6 +150,8 @@ export function KeyByKey({
   neighbours,
   onNeighbour,
   onSection,
+  onMark,
+  markDisabled = false,
 }: Props) {
   const field = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLUListElement>(null);
@@ -429,7 +436,7 @@ export function KeyByKey({
                 lang={language.code}
                 value={draft ?? held}
                 readOnly={readOnly}
-                placeholder={readOnly ? undefined : 'À traduire'}
+                placeholder={isMarkedEmpty(row) ? 'Vide voulu' : readOnly ? undefined : 'À traduire'}
                 onChange={(event) => onDraft(id, event.target.value)}
                 onKeyDown={onKeyDown}
                 className={`open-field ${edited ? 'is-edited' : ''}`}
@@ -450,6 +457,7 @@ export function KeyByKey({
                   )}
                 </span>
               )}
+              <EmptyMark row={row} onMark={onMark} isDisabled={markDisabled || edited} />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3">

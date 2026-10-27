@@ -74,7 +74,19 @@ export const proposeSchema = {
       'The `commit` the keys were read at, taken from i18n_keys or i18n_key. Every page of one listing answers the same one. It is what lets a publication refuse a key whose source moved since — never invent one, and never mix the values of two listings in one call.',
     ),
   values: z
-    .array(z.object({ file: fileName, key: z.string().min(1), value: z.string() }))
+    .array(
+      z.object({
+        file: fileName,
+        key: z.string().min(1),
+        value: z.string(),
+        empty: z
+          .boolean()
+          .optional()
+          .describe(
+            'true leaves the key empty on purpose in this language, with value "". Use it only when the source asks for no text in this language, never to skip a key. A key sent without it loses its mark.',
+          ),
+      }),
+    )
     .min(1)
     .max(2000)
     .describe(

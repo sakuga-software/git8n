@@ -12,6 +12,11 @@ export interface LanguageProgress {
   missing: number;
   /** Translations whose source changed after they were written (DB-607). */
   review: number;
+  /**
+   * The published keys left empty on purpose (DB-611). They are in `published`
+   * too: this count says how much of it holds no text.
+   */
+  empty: number;
   total: number;
 }
 
@@ -54,13 +59,15 @@ const read = async (repository: I18nRepository, language: string): Promise<Langu
     proposedKeys(repository, language),
   ]);
   const proposedIds = new Set(waiting.map(idOf));
-  const counts = { published: 0, proposed: 0, missing: 0, review: 0 };
+  const counts = { published: 0, proposed: 0, missing: 0, review: 0, empty: 0 };
 
   for (const entry of catalogue.entries) {
     if (proposedIds.has(idOf(entry))) counts.proposed += 1;
     else if (entry.state === 'review') counts.review += 1;
-    else if (entry.state === 'translated') counts.published += 1;
-    else counts.missing += 1;
+    else if (entry.state === 'translated') {
+      counts.published += 1;
+      if (entry.empty) counts.empty += 1;
+    } else counts.missing += 1;
   }
 
   return { language, ...counts, total: catalogue.entries.length };

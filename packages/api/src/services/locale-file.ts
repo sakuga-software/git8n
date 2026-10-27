@@ -225,7 +225,17 @@ export class LocaleFile {
    *   in alphabetical order. Otherwise, it goes after the last sibling.
    */
   set(key: string, value: string): void {
-    const parts = key.split('.');
+    this.setAt(key.split('.'), value);
+  }
+
+  /**
+   * Sets the string at a path of segments, as `set` does with a dotted key.
+   *
+   * A segment can hold a dot here. The manifest names a key as `<file>:<key>`
+   * in one segment (DB-611).
+   */
+  setAt(parts: readonly string[], value: string): void {
+    const key = parts.join('.');
 
     for (const part of parts) {
       if (part.length === 0) throw new UnwritableKeyError(`${key} holds an empty segment.`);
@@ -261,6 +271,48 @@ export class LocaleFile {
       }
 
       node = member.value;
+    }
+  }
+
+  /**
+   * Removes the member at a path of segments, with its comma and its line.
+   *
+   * An object that the removal leaves empty is removed too, up to the root. A
+   * mark that is added and then removed thus gives back the same text. A path
+   * the file does not hold changes nothing.
+   */
+  removeAt(parts: readonly string[]): void {
+    const path: Array<{ node: ObjectNode; member: Member }> = [];
+    let node = scan(this.text);
+
+    for (const part of parts) {
+      const member = memberOf(node, part);
+
+      if (!member) return;
+
+      path.push({ node, member });
+
+      if (member.value.kind !== 'object') break;
+
+      node = member.value;
+    }
+
+    if (path.length !== parts.length) return;
+
+    let cut = path.length - 1;
+
+    // An object that holds only the removed member goes with it, but never the root.
+    while (cut > 0 && path[cut].node.members.length === 1) cut -= 1;
+
+    const { node: parent, member } = path[cut];
+    const index = parent.members.indexOf(member);
+
+    if (parent.members.length === 1) {
+      this.splice(parent.start, parent.end + 1, '{}');
+    } else if (index < parent.members.length - 1) {
+      this.splice(member.keyStart, parent.members[index + 1].keyStart, '');
+    } else {
+      this.splice(endOf(parent.members[index - 1].value), endOf(member.value), '');
     }
   }
 

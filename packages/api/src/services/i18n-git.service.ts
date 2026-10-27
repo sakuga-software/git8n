@@ -6,8 +6,12 @@ import {
   fileTextOf,
   forgetCatalogues,
   manifestOf,
+  manifestPathOf,
+  manifestTextOf,
   pathsOf,
+  readManifest,
 } from '@/services/i18n-catalogue.service';
+import { manifestFileOf, marksOf, sourceHashOf, writeMark } from '@/services/intended-empty';
 import { languagesOf, UnknownLanguageError } from '@/services/i18n-repositories.service';
 import {
   ensurePull,
@@ -104,7 +108,31 @@ export interface ProposedValue {
   file: string;
   key: string;
   value: string;
+  /** The key is left empty on purpose (DB-611). Absent or `false` removes a mark the branch holds. */
+  empty?: boolean;
 }
+
+const idOf = (row: { file: string; key: string }): string => `${row.file}\n${row.key}`;
+
+/**
+ * The marks of a language at one revision, by `<file>\n<key>` (DB-611).
+ *
+ * A branch of proposals carries the marks it proposes in its own manifest. It
+ * is read there for the marks alone: the state of a file is read on the base
+ * branch.
+ */
+const marksAt = async (
+  repository: I18nRepository,
+  token: string,
+  ref: string,
+  language: string,
+): Promise<Map<string, string>> => {
+  if (language === languagesOf(repository).source) return new Map();
+
+  const text = await manifestTextOf(repository, token, ref);
+
+  return text === null ? new Map() : marksOf(JSON.parse(text), language);
+};
 
 const refPath = (repository: I18nRepository, branch: string) =>
   `/repos/${insideRepository(repository.owner, repository.name)}/git/refs/heads/${insideRepository(branch)}`;
@@ -292,6 +320,10 @@ export const propose = async (
 
   if (values.length === 0) throw new UnknownLanguageError('A proposal carries at least one key.');
 
+  if (language === source && values.some((value) => value.empty === true)) {
+    throw new UnwritableKeyError('A source key says something. Only a translation can be empty on purpose.');
+  }
+
   // A source text is what every translation answers, so an empty one is
   // refused. A target may leave a key empty: the key is then missing.
   if (language === source) {
@@ -369,6 +401,12 @@ export const propose = async (
     files.push({ path: `${repository.localesPath}/${language}/${file}.json`, content });
   }
 
+  if (language !== source) {
+    const manifest = await proposedMarks(repository, token, language, values, parent, readAt);
+
+    if (manifest) files.push(manifest);
+  }
+
   const commit = await commitBatch(repository, token, {
     branch,
     parent,
@@ -380,6 +418,53 @@ export const propose = async (
   });
 
   return { commit, branch, readAt, keys: values.length, files: files.map((file) => file.path) };
+};
+
+/**
+ * The manifest of the branch with the marks of a batch, or nothing when no mark changes (DB-611).
+ *
+ * Each key of the batch takes the mark it asks for. A key sent with no
+ * `empty` loses the mark the branch holds: a text proposed for a key is not
+ * an empty key.
+ *
+ * The hash is the one of the source the translator read, at `readAt`.
+ */
+const proposedMarks = async (
+  repository: I18nRepository,
+  token: string,
+  language: string,
+  values: ProposedValue[],
+  parent: string,
+  readAt: string,
+): Promise<FileToWrite | null> => {
+  const { source } = languagesOf(repository);
+  const text = await manifestTextOf(repository, token, parent);
+  const held = text === null ? new Map<string, string>() : marksOf(JSON.parse(text), language);
+  const concerned = values.filter((value) => value.empty === true || held.has(idOf(value)));
+
+  if (concerned.length === 0) return null;
+
+  const manifest = manifestFileOf(text);
+  const sources = new Map<string, Map<string, unknown>>();
+  let changed = false;
+
+  for (const value of concerned) {
+    let hash: string | null = null;
+
+    if (value.empty === true) {
+      if (!sources.has(value.file)) {
+        sources.set(value.file, new Map(pathsOf(await contentOf(repository, token, source, value.file, readAt))));
+      }
+
+      const said = sources.get(value.file)!.get(value.key);
+
+      hash = sourceHashOf(typeof said === 'string' ? said : String(said ?? ''));
+    }
+
+    changed = writeMark(manifest, language, value, hash) || changed;
+  }
+
+  return changed ? { path: manifestPathOf(repository), content: manifest } : null;
 };
 
 /** One batch waiting on the branch of a language. */
@@ -458,6 +543,8 @@ export interface ProposedKey {
   at: string;
   /** The revision that batch was written against. */
   readAt: string;
+  /** The batch leaves the key empty on purpose (DB-611). */
+  empty?: true;
 }
 
 /**
@@ -520,6 +607,7 @@ export const proposedKeys = async (repository: I18nRepository, language: string)
   // against the base branch now. A key that somebody changed on the base
   // branch since then would read as a proposal to change it back.
   let before = { ref: compared.merge_base_commit.sha, files: new Map<string, string>() };
+  let marksBefore = await marksAt(repository, token, before.ref, language);
 
   before.files = await filesOf(repository, token, language, before.ref, { absentIsEmpty: true });
 
@@ -539,10 +627,23 @@ export const proposedKeys = async (repository: I18nRepository, language: string)
       }
     }
 
+    // A mark is proposed as a value is: the batch that added or removed it.
+    const marksNow = await marksAt(repository, token, batch.sha, language);
+
+    for (const id of new Set([...marksBefore.keys(), ...marksNow.keys()])) {
+      if (marksBefore.get(id) === marksNow.get(id)) continue;
+
+      const [file, key] = id.split('\n');
+
+      setBy.set(id, { file, key, batch });
+    }
+
+    marksBefore = marksNow;
     before = { ref: batch.sha, files };
   }
 
   const head = before;
+  const headMarks = marksBefore;
   const baseFiles = await filesOf(repository, token, language, base, { absentIsEmpty: true });
   // A key published in the open pull request waits on its merge, not on a
   // reviewer. Listed here, it would be approved and published a second time.
@@ -552,6 +653,8 @@ export const proposedKeys = async (repository: I18nRepository, language: string)
       : null;
   const pendingFiles = pending ? await filesOf(repository, token, language, pending, { absentIsEmpty: true }) : null;
   const sourceFiles = await filesOf(repository, token, source, base);
+  const baseMarks = await marksAt(repository, token, base, language);
+  const pendingMarks = pending ? await marksAt(repository, token, pending, language) : null;
   const rows: ProposedKey[] = [];
 
   for (const { file, key, batch } of setBy.values()) {
@@ -565,11 +668,21 @@ export const proposedKeys = async (repository: I18nRepository, language: string)
     const baseSha = baseFiles.get(file);
     const current = baseSha ? (await keysAt(language, file, base, baseSha)).get(key) : undefined;
 
-    if (typeof value !== 'string' || value === current) continue;
+    // Only whether a key is marked is proposed. A new hash comes from a reviewer who keeps the key empty.
+    const empty = headMarks.has(idOf({ file, key }));
+
+    if (typeof value !== 'string' || (value === current && empty === baseMarks.has(idOf({ file, key })))) continue;
 
     const pendingSha = pendingFiles?.get(file);
 
-    if (pending && pendingSha && (await keysAt(language, file, pending, pendingSha)).get(key) === value) continue;
+    if (
+      pending &&
+      pendingSha &&
+      (await keysAt(language, file, pending, pendingSha)).get(key) === value &&
+      empty === pendingMarks!.has(idOf({ file, key }))
+    ) {
+      continue;
+    }
 
     const sourceSha = sourceFiles.get(file);
     const said = sourceSha ? (await keysAt(source, file, base, sourceSha)).get(key) : undefined;
@@ -584,6 +697,7 @@ export const proposedKeys = async (repository: I18nRepository, language: string)
       author: batch.commit.author.name,
       at: batch.commit.author.date,
       readAt: readAtOf(batch.commit.message),
+      ...(empty ? { empty: true as const } : {}),
     });
   }
 
@@ -687,6 +801,23 @@ export const publish = async (
     // second publication keeps them.
     const targetFiles = await filesOf(repository, token, language, target.parent, { absentIsEmpty: true });
     const stateOf = await manifestOf(repository, token, base);
+    const headMarks = await marksAt(repository, token, head, language);
+    const manifestText = await manifestTextOf(repository, token, target.parent);
+    const targetMarks = manifestText === null ? new Map<string, string>() : marksOf(JSON.parse(manifestText), language);
+    const manifest = manifestFileOf(manifestText);
+    const batchMarks = new Map<string, Map<string, string>>();
+    const marksOfBatch = async (commit: string) => {
+      const held = batchMarks.get(commit);
+
+      if (held) return held;
+
+      const read = await marksAt(repository, token, commit, language);
+
+      batchMarks.set(commit, read);
+
+      return read;
+    };
+    let marksChanged = false;
     // A file of twenty approved keys asked GitHub for the same batch and the
     // same source twenty times. The caches are made per attempt, so a replay
     // after a stale ref reads the new content rather than the old.
@@ -747,8 +878,8 @@ export const publish = async (
 
       const proposed = await readOnce(language, file, head);
       const current = targetFiles.has(file) ? await readOnce(language, file, target.parent) : LocaleFile.empty();
+      const unchanged = current.toString();
       const sourceNow = await readOnce(source, file, base);
-      let changed = false;
 
       for (const row of approved.filter((entry) => entry.file === file)) {
         const value = stringAt(proposed, row.key);
@@ -775,15 +906,16 @@ export const publish = async (
         // head value would publish something the reviewer never saw, under the
         // revision of the batch they did.
         const atTheBatch = stringAt(await readOnce(language, file, row.commit), row.key);
+        const empty = headMarks.has(idOf(row));
 
-        if (atTheBatch !== value) {
+        if (atTheBatch !== value || (await marksOfBatch(row.commit)).has(idOf(row)) !== empty) {
           refused.push({ ...row, reason: 'changed-since-approval', was: atTheBatch ?? '', now: value });
           continue;
         }
 
         // A key the base already says is nothing to publish, and an empty
         // commit is worse than no commit.
-        if (stringAt(current, row.key) === value) {
+        if (stringAt(current, row.key) === value && targetMarks.has(idOf(row)) === empty) {
           published.push(row);
           continue;
         }
@@ -798,12 +930,15 @@ export const publish = async (
         }
 
         current.set(row.key, value);
+        // The mark goes with the value, hashed against the source it answers.
+        marksChanged = writeMark(manifest, language, row, empty ? sourceHashOf(now ?? '') : null) || marksChanged;
         published.push(row);
-        changed = true;
       }
 
-      if (changed) files.set(`${repository.localesPath}/${language}/${file}.json`, current);
+      if (current.toString() !== unchanged) files.set(`${repository.localesPath}/${language}/${file}.json`, current);
     }
+
+    if (marksChanged) files.set(manifestPathOf(repository), manifest);
 
     const pullRequest = async () =>
       repository.publishMode === 'pull_request' ? await ensurePull(repository, token) : null;
@@ -975,6 +1110,48 @@ export const createKeys = async (
   throw new GithubError(`The branch moved under every attempt to create keys on it`, 409);
 };
 
+/**
+ * The keys of `keys` left empty on purpose whose source changed since the mark (DB-611).
+ *
+ * It answers each one with the hash of its source now.
+ */
+const staleMarksOf = async (
+  repository: I18nRepository,
+  token: string,
+  base: string,
+  language: string,
+  keys: Array<{ file: string; key: string }>,
+): Promise<Map<string, string>> => {
+  const { source } = languagesOf(repository);
+  const marks = (await readManifest(repository, token, base)).marksOf(language);
+  const stale = new Map<string, string>();
+  const reads = new Map<string, Map<string, unknown>>();
+  const keysOf = async (lang: string, file: string) => {
+    const held = reads.get(`${lang}/${file}`);
+
+    if (held) return held;
+
+    const read = new Map(pathsOf(await contentOf(repository, token, lang, file, base).catch(() => ({}))));
+
+    reads.set(`${lang}/${file}`, read);
+
+    return read;
+  };
+
+  for (const row of keys) {
+    const hash = marks.get(idOf(row));
+
+    if (hash === undefined || (await keysOf(language, row.file)).get(row.key) !== '') continue;
+
+    const said = (await keysOf(source, row.file)).get(row.key);
+    const now = sourceHashOf(typeof said === 'string' ? said : String(said ?? ''));
+
+    if (now !== hash) stale.set(idOf(row), now);
+  }
+
+  return stale;
+};
+
 /** What a review ended as. */
 export interface Acknowledgement {
   /** The commit that holds the `Reviewed:` trailers, or nothing when no key was to read again. */
@@ -1025,8 +1202,9 @@ export const acknowledge = async (
     if (!base) throw new GithubError(`${repository.branch} is not a branch of this repository`, 404);
 
     const reviews = await reviewsOf(repository, token, base, language);
-    const kept = keys.filter((row) => reviews.has(`${row.file}\n${row.key}`));
-    const skipped = keys.filter((row) => !reviews.has(`${row.file}\n${row.key}`));
+    const staleMarks = await staleMarksOf(repository, token, base, language, keys);
+    const kept = keys.filter((row) => reviews.has(idOf(row)) || staleMarks.has(idOf(row)));
+    const skipped = keys.filter((row) => !reviews.has(idOf(row)) && !staleMarks.has(idOf(row)));
 
     if (kept.length === 0) {
       return {
@@ -1038,6 +1216,18 @@ export const acknowledge = async (
     }
 
     const target = await publishTarget(repository, token, base);
+    const files: FileToWrite[] = [];
+
+    // A key left empty on purpose has no text to keep. The mark takes the hash of the new source instead.
+    if (staleMarks.size > 0) {
+      const manifest = manifestFileOf(await manifestTextOf(repository, token, target.parent));
+
+      for (const row of kept.filter((entry) => staleMarks.has(idOf(entry)))) {
+        writeMark(manifest, language, row, staleMarks.get(idOf(row))!);
+      }
+
+      files.push({ path: manifestPathOf(repository), content: manifest });
+    }
 
     try {
       const commit = await commitBatch(repository, token, {
@@ -1045,7 +1235,7 @@ export const acknowledge = async (
         parent: target.parent,
         expected: target.expected,
         force: target.force,
-        files: [],
+        files,
         // The summary lists at most a few keys. The trailers list every one:
         // they are what clears the state, and a key cut from them stays to review.
         message: [
@@ -1055,7 +1245,7 @@ export const acknowledge = async (
             kept,
           ),
           '',
-          ...kept.map((row) => reviewedLine(language, row)),
+          ...kept.filter((row) => reviews.has(idOf(row))).map((row) => reviewedLine(language, row)),
         ].join('\n'),
         author: reviewer,
         at: options.now ?? new Date(),

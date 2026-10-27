@@ -8,6 +8,7 @@ import {
 } from '@/services/github-app.service';
 import { languagesOf, UnknownLanguageError } from '@/services/i18n-repositories.service';
 import { reviewsOf } from '@/services/i18n-review.service';
+import { marksOf, sourceHashOf } from '@/services/intended-empty';
 import { fileName, localeManifestSchema, type FileState } from '@/schemas/i18n';
 import { createCache } from '@/utils/cache';
 import { describeError } from '@/utils/describe-error';
@@ -41,12 +42,23 @@ export interface CatalogueEntry {
    * `translated`, `missing` or `review`.
    *
    * An empty value counts as missing. i18next falls back on it instead of
-   * drawing a blank line. `review` is a translation whose source changed after
+   * drawing a blank line. A key the manifest marks as empty on purpose is the
+   * exception (DB-611). `review` is a translation whose source changed after
    * it was written (DB-607).
    */
   state: 'translated' | 'missing' | 'review';
-  /** For `review` only: the source text the translation answers. `source` is the text now. */
+  /**
+   * For `review` only: the source text the translation answers. `source` is the text now.
+   *
+   * A key left empty on purpose has none: the manifest records a hash, not the text.
+   */
   was?: string;
+  /**
+   * The key is left empty on purpose in this language (DB-611). `value` is then `''`.
+   *
+   * It is `translated`, or `review` when the source changed since the mark.
+   */
+  empty?: true;
 }
 
 export interface Catalogue {
@@ -193,14 +205,12 @@ export type StateOf = (file: string, language: string) => FileState;
 export const manifestPathOf = (repository: Pick<I18nRepository, 'localesPath' | 'manifestPath'>): string =>
   repository.manifestPath ?? `${repository.localesPath}/manifest.json`;
 
-/**
- * The manifest of the locales at one revision, as a question (DB-225).
- *
- * A repository with no manifest answers `available` for everything. A manifest
- * that does not parse stops the read: read as empty, it puts back every file
- * that it disabled.
- */
-export const manifestOf = async (repository: I18nRepository, token: string, ref: string): Promise<StateOf> => {
+/** The text of the manifest at one revision, or nothing when the repository holds none. */
+export const manifestTextOf = async (
+  repository: I18nRepository,
+  token: string,
+  ref: string,
+): Promise<string | null> => {
   const { owner, name } = repository;
   const path = manifestPathOf(repository);
   const answer = await ask<ContentsEntry>(
@@ -212,13 +222,37 @@ export const manifestOf = async (repository: I18nRepository, token: string, ref:
     throw error;
   });
 
-  if (answer === null) return () => 'available';
+  if (answer === null) return null;
 
   if (!answer.content || answer.encoding !== 'base64') {
     throw new Error(`${path} came back without content`);
   }
 
-  const parsed = localeManifestSchema.safeParse(JSON.parse(Buffer.from(answer.content, 'base64').toString('utf8')));
+  return Buffer.from(answer.content, 'base64').toString('utf8');
+};
+
+/** What the manifest says at one revision: the state of each file, and the keys left empty on purpose. */
+export interface Manifest {
+  stateOf: StateOf;
+  /** The marks of a language, by `<file>\n<key>`, with the hash of the source each recorded (DB-611). */
+  marksOf: (language: string) => Map<string, string>;
+}
+
+/**
+ * The manifest of the locales at one revision (DB-225).
+ *
+ * A repository with no manifest answers `available` for everything. A manifest
+ * that does not parse stops the read: read as empty, it puts back every file
+ * that it disabled.
+ */
+export const readManifest = async (repository: I18nRepository, token: string, ref: string): Promise<Manifest> => {
+  const text = await manifestTextOf(repository, token, ref);
+
+  if (text === null) return { stateOf: () => 'available', marksOf: () => new Map() };
+
+  const path = manifestPathOf(repository);
+  const raw: unknown = JSON.parse(text);
+  const parsed = localeManifestSchema.safeParse(raw);
 
   if (!parsed.success) {
     throw new Error(`${path} is not a manifest: ${JSON.stringify(parsed.error.issues)}`);
@@ -233,10 +267,19 @@ export const manifestOf = async (repository: I18nRepository, token: string, ref:
     throw new Error(`${path} names ${parsed.data.source} as its source, and the repository names ${source}`);
   }
 
-  // The source is what the others are translated from, so no manifest can
-  // switch it off.
-  return (file, language) => (language === source ? 'available' : (parsed.data.files[file]?.[language] ?? 'available'));
+  return {
+    // The source is what the others are translated from, so no manifest can
+    // switch it off.
+    stateOf: (file, language) =>
+      language === source ? 'available' : (parsed.data.files[file]?.[language] ?? 'available'),
+    // A source text says something, so no key of the source is empty on purpose.
+    marksOf: (language) => (language === source ? new Map() : marksOf(raw, language)),
+  };
 };
+
+/** The state of each file at one revision, as a question. */
+export const manifestOf = async (repository: I18nRepository, token: string, ref: string): Promise<StateOf> =>
+  (await readManifest(repository, token, ref)).stateOf;
 
 /** The dotted paths of an object, as i18next reads its keys. */
 export const pathsOf = (node: unknown, prefix = ''): Array<[string, unknown]> => {
@@ -273,14 +316,16 @@ const read = async (repository: I18nRepository, language: string): Promise<Catal
   // to the content returned (DB-212). The contents API takes a commit as
   // `ref`.
   const commit = await headCommit(repository, token);
-  const [sourceFiles, targetFiles, stateOf, reviews] = await Promise.all([
+  const [sourceFiles, targetFiles, manifest, reviews] = await Promise.all([
     filesOf(repository, token, source, commit),
     language === source
       ? Promise.resolve(new Map<string, string>())
       : filesOf(repository, token, language, commit, { absentIsEmpty: true }),
-    manifestOf(repository, token, commit),
+    readManifest(repository, token, commit),
     reviewsOf(repository, token, commit, language),
   ]);
+  const { stateOf } = manifest;
+  const marks = manifest.marksOf(language);
 
   const entries: CatalogueEntry[] = [];
   const files: Record<string, FileState> = {};
@@ -310,6 +355,20 @@ const read = async (repository: I18nRepository, language: string): Promise<Catal
       const answer = target.get(key);
       const translated = typeof answer === 'string' && answer.length > 0;
       const text = typeof value === 'string' ? value : String(value ?? '');
+      const mark = answer === '' ? marks.get(`${file}\n${key}`) : undefined;
+
+      if (mark !== undefined) {
+        // A source that changed since the mark asks again whether the key stays empty.
+        entries.push({
+          file,
+          key,
+          source: text,
+          value: '',
+          state: mark === sourceHashOf(text) ? 'translated' : 'review',
+          empty: true,
+        });
+        continue;
+      }
       // A source that changed and came back to its old text asks nothing.
       const review = translated ? reviews.get(`${file}\n${key}`) : undefined;
       const stale = review !== undefined && review.was !== text;

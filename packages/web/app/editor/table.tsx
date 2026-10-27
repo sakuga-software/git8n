@@ -4,6 +4,7 @@ import { FileIcon } from './icons';
 import { idOf, isEdited, linesOf, type Row } from './rows';
 import { Tick } from './ui';
 import { WasSource } from './was-source';
+import { EmptyMark, isMarkedEmpty } from './empty-mark';
 
 interface Props {
   rows: readonly Row[];
@@ -33,6 +34,10 @@ interface Props {
   fileHref: (file: string) => string;
   /** The page of the batch that proposed a value. */
   commitHref: (commit: string) => string;
+  /** Proposes the mark « vide voulu » of a key, or its removal (DB-611). Absent when the account cannot. */
+  onMark?: (row: Row, empty: boolean) => void;
+  /** A write is on its way: a mark waits for it. */
+  markDisabled?: boolean;
 }
 
 export const OUTSIDE = {
@@ -112,6 +117,8 @@ export function KeyTable({
   empty,
   fileHref,
   commitHref,
+  onMark,
+  markDisabled = false,
 }: Props) {
   // An edited proposal cannot be ticked: the publication copies the value of
   // the branch, not the text in the field.
@@ -243,7 +250,7 @@ export function KeyTable({
                         rows={Math.max(linesOf(row.source), linesOf(draft ?? held))}
                         value={draft ?? held}
                         readOnly={readOnly}
-                        placeholder={readOnly ? undefined : 'À traduire'}
+                        placeholder={isMarkedEmpty(row) ? 'Vide voulu' : readOnly ? undefined : 'À traduire'}
                         onChange={(event) => onDraft(id, event.target.value)}
                         className={edited ? 'peer is-edited' : 'peer'}
                       />
@@ -287,6 +294,7 @@ export function KeyTable({
                         )}
                       </span>
                     )}
+                    <EmptyMark row={row} onMark={onMark} isDisabled={markDisabled || edited} />
                   </div>
 
                   {approved && (
