@@ -79,7 +79,8 @@ export function Shell({
   const [project, setProject] = useState<HTMLElement | null>(null);
   const [side, setSide] = useState<HTMLElement | null>(null);
   const [folded, setFoldedState] = useState(foldedAtStart);
-  // Only a fold that the person asks for fades the content in: a block that mounts later appears at once.
+  // A fold that the person asks for fades in each block of the panel for SWAP_MS, also a block that mounts in that time.
+  // After it, a block that mounts appears at once.
   const [swap, setSwap] = useState<'folded' | 'unfolded' | null>(null);
   const swapEnd = useRef<number | undefined>(undefined);
 
