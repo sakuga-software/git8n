@@ -1,10 +1,11 @@
 import '../setup-env';
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { i18nRepositories, i18nTranslators, newId } from '@i18n-editor/db';
+import { i18nRepositories, newId } from '@i18n-editor/db';
 import app from '../../app';
 import { db } from '@/db';
 import { clearOverviewCache } from '@/services/i18n-overview.service';
-import { authHeaders, insertAccount, signedInAdmin } from '../db/fixtures';
+import { authHeaders, grant, insertAccount, insertOrganization, signedInAdmin } from '../db/fixtures';
 import { useTestDb } from '../db/test-db';
 
 /**
@@ -87,6 +88,7 @@ async function repositories() {
       .insert(i18nRepositories)
       .values({
         id: newId(),
+        organizationId: await insertOrganization(),
         installationId: 42,
         owner: name === 'other-11' ? 'beta' : 'acme',
         name,
@@ -184,14 +186,26 @@ describe('GET /i18n/overview', () => {
 
   it('answers a translator the progress of its languages only', async () => {
     const userId = await insertAccount();
+    const [repo] = await db().select().from(i18nRepositories).where(eq(i18nRepositories.name, 'repo-07'));
 
-    await db()
-      .insert(i18nTranslators)
-      .values({ userId, languages: ['de'], role: 'translator' } as never);
+    await grant(userId, repo.id, { languages: ['de'] });
 
     const [row] = (await pageOf('?q=repo-07', await authHeaders(userId))).rows;
 
     expect(row.progress).toEqual([expect.objectContaining({ language: 'de' })]);
+  });
+
+  /** A member reads the repositories where it is a member, and no other (DB-637). */
+  it('answers a member only the repositories where it is a member', async () => {
+    const userId = await insertAccount();
+    const [repo] = await db().select().from(i18nRepositories).where(eq(i18nRepositories.name, 'repo-07'));
+
+    await grant(userId, repo.id, { languages: ['de'] });
+
+    const page = await pageOf('', await authHeaders(userId));
+
+    expect(page.rows.map((row) => row.name)).toEqual(['repo-07']);
+    expect(page.total).toBe(1);
   });
 
   it('refuses an account with no right, and a page past the limits', async () => {

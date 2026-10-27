@@ -49,7 +49,10 @@ const api = (over: Record<string, unknown> = {}) =>
       : path.includes('/i18n/repositories')
         ? [{ id: 'repo-1', owner: 'o', name: 'n', branch: 'main', localesPath: 'l', source: 'fr', targets: ['en'] }]
         : path.includes('/i18n/me')
-          ? { admin: false, rights: { languages: ['en'], role: 'translator' } }
+          ? {
+              admin: false,
+              memberships: [{ repositoryId: 'repo-1', languages: ['en'], role: 'translator', writesSource: false }],
+            }
           : path.includes('/i18n/proposals') && (init?.method ?? 'GET') === 'POST'
             ? { commit: 'c'.repeat(40), branch: 'i18n/en', readAt: COMMIT, keys: 2, files: ['l/en/common.json'] }
             : [];

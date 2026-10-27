@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, index, pgEnum, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigint, boolean, index, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 /**
  * An account of the editor. better-auth writes it at the first sign-in with GitHub.
@@ -32,6 +32,8 @@ export const authSessions = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
+    /** A column of the better-auth organization plugin. The editor names the repository in each request and leaves it empty. */
+    activeOrganizationId: text('active_organization_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -83,13 +85,6 @@ export const authVerifications = pgTable(
     index('auth_verifications_expires_at_idx').on(table.expiresAt),
   ],
 );
-
-export const I18N_ROLES = ['translator', 'reviewer'] as const;
-
-export type I18nRole = (typeof I18N_ROLES)[number];
-
-/** What an account may do with the translations: propose, or publish (DB-210). */
-export const i18nRole = pgEnum('i18n_role', I18N_ROLES);
 
 export const PUBLISH_MODES = ['commit', 'pull_request'] as const;
 
@@ -148,6 +143,15 @@ export const i18nRepositories = pgTable(
     publicationCommitTemplate: text('publication_commit_template'),
     pullRequestTitleTemplate: text('pull_request_title_template'),
     pullRequestBodyTemplate: text('pull_request_body_template'),
+    /**
+     * The better-auth organization that holds the members of this repository (DB-637).
+     *
+     * `restrict`: an organization cannot go while its repository stays.
+     */
+    organizationId: text('organization_id')
+      .notNull()
+      .unique()
+      .references(() => organizations.id, { onDelete: 'restrict' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   // One row per repository: two would each answer for it, with a branch of
@@ -156,29 +160,93 @@ export const i18nRepositories = pgTable(
 );
 
 /**
- * Who may write which language of the translations (DB-210).
+ * The organizations of the better-auth organization plugin: one for each
+ * repository, which `i18n_repositories.organization_id` names (DB-637).
  *
- * **The text is not here.** It lives in the JSON files of the repository, which
- * stay the truth of what is published. This table answers one question: what a
- * signed-in account is allowed to do to them.
- *
- * An account with no row is not a translator. `languages` empty is a row that
- * grants nothing, which is how a translator is suspended without losing the
- * history of what they approved.
+ * The plugin refuses to start without its `metadata` column, which it writes
+ * as JSON. The editor never sends a value, so the column stays empty.
  */
-export const i18nTranslators = pgTable('i18n_translators', {
-  userId: text('user_id')
-    .primaryKey()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  /** The languages this account may write. Never the source language. */
-  languages: text('languages').array().notNull().default(sql.raw(`'{}'::text[]`)),
-  role: i18nRole('role').notNull().default('translator'),
-  /**
-   * Whether this account may write the source language (DB-238).
-   *
-   * It is a right of its own, and no language of `languages` gives it. A
-   * translator of English does not write the French that English answers.
-   */
-  writesSource: boolean('writes_source').notNull().default(false),
+export const organizations = pgTable('organizations', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  logo: text('logo'),
+  metadata: text('metadata'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const MEMBER_ROLES = ['owner', 'reviewer', 'translator'] as const;
+
+export type MemberRole = (typeof MEMBER_ROLES)[number];
+
+/**
+ * Who may do what in one repository (DB-637). The better-auth organization
+ * plugin writes the row, and `packages/api/src/permissions.ts` names the roles.
+ *
+ * **The text is not here.** It lives in the JSON files of the repository, which
+ * stay the truth of what is published.
+ *
+ * `role` is text, as the plugin wants it: one of `MEMBER_ROLES`.
+ */
+export const members = pgTable(
+  'members',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role').notNull(),
+    /**
+     * Whether this member may write the source language (DB-238).
+     *
+     * It is a right of its own, and no language of `member_languages` gives it.
+     * A translator of English does not write the French that English answers.
+     */
+    writesSource: boolean('writes_source').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  // The plugin checks the pair in code only. Two requests at the same time would make two rows.
+  (table) => [
+    uniqueIndex('members_organization_user_idx').on(table.organizationId, table.userId),
+    index('members_user_id_idx').on(table.userId),
+  ],
+);
+
+/**
+ * The invitations of the organization plugin. The plugin refuses to start
+ * without this table. The editor does not use it: `app.ts` closes its routes.
+ */
+export const invitations = pgTable('invitations', {
+  id: text('id').primaryKey(),
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  role: text('role'),
+  status: text('status').notNull().default('pending'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  inviterId: text('inviter_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * The languages a member may write, one row per language. Never the source language.
+ *
+ * A member with no row here writes no target language. That is how a translator
+ * is set aside without losing the history of what they wrote.
+ */
+export const memberLanguages = pgTable(
+  'member_languages',
+  {
+    memberId: text('member_id')
+      .notNull()
+      .references(() => members.id, { onDelete: 'cascade' }),
+    language: text('language').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.memberId, table.language] })],
+);

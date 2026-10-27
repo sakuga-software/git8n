@@ -19,8 +19,9 @@ where the API serves this build.
 - **A repository**, added with `POST /i18n/repositories` (DB-210). With none,
   the API answers 503 and the page says that the tool is not set up.
 - **A grant.** A sign-in with GitHub gives no language. An account opens the
-  table if it administers, or if a row of `i18n_translators` names it. An
-  admin with no row reads every language and writes none.
+  table of a repository if it administers, or if it is a member of that
+  repository (DB-637). An admin with no member row reads every language and
+  writes none.
 
 ## What it is built with
 
@@ -39,15 +40,15 @@ itself. The editor names its own colours `signal`, `alarm`, `panel` and `edge`.
 
 ## Who may create a key
 
-An account adds a key to the source language with « Nouvelle clé » if its row of
-`i18n_translators` says `writes_source`. It is a right of its own: a reviewer of
-every language does not hold it, and neither does an admin. No route writes this
-row, so somebody with access to the database grants it:
+An account adds a key to the source language with « Nouvelle clé » if its member
+row of the repository says `writes_source`. It is a right of its own: a reviewer of
+every language does not hold it, and neither does an admin. Until the « Membres »
+screen, somebody with access to the database grants it:
 
 ```sql
-insert into i18n_translators (user_id, writes_source)
-values ('<the id of the account>', true)
-on conflict (user_id) do update set writes_source = true;
+update members set writes_source = true
+where user_id = '<the id of the account>'
+  and organization_id = (select organization_id from i18n_repositories where owner = 'acme' and name = 'app');
 ```
 
 The key is written on the base branch at once, with no proposal. It adds and

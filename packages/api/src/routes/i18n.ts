@@ -4,7 +4,14 @@ import { HonoEnv } from '@/types/hono';
 import { forgetRepository } from '@/utils/cache';
 import { getUser } from '@/utils/context';
 import { withAuth } from '@/auth';
-import { authorAddressOf, mayPropose, mayPublish, mayWriteSource, rightsOf } from '@/services/i18n-rights.service';
+import {
+  authorAddressOf,
+  mayPropose,
+  mayPublish,
+  mayWriteSource,
+  membershipsOf,
+  rightsOf,
+} from '@/services/i18n-rights.service';
 import {
   acknowledge,
   createKeys,
@@ -51,18 +58,19 @@ const router = new Hono<HonoEnv>();
 /**
  * The translations (DB-210).
  *
- * An admin or a translator may read. An admin opens the page, a translator
- * does the work, and neither is the other. Setting a repository up is for an
+ * An admin or a member of the repository may read (DB-637). An admin opens
+ * the page, a translator does the work, and neither is the other. Setting a repository up is for an
  * admin alone: somebody with access takes that step once, so a translator is
  * added with none.
  */
 const signedIn = withAuth();
 
-const refuseAStranger = async (c: Parameters<typeof signedIn>[0]) => {
+/** Refuses an account that is neither an admin nor a member of `repositoryId`, or of any repository when it is absent. */
+const refuseAStranger = async (c: Parameters<typeof signedIn>[0], repositoryId?: string) => {
   const user = getUser(c);
 
   if (user.admin === true) return;
-  if (await rightsOf(user.id)) return;
+  if ((await membershipsOf(user.id, repositoryId)).length > 0) return;
 
   throw new HTTPException(403, { message: 'This account neither administers nor translates.' });
 };
@@ -71,6 +79,28 @@ const refuseANonAdmin = (c: Parameters<typeof signedIn>[0]) => {
   if (getUser(c).admin !== true) {
     throw new HTTPException(403, { message: 'Setting a repository up is for an administrator.' });
   }
+};
+
+/**
+ * The repository that a request names, when the account may read it (DB-637).
+ *
+ * An admin gets the reason when the repository is not there, with the list of
+ * the repositories. Any other account gets the same 403 for a repository that
+ * is not there and for one where it is not a member. A different answer would
+ * tell which repositories the editor holds.
+ */
+const readableRepository = async (c: Parameters<typeof signedIn>[0], id: string | undefined) => {
+  const user = getUser(c);
+
+  if (user.admin === true) return answer(() => repositoryOrReason(id));
+
+  if (!id) throw new HTTPException(400, { message: 'Name the repository to read, with ?repository=.' });
+
+  if ((await membershipsOf(user.id, id)).length === 0) {
+    throw new HTTPException(403, { message: 'This account is not a member of this repository.' });
+  }
+
+  return answer(() => repositoryOrReason(id));
 };
 
 /**
@@ -125,25 +155,33 @@ const write = async <T>(repositoryId: string, change: () => Promise<T>): Promise
 router.get('/repositories', signedIn, async (c) => {
   await refuseAStranger(c);
 
-  const [rows, avatars] = await Promise.all([listRepositories(), avatarsByInstallation()]);
+  const user = getUser(c);
+  const [rows, avatars, memberships] = await Promise.all([
+    listRepositories(),
+    avatarsByInstallation(),
+    membershipsOf(user.id),
+  ]);
+  const memberOf = new Set(memberships.map((membership) => membership.repositoryId));
 
   return c.json({
     success: true,
-    data: rows.map((row) => ({
-      id: row.id,
-      owner: row.owner,
-      name: row.name,
-      avatarUrl: avatars.get(row.installationId) ?? null,
-      branch: row.branch,
-      localesPath: row.localesPath,
-      manifestPath: manifestPathOf(row),
-      publishMode: row.publishMode,
-      proposalCommitTemplate: row.proposalCommitTemplate,
-      publicationCommitTemplate: row.publicationCommitTemplate,
-      pullRequestTitleTemplate: row.pullRequestTitleTemplate,
-      pullRequestBodyTemplate: row.pullRequestBodyTemplate,
-      ...languagesOf(row),
-    })),
+    data: rows
+      .filter((row) => user.admin === true || memberOf.has(row.id))
+      .map((row) => ({
+        id: row.id,
+        owner: row.owner,
+        name: row.name,
+        avatarUrl: avatars.get(row.installationId) ?? null,
+        branch: row.branch,
+        localesPath: row.localesPath,
+        manifestPath: manifestPathOf(row),
+        publishMode: row.publishMode,
+        proposalCommitTemplate: row.proposalCommitTemplate,
+        publicationCommitTemplate: row.publicationCommitTemplate,
+        pullRequestTitleTemplate: row.pullRequestTitleTemplate,
+        pullRequestBodyTemplate: row.pullRequestBodyTemplate,
+        ...languagesOf(row),
+      })),
   });
 });
 
@@ -162,13 +200,19 @@ router.get('/overview', signedIn, async (c) => {
   if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
 
   const user = getUser(c);
-  const rights = await rightsOf(user.id);
-  const everyLanguage = user.admin === true || rights?.writesSource === true;
+  // An admin reads every repository. A member reads its repositories, every
+  // language of one where it writes the source, else the languages of its row.
+  const access =
+    user.admin === true
+      ? undefined
+      : new Map(
+          (await membershipsOf(user.id)).map((membership) => [
+            membership.repositoryId,
+            membership.writesSource ? undefined : membership.languages,
+          ]),
+        );
 
-  return c.json({
-    success: true,
-    data: await answer(() => overview({ ...data, languages: everyLanguage ? undefined : (rights?.languages ?? []) })),
-  });
+  return c.json({ success: true, data: await answer(() => overview({ ...data, access })) });
 });
 
 /**
@@ -223,9 +267,7 @@ router.patch('/repositories/:id', signedIn, async (c) => {
  * after a merge. A repository that publishes by commit has none.
  */
 router.get('/publication', signedIn, async (c) => {
-  await refuseAStranger(c);
-
-  const repository = await answer(() => repositoryOrReason(c.req.query('repository')));
+  const repository = await readableRepository(c, c.req.query('repository'));
 
   if (repository.publishMode !== 'pull_request') {
     return c.json({ success: true, data: { publishMode: repository.publishMode, pullRequest: null } });
@@ -310,22 +352,20 @@ router.post('/repositories', signedIn, async (c) => {
     });
   }
 
-  const { repository, created } = await answer(() => addRepository(data));
+  const { repository, created } = await answer(() => addRepository(data, getUser(c).id));
 
   return c.json({ success: true, data: { ...repository, ...languagesOf(repository), created } });
 });
 
 /** Every key of the source, beside what one language says about it. */
 router.get('/catalogue', signedIn, async (c) => {
-  await refuseAStranger(c);
-
   const language = c.req.query('language');
 
   if (!language) {
     throw new HTTPException(400, { message: 'Name the language to read, with ?language=.' });
   }
 
-  const repository = await answer(() => repositoryOrReason(c.req.query('repository')));
+  const repository = await readableRepository(c, c.req.query('repository'));
 
   return c.json({ success: true, data: await answer(() => getCatalogue(repository, language)) });
 });
@@ -335,14 +375,14 @@ router.get('/catalogue', signedIn, async (c) => {
  *
  * An account reads the languages it can open and no other: every target for an
  * admin and for an account that writes the source, the languages of its row
- * for a translator. That is the list the editor offers it.
+ * for a translator. That is the list the editor offers it. A member of
+ * another repository reads nothing of this one.
  */
 router.get('/progress', signedIn, async (c) => {
-  await refuseAStranger(c);
-
   const user = getUser(c);
-  const rights = await rightsOf(user.id);
-  const repository = await answer(() => repositoryOrReason(c.req.query('repository')));
+  const repository = await readableRepository(c, c.req.query('repository'));
+
+  const rights = await rightsOf(user.id, repository.id);
   const all = await answer(() => progressOf(repository));
   const everyLanguage = user.admin === true || rights?.writesSource === true;
 
@@ -379,8 +419,8 @@ router.post('/proposals', signedIn, async (c) => {
 
   if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
 
-  const repository = await answer(() => repositoryOrReason(data.repository));
-  const rights = await rightsOf(getUser(c).id);
+  const repository = await readableRepository(c, data.repository);
+  const rights = await rightsOf(getUser(c).id, repository.id);
   // The source is proposed and published by `writes_source` alone (DB-607). A
   // grant of the source language as a target grants nothing here.
   const allowed =
@@ -399,30 +439,26 @@ router.post('/proposals', signedIn, async (c) => {
 
 /** The batches that sit on the branch of a language and not on the base. */
 router.get('/proposals', signedIn, async (c) => {
-  await refuseAStranger(c);
-
   const language = c.req.query('language');
 
   if (!language) {
     throw new HTTPException(400, { message: 'Name the language to read, with ?language=.' });
   }
 
-  const repository = await answer(() => repositoryOrReason(c.req.query('repository')));
+  const repository = await readableRepository(c, c.req.query('repository'));
 
   return c.json({ success: true, data: await answer(() => heldWaiting(repository, language)) });
 });
 
 /** The keys that wait on the branch of a language, with the batch a publication names for each. */
 router.get('/proposals/keys', signedIn, async (c) => {
-  await refuseAStranger(c);
-
   const language = c.req.query('language');
 
   if (!language) {
     throw new HTTPException(400, { message: 'Name the language to read, with ?language=.' });
   }
 
-  const repository = await answer(() => repositoryOrReason(c.req.query('repository')));
+  const repository = await readableRepository(c, c.req.query('repository'));
 
   return c.json({ success: true, data: await answer(() => heldProposedKeys(repository, language)) });
 });
@@ -438,8 +474,8 @@ router.post('/publications', signedIn, async (c) => {
 
   if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
 
-  const repository = await answer(() => repositoryOrReason(data.repository));
-  const rights = await rightsOf(getUser(c).id);
+  const repository = await readableRepository(c, data.repository);
+  const rights = await rightsOf(getUser(c).id, repository.id);
   // In the source, the account that writes it also reviews it (DB-607).
   const allowed =
     data.language === languagesOf(repository).source ? mayWriteSource(rights) : mayPublish(rights, data.language);
@@ -464,9 +500,9 @@ router.post('/reviews', signedIn, async (c) => {
 
   if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
 
-  const repository = await answer(() => repositoryOrReason(data.repository));
+  const repository = await readableRepository(c, data.repository);
 
-  if (!mayPublish(await rightsOf(getUser(c).id), data.language)) {
+  if (!mayPublish(await rightsOf(getUser(c).id, repository.id), data.language)) {
     throw new HTTPException(403, { message: `This account may not review ${data.language}.` });
   }
 
@@ -486,18 +522,18 @@ router.post('/keys', signedIn, async (c) => {
 
   if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
 
-  if (!mayWriteSource(await rightsOf(getUser(c).id))) {
+  const repository = await readableRepository(c, data.repository);
+
+  if (!mayWriteSource(await rightsOf(getUser(c).id, repository.id))) {
     throw new HTTPException(403, { message: 'This account may not write the source language.' });
   }
-
-  const repository = await answer(() => repositoryOrReason(data.repository));
 
   const created = await write(repository.id, () => createKeys(repository, data.values, authorOf(c)));
 
   return c.json({ success: true, data: created });
 });
 
-/** What the signed-in account may do. `null` when it translates nothing. */
+/** What the signed-in account may do, in each repository where it is a member. */
 router.get('/me', signedIn, async (c) => {
   const user = getUser(c);
 
@@ -507,7 +543,7 @@ router.get('/me', signedIn, async (c) => {
     success: true,
     data: {
       admin,
-      rights: await rightsOf(user.id),
+      memberships: await membershipsOf(user.id),
       // Installing the App is the first step of connecting a repository, which is for an admin alone.
       installUrl: admin ? `https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new` : null,
     },

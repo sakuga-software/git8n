@@ -36,6 +36,20 @@
       "when": 1793019365208,
       "tag": "0004_message_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793092846300,
+      "tag": "0005_members_per_repository",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793092856307,
+      "tag": "0006_drop_global_translators",
+      "breakpoints": true
     }
   ]
 }

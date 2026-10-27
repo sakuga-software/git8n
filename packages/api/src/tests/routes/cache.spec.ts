@@ -1,11 +1,11 @@
 import '../setup-env';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { i18nRepositories, i18nTranslators, newId } from '@i18n-editor/db';
+import { i18nRepositories, newId } from '@i18n-editor/db';
 import app from '../../app';
 import { env } from '@/config/env';
 import { clearI18nCatalogueCache } from '@/services/i18n-catalogue.service';
 import { clearI18nProgressCache } from '@/services/i18n-progress.service';
-import { authHeaders, insertAccount, signedInAdmin } from '../db/fixtures';
+import { authHeaders, grant, insertAccount, insertOrganization, signedInAdmin } from '../db/fixtures';
 import { useTestDb } from '../db/test-db';
 import { fakeRepo, type FakeRepo } from '../services/fake-github-repo';
 
@@ -55,6 +55,7 @@ async function repository(publishMode: 'commit' | 'pull_request' = 'commit') {
     .insert(i18nRepositories)
     .values({
       id: newId(),
+      organizationId: await insertOrganization(),
       installationId: 42,
       owner: 'acme',
       name: 'acme-app',
@@ -71,10 +72,9 @@ async function repository(publishMode: 'commit' | 'pull_request' = 'commit') {
 /** A reviewer of English who also writes the source: one account does every write. */
 async function writer() {
   const userId = await insertAccount();
+  const [row] = await db().select({ id: i18nRepositories.id }).from(i18nRepositories);
 
-  await db()
-    .insert(i18nTranslators)
-    .values({ userId, languages: ['en'], role: 'reviewer', writesSource: true } as never);
+  await grant(userId, row.id, { languages: ['en'], role: 'reviewer', writesSource: true });
 
   return authHeaders(userId);
 }
