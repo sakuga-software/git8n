@@ -907,19 +907,6 @@ function Editor({
     }
   };
 
-  const notices: string[] = read
-    ? [
-        ...filesIn(catalogue.value, 'disabled').map(
-          (name) =>
-            `${name} n'a pas de version en ${nameOf(opened)} : ses clés ne sont pas listées, et rien n'y manque.`,
-        ),
-        ...filesIn(catalogue.value, 'partial').map(
-          (name) =>
-            `${name} est en cours de traduction : l'application ne le charge pas encore, ses utilisateurs lisent le ${nameOf(catalogue.value.source)}.`,
-        ),
-      ]
-    : [];
-
   return (
     <>
       {slots.project &&
@@ -1047,7 +1034,6 @@ function Editor({
         counts={read ? countsOf(rows) : null}
         emptyCount={read ? emptyCountOf(rows) : 0}
         readOnly={read && !mayPropose}
-        notices={notices}
         compact={view === 'key'}
         aside={view === 'key' ? viewSwitch : undefined}
         newKeyDisabled={!read || creating}
