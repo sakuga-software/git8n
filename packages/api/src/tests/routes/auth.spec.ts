@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  authAccounts,
   authSessions,
   i18nRepositories,
   memberLanguages,
@@ -257,6 +258,48 @@ describe('the sign-in with GitHub', () => {
 
     expect(answer.location).toContain('error=');
     expect(await db().select().from(authSessions)).toEqual([]);
+  });
+
+  /**
+   * A person adds an invited address to their GitHub account, and does not
+   * verify it. The owner of the address then opens a magic link. better-auth
+   * removes the GitHub link and the sessions of the account before it marks
+   * the address verified, so the invitation goes to the owner of the address.
+   */
+  it('gives an invitation to the owner of the address, not to a GitHub account that claimed it unverified', async () => {
+    const repositoryId = await grantIn(await insertAccount(), {});
+
+    await invite(repositoryId, { email: 'ann@example.test', role: 'owner', languages: ['en'] });
+
+    const claim = await signIn({ id: '666', email: 'ann@example.test', emailVerified: false, name: 'Mallory' });
+
+    expect((await me({ cookie: claim.cookie })).body).toMatchObject({ memberships: [] });
+
+    await app.request(`${EDITOR}/api/auth/sign-in/magic-link`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: EDITOR },
+      body: JSON.stringify({ email: 'ann@example.test', callbackURL: `${EDITOR}/` }),
+    });
+    await vi.waitFor(() => expect(sentInDevelopment).toHaveLength(1), { timeout: 5000 });
+
+    const link = sentInDevelopment[0].text.match(/https?:\/\/\S+/)?.[0] ?? '';
+    const opened = await app.request(link);
+    const cookie = opened.headers
+      .getSetCookie()
+      .map((line) => line.split(';')[0])
+      .join('; ');
+
+    sentInDevelopment.length = 0;
+
+    expect((await me({ cookie })).body).toMatchObject({ memberships: [{ repositoryId, role: 'owner' }] });
+    // The session and the GitHub link of the claim are gone.
+    expect((await me({ cookie: claim.cookie })).status).toBe(401);
+    expect(await db().select().from(authAccounts)).toEqual([]);
+
+    const again = await signIn({ id: '666', email: 'ann@example.test', emailVerified: false, name: 'Mallory' });
+
+    expect(again.location).toContain('error=');
+    expect((await me({ cookie: again.cookie })).status).toBe(401);
   });
 
   it('sends the browser to GitHub, then back to the editor with a session', async () => {
