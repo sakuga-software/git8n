@@ -82,6 +82,28 @@ const refuseANonAdmin = (c: Parameters<typeof signedIn>[0]) => {
 };
 
 /**
+ * The repository that a request names, when the account may read it (DB-637).
+ *
+ * An admin gets the reason when the repository is not there, with the list of
+ * the repositories. Any other account gets the same 403 for a repository that
+ * is not there and for one where it is not a member. A different answer would
+ * tell which repositories the editor holds.
+ */
+const readableRepository = async (c: Parameters<typeof signedIn>[0], id: string | undefined) => {
+  const user = getUser(c);
+
+  if (user.admin === true) return answer(() => repositoryOrReason(id));
+
+  if (!id) throw new HTTPException(400, { message: 'Name the repository to read, with ?repository=.' });
+
+  if ((await membershipsOf(user.id, id)).length === 0) {
+    throw new HTTPException(403, { message: 'This account is not a member of this repository.' });
+  }
+
+  return answer(() => repositoryOrReason(id));
+};
+
+/**
  * Turns what nobody set up into the status the page names.
  *
  * An operator acts on a GitHub App with no secrets, and on a setup with no
@@ -245,9 +267,7 @@ router.patch('/repositories/:id', signedIn, async (c) => {
  * after a merge. A repository that publishes by commit has none.
  */
 router.get('/publication', signedIn, async (c) => {
-  const repository = await answer(() => repositoryOrReason(c.req.query('repository')));
-
-  await refuseAStranger(c, repository.id);
+  const repository = await readableRepository(c, c.req.query('repository'));
 
   if (repository.publishMode !== 'pull_request') {
     return c.json({ success: true, data: { publishMode: repository.publishMode, pullRequest: null } });
@@ -345,9 +365,7 @@ router.get('/catalogue', signedIn, async (c) => {
     throw new HTTPException(400, { message: 'Name the language to read, with ?language=.' });
   }
 
-  const repository = await answer(() => repositoryOrReason(c.req.query('repository')));
-
-  await refuseAStranger(c, repository.id);
+  const repository = await readableRepository(c, c.req.query('repository'));
 
   return c.json({ success: true, data: await answer(() => getCatalogue(repository, language)) });
 });
@@ -362,9 +380,7 @@ router.get('/catalogue', signedIn, async (c) => {
  */
 router.get('/progress', signedIn, async (c) => {
   const user = getUser(c);
-  const repository = await answer(() => repositoryOrReason(c.req.query('repository')));
-
-  await refuseAStranger(c, repository.id);
+  const repository = await readableRepository(c, c.req.query('repository'));
 
   const rights = await rightsOf(user.id, repository.id);
   const all = await answer(() => progressOf(repository));
@@ -403,7 +419,7 @@ router.post('/proposals', signedIn, async (c) => {
 
   if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
 
-  const repository = await answer(() => repositoryOrReason(data.repository));
+  const repository = await readableRepository(c, data.repository);
   const rights = await rightsOf(getUser(c).id, repository.id);
   // The source is proposed and published by `writes_source` alone (DB-607). A
   // grant of the source language as a target grants nothing here.
@@ -429,9 +445,7 @@ router.get('/proposals', signedIn, async (c) => {
     throw new HTTPException(400, { message: 'Name the language to read, with ?language=.' });
   }
 
-  const repository = await answer(() => repositoryOrReason(c.req.query('repository')));
-
-  await refuseAStranger(c, repository.id);
+  const repository = await readableRepository(c, c.req.query('repository'));
 
   return c.json({ success: true, data: await answer(() => heldWaiting(repository, language)) });
 });
@@ -444,9 +458,7 @@ router.get('/proposals/keys', signedIn, async (c) => {
     throw new HTTPException(400, { message: 'Name the language to read, with ?language=.' });
   }
 
-  const repository = await answer(() => repositoryOrReason(c.req.query('repository')));
-
-  await refuseAStranger(c, repository.id);
+  const repository = await readableRepository(c, c.req.query('repository'));
 
   return c.json({ success: true, data: await answer(() => heldProposedKeys(repository, language)) });
 });
@@ -462,7 +474,7 @@ router.post('/publications', signedIn, async (c) => {
 
   if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
 
-  const repository = await answer(() => repositoryOrReason(data.repository));
+  const repository = await readableRepository(c, data.repository);
   const rights = await rightsOf(getUser(c).id, repository.id);
   // In the source, the account that writes it also reviews it (DB-607).
   const allowed =
@@ -488,7 +500,7 @@ router.post('/reviews', signedIn, async (c) => {
 
   if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
 
-  const repository = await answer(() => repositoryOrReason(data.repository));
+  const repository = await readableRepository(c, data.repository);
 
   if (!mayPublish(await rightsOf(getUser(c).id, repository.id), data.language)) {
     throw new HTTPException(403, { message: `This account may not review ${data.language}.` });
@@ -510,7 +522,7 @@ router.post('/keys', signedIn, async (c) => {
 
   if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
 
-  const repository = await answer(() => repositoryOrReason(data.repository));
+  const repository = await readableRepository(c, data.repository);
 
   if (!mayWriteSource(await rightsOf(getUser(c).id, repository.id))) {
     throw new HTTPException(403, { message: 'This account may not write the source language.' });

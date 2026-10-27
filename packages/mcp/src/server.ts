@@ -57,7 +57,7 @@ export const buildServer = (config: ApiConfig): McpServer => {
     {
       title: 'What this token may do',
       description:
-        'The languages this account may propose in, and whether it reviews. A token of a translator writes proposals and does not publish.',
+        'The repositories where this account is a member, and in each one its role, the languages it may propose in, and whether it writes the source. A translator writes proposals and does not publish. A reviewer or an owner also publishes.',
       inputSchema: {},
     },
     () => answering(() => whoAmI(config)),

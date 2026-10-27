@@ -1766,6 +1766,25 @@ describe('members of one repository', () => {
     expect(proposed.status).toBe(403);
   });
 
+  /** A different answer would tell a member which repositories the editor holds. */
+  it('answers a member the same for a repository that is not there and for one of another member', async () => {
+    await repository();
+
+    const other = await otherRepository();
+    const { headers } = await translator(['en']);
+    const answers = await Promise.all(
+      [other.id, 'no-such-repository'].map(async (id) => {
+        const res = await app.request(`/i18n/catalogue?repository=${id}&language=en`, { headers });
+
+        return { status: res.status, body: await res.text() };
+      }),
+    );
+
+    expect(answers[0]).toEqual(answers[1]);
+    expect(answers[0].status).toBe(403);
+    expect(answers[0].body).not.toContain('other-app');
+  });
+
   it('gives an owner the rights of a reviewer in its languages', async () => {
     const repo = await repository();
     const { headers } = await translator(['en'], 'owner');
