@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { stream } from 'hono/streaming';
 import { HonoEnv } from '@/types/hono';
 import { forgetRepository } from '@/utils/cache';
 import { getUser } from '@/utils/context';
@@ -41,7 +42,7 @@ import {
   installationToken,
   repositoriesOf,
 } from '@/services/github-app.service';
-import { getCatalogue, manifestPathOf } from '@/services/i18n-catalogue.service';
+import { getCatalogue, manifestPathOf, watchCatalogue } from '@/services/i18n-catalogue.service';
 import { progressOf } from '@/services/i18n-progress.service';
 import {
   addRepository,
@@ -390,6 +391,45 @@ router.get('/catalogue', signedIn, async (c) => {
   const repository = await readableRepository(c, c.req.query('repository'));
 
   return c.json({ success: true, data: await answer(() => getCatalogue(repository, language)) });
+});
+
+/**
+ * The catalogue of `/catalogue`, with the progress of a cold read before it (DB-654).
+ *
+ * The answer is NDJSON, one object per line: `{ progress: { done, total } }`
+ * while the files come, then `{ catalogue }`, or `{ error: { status, message } }`.
+ * The status of the response is already sent when a read fails, so the line
+ * carries it. A warm catalogue answers its one line at once.
+ */
+router.get('/catalogue/stream', signedIn, async (c) => {
+  const language = c.req.query('language');
+
+  if (!language) {
+    throw new HTTPException(400, { message: 'Name the language to read, with ?language=.' });
+  }
+
+  const repository = await readableRepository(c, c.req.query('repository'));
+
+  c.header('Content-Type', 'application/x-ndjson; charset=utf-8');
+  c.header('Cache-Control', 'no-store');
+
+  return stream(c, async (out) => {
+    const line = (value: unknown) => out.write(`${JSON.stringify(value)}\n`);
+    const stop = watchCatalogue(repository.id, language, (progress) => void line({ progress }));
+
+    try {
+      await line({ catalogue: await answer(() => getCatalogue(repository, language)) });
+    } catch (error) {
+      if (error instanceof HTTPException) {
+        await line({ error: { status: error.status, message: error.message } });
+      } else {
+        logger.error('Unhandled error', error);
+        await line({ error: { status: 500, message: 'Internal Server Error' } });
+      }
+    } finally {
+      stop();
+    }
+  });
 });
 
 /**
