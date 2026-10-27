@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bodyOf, languagesOf, problemsOf, setupReturnOf, withPage, type ConnectForm } from './connect-flow';
+import { bodyOf, languagesOf, problemsOf, pushedAgo, setupReturnOf, withPage, type ConnectForm } from './connect-flow';
 
 describe('setupReturnOf', () => {
   it('reads the installation and the action that GitHub sends back', () => {
@@ -103,5 +103,22 @@ describe('bodyOf', () => {
 
   it('sends the mode of publication that was chosen', () => {
     expect(bodyOf(choice, form({}), 'pull_request')).toMatchObject({ publishMode: 'pull_request' });
+  });
+});
+
+describe('pushedAgo (DB-653)', () => {
+  const now = Date.parse('2026-10-27T17:00:00Z');
+
+  it('says how long ago the last push was, in the largest unit that fits', () => {
+    expect(pushedAgo('2026-10-27T16:59:30Z', now)).toBe('à l’instant');
+    expect(pushedAgo('2026-10-27T16:45:00Z', now)).toBe('il y a 15 minutes');
+    expect(pushedAgo('2026-10-27T14:00:00Z', now)).toBe('il y a 3 heures');
+    expect(pushedAgo('2026-10-26T17:00:00Z', now)).toBe('hier');
+    expect(pushedAgo('2025-10-01T00:00:00Z', now)).toBe('l’année dernière');
+  });
+
+  it('says nothing for a repository with no date', () => {
+    expect(pushedAgo(null, now)).toBeNull();
+    expect(pushedAgo(undefined, now)).toBeNull();
   });
 });

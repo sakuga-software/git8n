@@ -178,7 +178,7 @@ describe('what the App can reach', () => {
   it('names the repositories of one installation', async () => {
     vi.stubGlobal('fetch', github());
 
-    expect(await repositoriesOf(42)).toEqual([{ owner: 'acme', name: 'acme-app', private: false }]);
+    expect(await repositoriesOf(42)).toEqual([{ owner: 'acme', name: 'acme-app', private: false, pushedAt: null }]);
   });
 
   /**
@@ -222,12 +222,16 @@ describe('what the App can reach', () => {
         }
 
         if (path.includes('page=2')) {
-          return page({ repositories: [{ name: 'later', owner: { login: 'acme' }, private: true }] });
+          return page({
+            repositories: [
+              { name: 'later', owner: { login: 'acme' }, private: true, updated_at: '2026-10-02T08:00:00Z' },
+            ],
+          });
         }
 
         if (path.includes('/installation/repositories')) {
           return page(
-            { repositories: [{ name: 'acme-app', owner: { login: 'acme' } }] },
+            { repositories: [{ name: 'acme-app', owner: { login: 'acme' }, pushed_at: '2026-10-27T15:00:00Z' }] },
             'https://api.github.com/installation/repositories?per_page=100&page=2',
           );
         }
@@ -237,9 +241,9 @@ describe('what the App can reach', () => {
     );
 
     expect(await repositoriesOf(42)).toEqual([
-      { owner: 'acme', name: 'acme-app', private: false },
-      // The picker of the page shows a badge for a private repository.
-      { owner: 'acme', name: 'later', private: true },
+      { owner: 'acme', name: 'acme-app', private: false, pushedAt: '2026-10-27T15:00:00Z' },
+      // The picker of the page shows a badge for a private repository. With no push, the date is its last change.
+      { owner: 'acme', name: 'later', private: true, pushedAt: '2026-10-02T08:00:00Z' },
     ]);
   });
 });

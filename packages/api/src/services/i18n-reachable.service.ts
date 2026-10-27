@@ -41,7 +41,22 @@ const ALL = 'installations';
 /** Empties the cache. The tests call it, and so does a request that asks for a fresh listing. */
 export const clearReachableCache = (): void => listings.clear();
 
-/** Every repository the installations reach, each once, sorted by `owner/name`. */
+/**
+ * The repository changed last comes first (DB-653). A repository with no date
+ * comes after the dated ones. Equal dates fall back to `owner/name`.
+ */
+export const byLastChange = (a: InstallationRepository, b: InstallationRepository): number => {
+  if (a.pushedAt !== b.pushedAt) {
+    if (a.pushedAt === null) return 1;
+    if (b.pushedAt === null) return -1;
+
+    return Date.parse(b.pushedAt) - Date.parse(a.pushedAt);
+  }
+
+  return `${a.owner}/${a.name}`.localeCompare(`${b.owner}/${b.name}`, 'en', { sensitivity: 'base' });
+};
+
+/** Every repository the installations reach, each once, the one changed last first. */
 const readEveryReachable = async (): Promise<ReachableRepository[]> => {
   const found = await installations();
   const listed = await Promise.all(
@@ -66,7 +81,7 @@ const readEveryReachable = async (): Promise<ReachableRepository[]> => {
     rows.push(row);
   }
 
-  rows.sort((a, b) => `${a.owner}/${a.name}`.localeCompare(`${b.owner}/${b.name}`, 'en', { sensitivity: 'base' }));
+  rows.sort(byLastChange);
 
   return rows;
 };

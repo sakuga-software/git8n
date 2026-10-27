@@ -278,6 +278,8 @@ export interface InstallationRepository {
   owner: string;
   name: string;
   private: boolean;
+  /** The last push to the repository, as GitHub dates it, or its last change if it has no push. */
+  pushedAt: string | null;
 }
 
 export const repositoriesOf = async (installationId: number): Promise<InstallationRepository[]> => {
@@ -292,14 +294,22 @@ export const repositoriesOf = async (installationId: number): Promise<Installati
   for (let read = 0; at; read += 1) {
     if (read >= MAX_PAGES) throw new Error(`/installation/repositories named more than ${MAX_PAGES} pages.`);
 
-    const page: Answered<{ repositories: Array<{ name: string; owner: { login: string }; private?: boolean }> }> =
-      await asked(at, token);
+    const page: Answered<{
+      repositories: Array<{
+        name: string;
+        owner: { login: string };
+        private?: boolean;
+        pushed_at?: string | null;
+        updated_at?: string | null;
+      }>;
+    }> = await asked(at, token);
 
     rows.push(
       ...page.body.repositories.map((row) => ({
         owner: row.owner.login,
         name: row.name,
         private: row.private === true,
+        pushedAt: row.pushed_at ?? row.updated_at ?? null,
       })),
     );
     at = page.next;
