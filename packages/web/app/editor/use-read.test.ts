@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { ApiError } from '@i18n-editor/mcp/api';
-import { forgetReads, readErrorOf, readOf, reads, readsFor, type Read } from './use-read';
+import { forgetReads, mayPoll, quietly, readErrorOf, readOf, reads, readsFor, type Read } from './use-read';
 
 /** A read that answers when the test says so. */
 const held = <T>() => {
@@ -281,5 +281,26 @@ describe('what a failed read says', () => {
 
   it('carries no status for a call that never reached the API', () => {
     expect(readErrorOf(new TypeError('Failed to fetch'))).toEqual({ status: null, message: 'Failed to fetch' });
+  });
+});
+
+describe('a poll (DB-651)', () => {
+  it('starts only when the tab shows, no poll is in flight, and the page allows it', () => {
+    expect(mayPoll(true, false)).toBe(true);
+    expect(mayPoll(false, false)).toBe(false);
+    expect(mayPoll(true, true)).toBe(false);
+    expect(mayPoll(true, false, () => false)).toBe(false);
+    expect(mayPoll(true, false, () => true)).toBe(true);
+  });
+
+  it('keeps the answer on the screen with no sign that it reads again', () => {
+    expect(quietly<string>({ state: 'done', value: 'en', refreshing: true })).toEqual({ state: 'done', value: 'en' });
+  });
+
+  it('still says that the last read failed', () => {
+    const stale = { status: 502, message: 'GitHub is down' };
+
+    expect(quietly<string>({ state: 'done', value: 'en', stale })).toEqual({ state: 'done', value: 'en', stale });
+    expect(quietly<string>({ state: 'failed', error: stale })).toEqual({ state: 'failed', error: stale });
   });
 });

@@ -31,8 +31,13 @@ A token asks for `pull_requests: write` only for a repository in the mode
 `pull_request`. A repository that publishes by commit keeps working on an
 installation that never accepted it.
 
-It has **no webhook**. The editor reads GitHub when a person opens a page, and
-it never waits for an event. The manifest switches the webhook off.
+Its **webhook** sends one event, `push` (DB-651). The API holds what it reads
+of a repository for up to five minutes. A push, a merge on GitHub included,
+drops what it holds of that repository, so the next read shows the new commit.
+An open page reads again every 30 seconds, and shows the change without a
+reload. The API checks the signature of each event with
+`GITHUB_WEBHOOK_SECRET`. Without the webhook, a change made on GitHub shows
+after five minutes.
 
 ## Create it
 
@@ -48,8 +53,9 @@ not included in the list »). Add it by hand after the creation, at step 5.
 
 1. Change `name` if the name is taken: the name of an App is unique on GitHub.
    Change `callback_urls` to the address of your deployment, followed by
-   `/api/auth/callback/github`, and `setup_url` to the same address followed
-   by `/setup`. Change `redirect_url` to a page that you
+   `/api/auth/callback/github`, `setup_url` to the same address followed
+   by `/setup`, and `hook_attributes.url` to the same address followed by
+   `/api/github/webhook`. Change `redirect_url` to a page that you
    control. GitHub sends the browser there with a `code` after the creation.
 2. Send the manifest to GitHub from a browser. GitHub accepts it only as a form
    field, so save this page as `create-app.html` and open it:
@@ -80,15 +86,15 @@ not included in the list »). Add it by hand after the creation, at step 5.
 4. Give the four values to the API. [`deploy.md`](deploy.md) lists every
    variable of a deployment.
 
-   | Variable                  | Value                         |
-   | ------------------------- | ----------------------------- |
-   | `I18N_GITHUB_APP_ID`      | `id` of the answer            |
-   | `I18N_GITHUB_PRIVATE_KEY` | `pem` of the answer           |
-   | `GITHUB_CLIENT_ID`        | `client_id` of the answer     |
-   | `GITHUB_CLIENT_SECRET`    | `client_secret` of the answer |
+   | Variable                  | Value                          |
+   | ------------------------- | ------------------------------ |
+   | `I18N_GITHUB_APP_ID`      | `id` of the answer             |
+   | `I18N_GITHUB_PRIVATE_KEY` | `pem` of the answer            |
+   | `GITHUB_CLIENT_ID`        | `client_id` of the answer      |
+   | `GITHUB_CLIENT_SECRET`    | `client_secret` of the answer  |
+   | `GITHUB_WEBHOOK_SECRET`   | `webhook_secret` of the answer |
 
-   The answer also holds a webhook secret. The editor does not use it. Keep
-   the private key and the client secret out of the repository.
+   Keep the private key and the two secrets out of the repository.
 
 5. In the settings of the App on GitHub, open **Permissions & events**, then
    **Account permissions**, and set **Email addresses** to **Read-only**. Save.
@@ -105,6 +111,16 @@ not included in the list »). Add it by hand after the creation, at step 5.
    **Without it, GitHub does not come back to the editor** after an
    installation. The admin then opens the editor again and clicks « Ajouter un
    dépôt ».
+
+7. If the App was created before its manifest held the webhook, open
+   **General** in its settings. Under **Webhook**, tick **Active**, set
+   **Webhook URL** to `https://<host>/api/github/webhook`, and set **Webhook
+   secret** to the value of `GITHUB_WEBHOOK_SECRET`. Save. Then open
+   **Permissions & events**, tick **Push** under **Subscribe to events**, and
+   save. The event needs no new permission: Contents gives it.
+
+   To check it, open **Advanced** in the settings of the App. Each delivery
+   shows there with the answer of the API: `200` for a push, `204` for a ping.
 
 ## Connect a repository
 
