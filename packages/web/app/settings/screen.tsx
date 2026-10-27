@@ -16,7 +16,8 @@ import { api } from '~/utils/api';
 import { Info, Lock, Published, Undo } from '~/editor/icons';
 import { PublishModeSwitch } from '~/editor/pull-state';
 import { Signed } from '~/editor/shell';
-import { Blocked, Failure, Loading } from '~/editor/states';
+import { SettingsSkeleton } from '~/editor/skeleton';
+import { Blocked, Failure } from '~/editor/states';
 import { Busy } from '~/editor/ui';
 import { MembersPanel } from './members';
 import { forgetReads, readErrorOf, useRead, type ReadError } from '~/editor/use-read';
@@ -77,7 +78,7 @@ function Settings({ waiting }: { waiting: React.RefObject<number> }) {
   const [me, reloadMe] = useRead('me', () => rightsOf(api));
   const [repositories, reloadRepositories] = useRead('repositories', () => readRepositories(api));
 
-  if (me.state === 'loading' || repositories.state === 'loading') return <Loading>Lecture du dépôt…</Loading>;
+  if (me.state === 'loading' || repositories.state === 'loading') return <SettingsSkeleton />;
   if (me.state === 'failed')
     return <Failure title="Le compte n'a pas pu être lu." error={me.error} onRetry={reloadMe} />;
   if (repositories.state === 'failed') {
@@ -93,7 +94,11 @@ function Settings({ waiting }: { waiting: React.RefObject<number> }) {
     return (
       <Blocked icon={<Lock size={18} />}>
         <p className="text-sm leading-normal">Seuls un admin et un propriétaire du dépôt ouvrent ses réglages.</p>
-        <Link to={repositoryId ? tablePathOf(repositoryId) : '/'} className="text-sub text-[13px] underline">
+        <Link
+          to={repositoryId ? tablePathOf(repositoryId) : '/'}
+          viewTransition
+          className="text-sub text-[13px] underline"
+        >
           Revenir aux traductions
         </Link>
       </Blocked>
@@ -106,7 +111,7 @@ function Settings({ waiting }: { waiting: React.RefObject<number> }) {
     return (
       <Blocked icon={<Info size={18} />}>
         <p className="text-sm leading-normal">Ce dépôt n'est pas branché à l'éditeur.</p>
-        <Link to="/" className="text-sub text-[13px] underline">
+        <Link to="/" viewTransition className="text-sub text-[13px] underline">
           Revenir aux traductions
         </Link>
       </Blocked>
@@ -389,7 +394,11 @@ function SettingsOf({
               : 'Qui traduit ce dépôt, et ce que chacun peut faire.'}
           </p>
         </div>
-        <Link to={tablePathOf(repository.id)} className="text-sub hover:text-ink text-[13px] no-underline">
+        <Link
+          to={tablePathOf(repository.id)}
+          viewTransition
+          className="text-sub hover:text-ink text-[13px] no-underline"
+        >
           Revenir aux traductions
         </Link>
       </div>

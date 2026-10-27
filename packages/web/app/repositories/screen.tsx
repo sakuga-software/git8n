@@ -15,7 +15,8 @@ import { ChevronDown, Plus, Repository } from '~/editor/icons';
 import { PUBLISH_MODE_LABEL } from '~/editor/publication';
 import { pageNumbersOf } from '~/editor/rows';
 import { AccountFailure, Signed } from '~/editor/shell';
-import { Blocked, Failure, Loading } from '~/editor/states';
+import { Bone, RepositoryRowsSkeleton } from '~/editor/skeleton';
+import { Blocked, Failure } from '~/editor/states';
 import { useRead } from '~/editor/use-read';
 import {
   LIST_PAGE,
@@ -175,18 +176,19 @@ function Repositories() {
   if (list.state === 'failed' && (list.error.status === 403 || list.error.status === 503)) {
     return <AccountFailure error={list.error} onRetry={reloadList} />;
   }
-  if (me.state === 'loading') return <Loading>Lecture du compte…</Loading>;
-
-  const admin = me.value.admin === true;
-  const open = (row: RepositoryOverview) => navigate(`/repositories/${encodeURIComponent(row.id)}`);
-  const nothingAtAll = list.state === 'done' && list.value.total === 0 && !state.q;
+  // The account says which actions a row offers. Until it is read, the rows wait with it, in the frame of the page.
+  const admin = me.state === 'done' && me.value.admin === true;
+  const rows = me.state === 'done' ? list : ({ state: 'loading' } as const);
+  const open = (row: RepositoryOverview) =>
+    navigate(`/repositories/${encodeURIComponent(row.id)}`, { viewTransition: true });
+  const nothingAtAll = rows.state === 'done' && rows.value.total === 0 && !state.q;
 
   if (nothingAtAll) {
     return (
       <Blocked icon={<Repository size={18} />}>
         <p className="text-sm leading-normal">Aucun dépôt n'est configuré pour la traduction.</p>
         {admin ? (
-          <Link to="/setup" className="button button--primary">
+          <Link to="/setup" viewTransition className="button button--primary">
             <Plus size={14} />
             Brancher un dépôt
           </Link>
@@ -202,11 +204,13 @@ function Repositories() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h1 className="text-[22px] font-semibold tracking-[-0.01em]">Dépôts</h1>
-          <p className="text-sub text-sm">
-            {list.state === 'done'
-              ? `${countOf(list.value.total)} ${list.value.total > 1 ? 'dépôts' : 'dépôt'}${state.q ? ` pour « ${state.q} »` : ''}`
-              : 'Lecture des dépôts…'}
-          </p>
+          {rows.state === 'done' ? (
+            <p className="text-sub text-sm">
+              {`${countOf(rows.value.total)} ${rows.value.total > 1 ? 'dépôts' : 'dépôt'}${state.q ? ` pour « ${state.q} »` : ''}`}
+            </p>
+          ) : (
+            <Bone className="my-[3px] h-3.5 w-20" />
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <SearchField aria-label="Chercher un dépôt" value={typed} onChange={setTyped} className="w-[280px]">
@@ -217,7 +221,7 @@ function Repositories() {
             </SearchField.Group>
           </SearchField>
           {admin && (
-            <Link to="/setup" className="button button--primary button--sm md:h-9">
+            <Link to="/setup" viewTransition className="button button--primary button--sm md:h-9">
               <Plus size={14} />
               Brancher un dépôt
             </Link>
@@ -225,8 +229,8 @@ function Repositories() {
         </div>
       </div>
 
-      {list.state === 'failed' ? (
-        <Failure title="Les dépôts n'ont pas pu être lus." error={list.error} onRetry={reloadList} />
+      {rows.state === 'failed' ? (
+        <Failure title="Les dépôts n'ont pas pu être lus." error={rows.error} onRetry={reloadList} />
       ) : (
         <Table>
           <Table.ScrollContainer>
@@ -235,7 +239,7 @@ function Repositories() {
               sortDescriptor={{ column: state.sort, direction: state.order === 'asc' ? 'ascending' : 'descending' }}
               onSortChange={(next) => go(sortedBy(state, next.column as OverviewSort))}
               onRowAction={(id) => {
-                const row = list.state === 'done' ? list.value.rows.find((one) => one.id === id) : undefined;
+                const row = rows.state === 'done' ? rows.value.rows.find((one) => one.id === id) : undefined;
 
                 if (row) open(row);
               }}
@@ -269,10 +273,10 @@ function Repositories() {
                 </Table.Column>
               </Table.Header>
               <Table.Body
-                items={list.state === 'done' ? list.value.rows : []}
+                items={rows.state === 'done' ? rows.value.rows : []}
                 renderEmptyState={() =>
-                  list.state === 'loading' ? (
-                    <Loading>Lecture des dépôts…</Loading>
+                  rows.state === 'loading' ? (
+                    <RepositoryRowsSkeleton />
                   ) : (
                     <p className="text-sub px-4 py-10 text-center text-sm">
                       Aucun dépôt ne correspond à « {state.q} ».
@@ -286,6 +290,7 @@ function Repositories() {
                       <span className="flex flex-col gap-0.5">
                         <Link
                           to={`/repositories/${encodeURIComponent(row.id)}`}
+                          viewTransition
                           className="text-ink hover:text-signal text-sm font-medium no-underline"
                         >
                           {row.owner}/{row.name}
@@ -321,6 +326,7 @@ function Repositories() {
                       {admin && (
                         <Link
                           to={`/repositories/${encodeURIComponent(row.id)}/settings`}
+                          viewTransition
                           onClick={(event) => event.stopPropagation()}
                           className="text-sub hover:text-ink text-[13px] no-underline"
                         >
@@ -336,8 +342,8 @@ function Repositories() {
         </Table>
       )}
 
-      {list.state === 'done' && (
-        <Pager state={state} total={list.value.total} onPage={(page) => go({ ...state, page })} />
+      {rows.state === 'done' && (
+        <Pager state={state} total={rows.value.total} onPage={(page) => go({ ...state, page })} />
       )}
     </div>
   );
