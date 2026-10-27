@@ -88,6 +88,16 @@ const github = (files: Record<string, Record<string, unknown>>, manifest?: unkno
       );
     }
 
+    const blob = path.match(/\/git\/blobs\/sha-([^-]+)-(.+)$/);
+
+    if (blob) {
+      const content = files[blob[1]]?.[blob[2]];
+
+      if (content === undefined) return missing();
+
+      return ok({ content: base64(content), encoding: 'base64' });
+    }
+
     const file = path.match(/locales\/([^/]+)\/([^/?]+)\.json\?/);
 
     if (file) {
