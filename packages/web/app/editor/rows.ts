@@ -206,6 +206,9 @@ export const accessOf = (rights: Rights, targets: readonly string[], source?: st
   };
 };
 
+/** Whether the account manages the repository: an admin, or an owner of the repository (DB-637). */
+export const manages = (rights: Rights): boolean => rights.admin || rights.rights?.role === 'owner';
+
 /** What a publication copied for a key: its value, and whether it leaves the key empty on purpose. */
 export type PublishedValue = Pick<ProposedKey, 'value' | 'empty'>;
 
