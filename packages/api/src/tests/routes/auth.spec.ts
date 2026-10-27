@@ -1,9 +1,18 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { authSessions, i18nRepositories, members, newId, pendingMembers, users } from '@i18n-editor/db';
+import {
+  authSessions,
+  i18nRepositories,
+  memberLanguages,
+  members,
+  newId,
+  pendingMembers,
+  users,
+} from '@i18n-editor/db';
 import app from '@/app';
 import type { GithubProfile } from 'better-auth/social-providers';
 import { createAuth, isAdmin, sendMagicLinkTo, useAuth } from '@/auth';
+import { useDatabase } from '@/db';
 import { sentInDevelopment } from '@/services/mail.service';
 import { env } from '@/config/env';
 import { ADMIN_EMAIL, authHeaders, grant, insertAccount, insertOrganization, invite } from '../db/fixtures';
@@ -348,6 +357,45 @@ describe('the sign-in with a magic link', () => {
     }
 
     expect(sentInDevelopment.map((mail) => mail.to)).toEqual([ADMIN_EMAIL, 'member@example.test']);
+  });
+
+  /** A member with no language would refuse a second try as « already a member ». */
+  it('keeps the invitation, and adds no member, when its languages cannot be written', async () => {
+    const userId = await insertAccount({ email: 'ann@example.test', emailVerified: true });
+    const repositoryId = await grantIn(await insertAccount(), {});
+
+    await invite(repositoryId, { email: 'ann@example.test', languages: ['en'] });
+
+    const real = db();
+    const failing = new Proxy(real, {
+      get(target, property, receiver) {
+        if (property !== 'insert') return Reflect.get(target, property, receiver);
+
+        return (table: unknown) =>
+          table === memberLanguages
+            ? { values: () => Promise.reject(new Error('the database refused the languages')) }
+            : target.insert(table as never);
+      },
+    });
+
+    useDatabase({ db: failing, close: async () => {} });
+
+    try {
+      await authHeaders(userId);
+    } finally {
+      useDatabase({ db: real, close: async () => {} });
+    }
+
+    expect(await db().select().from(members).where(eq(members.userId, userId))).toEqual([]);
+    expect(await db().select({ email: pendingMembers.email }).from(pendingMembers)).toEqual([
+      { email: 'ann@example.test' },
+    ]);
+
+    await authHeaders(userId);
+
+    expect(await db().select({ role: members.role }).from(members).where(eq(members.userId, userId))).toEqual([
+      { role: 'translator' },
+    ]);
   });
 
   it('keeps the rights of a member that an invitation names again', async () => {

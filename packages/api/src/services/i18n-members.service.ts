@@ -12,6 +12,7 @@ import {
 import { auth } from '@/auth';
 import { env } from '@/config/env';
 import { db } from '@/db';
+import { logger } from '@/utils/logger';
 
 /** The GitHub IDs of the accounts that `userId` signs in with. */
 const githubIdsOf = async (userId: string): Promise<string[]> =>
@@ -21,6 +22,38 @@ const githubIdsOf = async (userId: string): Promise<string[]> =>
       .from(authAccounts)
       .where(and(eq(authAccounts.userId, userId), eq(authAccounts.providerId, 'github')))
   ).map((row) => row.id);
+
+/**
+ * Makes an account a member with a role, its languages and the right to write the source.
+ *
+ * The plugin writes the member row, and the editor writes the languages after
+ * it. If the languages fail, the member row goes too: a member with no
+ * language would refuse a second try as « already a member ».
+ */
+export async function addMemberWithLanguages(
+  organizationId: string,
+  userId: string,
+  rights: { role: MemberRole; languages: string[]; writesSource: boolean },
+): Promise<string> {
+  const member = await auth().api.addMember({
+    body: { userId, organizationId, role: rights.role, writesSource: rights.writesSource },
+  });
+
+  if (!member) throw new Error('better-auth did not answer the member it added.');
+
+  if (rights.languages.length > 0) {
+    try {
+      await db()
+        .insert(memberLanguages)
+        .values([...new Set(rights.languages)].sort().map((language) => ({ memberId: member.id, language })));
+    } catch (error) {
+      await db().delete(members).where(eq(members.id, member.id));
+      throw error;
+    }
+  }
+
+  return member.id;
+}
 
 /**
  * Makes an account a member of each repository where a pending row names it,
@@ -51,24 +84,21 @@ export async function admitPending(userId: string): Promise<void> {
 
     // A member keeps the rights it has. The invitation does not change them.
     if (!held) {
-      const member = await auth().api.addMember({
-        body: {
-          userId,
-          organizationId: row.organizationId,
-          role: row.role as MemberRole,
-          writesSource: row.writesSource,
-        },
-      });
       const languages = await db()
         .select({ language: pendingMemberLanguages.language })
         .from(pendingMemberLanguages)
         .where(eq(pendingMemberLanguages.pendingMemberId, row.id));
 
-      if (member && languages.length > 0) {
-        await db()
-          .insert(memberLanguages)
-          .values(languages.map(({ language }) => ({ memberId: member.id, language })))
-          .onConflictDoNothing();
+      try {
+        await addMemberWithLanguages(row.organizationId, userId, {
+          role: row.role as MemberRole,
+          languages: languages.map(({ language }) => language),
+          writesSource: row.writesSource,
+        });
+      } catch (error) {
+        // The sign-in goes on. The invitation stays, and the next sign-in tries again.
+        logger.error('An invitation was not turned into a member', { invitation: row.id, error });
+        continue;
       }
     }
 
