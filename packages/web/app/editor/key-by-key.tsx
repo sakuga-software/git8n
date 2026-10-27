@@ -155,8 +155,26 @@ export function KeyByKey({
 }: Props) {
   const field = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLUListElement>(null);
+  const rail = useRef<HTMLDivElement>(null);
 
   useSwap(list, filter);
+
+  const unread = counts === null;
+
+  // The open state stays in sight when the rail of the states scrolls. The page itself does not scroll.
+  useEffect(() => {
+    const box = rail.current;
+    const button = box?.querySelector<HTMLElement>('[data-selected="true"]');
+
+    if (!box || !button) return;
+
+    const outer = box.getBoundingClientRect();
+    const inner = button.getBoundingClientRect();
+
+    if (inner.left < outer.left) box.scrollLeft -= outer.left - inner.left;
+    else if (inner.right > outer.right) box.scrollLeft += inner.right - outer.right;
+  }, [filter, unread]);
+
   const [copied, setCopied] = useState<'done' | 'refused' | null>(null);
   const openId = open ? idOf(open.row) : null;
 
@@ -220,32 +238,34 @@ export function KeyByKey({
     <div className="border-line flex grow flex-wrap items-stretch overflow-hidden rounded-[10px] border">
       <div className="border-line flex min-w-0 flex-[1_1_340px] flex-col border-r">
         <div className="border-line flex flex-col gap-2.5 border-b p-3">
-          <Sliding selected={counts === null ? null : filter} markClassName="segments-mark">
-            <ToggleButtonGroup
-              aria-label="Filtrer par état"
-              selectionMode="single"
-              disallowEmptySelection
-              isDisabled={counts === null}
-              selectedKeys={counts === null ? [] : [filter]}
-              onSelectionChange={(keys) => {
-                const [next] = [...keys];
+          <div ref={rail} className="segments-scroll">
+            <Sliding selected={counts === null ? null : filter} markClassName="segments-mark">
+              <ToggleButtonGroup
+                aria-label="Filtrer par état"
+                selectionMode="single"
+                disallowEmptySelection
+                isDisabled={counts === null}
+                selectedKeys={counts === null ? [] : [filter]}
+                onSelectionChange={(keys) => {
+                  const [next] = [...keys];
 
-                if (next) onFilter(next as RowState);
-              }}
-              className="segments"
-            >
-              {states.map((state) => (
-                <ToggleButton key={state} id={state}>
-                  {FILTER_LABEL[state]} {/* A count nobody read is a dash. A tab with no row shows no count. */}
-                  {counts?.[state] !== 0 && (
-                    <span className={`font-mono text-xs ${COUNT_STYLE[state]}`}>
-                      {counts === null ? '–' : countOf(counts[state])}
-                    </span>
-                  )}
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
-          </Sliding>
+                  if (next) onFilter(next as RowState);
+                }}
+                className="segments"
+              >
+                {states.map((state) => (
+                  <ToggleButton key={state} id={state}>
+                    {FILTER_LABEL[state]} {/* A count nobody read is a dash. A tab with no row shows no count. */}
+                    {counts?.[state] !== 0 && (
+                      <span className={`font-mono text-xs ${COUNT_STYLE[state]}`}>
+                        {counts === null ? '–' : countOf(counts[state])}
+                      </span>
+                    )}
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+            </Sliding>
+          </div>
 
           <SearchField
             aria-label="Chercher une clé ou un texte"

@@ -277,10 +277,19 @@
     background: var(--color-ink);
   }
 
-  /* The states of the list of the view of one key: a rail, and the open segment raised on it. */
+  /*
+   * The states of the list of the view of one key: a rail, and the open segment raised on it.
+   * The column can be narrower than the four segments: then the rail scrolls, and no label is cut (DB-660).
+   */
+  .segments-scroll {
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
   .segments {
     display: flex;
-    width: 100%;
+    width: max-content;
+    min-width: 100%;
     gap: 2px;
     border-radius: 8px;
     padding: 3px;
@@ -288,8 +297,9 @@
   }
 
   .segments .toggle-button {
-    flex: 1;
+    flex: 1 0 auto;
     height: 30px;
+    white-space: nowrap;
     gap: 6px;
     border-radius: 6px;
     padding: 0 8px;
