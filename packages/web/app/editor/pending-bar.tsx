@@ -34,7 +34,8 @@ interface Props {
  * What waits to be sent, and the buttons that send it (DB-275).
  *
  * The bar floats at the bottom of the screen, so the actions are in reach from
- * any row. It shows only when something waits: a text that is typed, or a
+ * any row. A short list does not lift it: it stays at the bottom of the screen
+ * (DB-649). It shows only when something waits: a text that is typed, or a
  * proposal that is ticked.
  */
 export function PendingBar({
@@ -65,7 +66,7 @@ export function PendingBar({
   const aside = (hidden: number) => (hidden > 0 ? ` · dont ${countOf(hidden)} ${elsewhere}` : '');
 
   return (
-    <div className="pointer-events-none sticky bottom-5 z-20 flex justify-center">
+    <div className="pointer-events-none sticky bottom-5 z-20 mt-auto flex justify-center">
       <section
         aria-label="Modifications en attente"
         className="arrive bg-ink pointer-events-auto flex w-full max-w-[820px] flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-[12px] py-2.5 pr-2.5 pl-5 text-white shadow-[0_16px_36px_-14px_rgba(21,23,28,0.5)]"
