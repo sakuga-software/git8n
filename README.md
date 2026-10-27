@@ -22,8 +22,8 @@ The editor keeps no text of its own. Its database holds three things:
 
 ## Run it locally
 
-You need Node 24 (see `.node-version`), pnpm 11, a PostgreSQL server, and one
-thing on GitHub:
+You need Node 26 (see `.node-version`), pnpm 12 (`corepack enable` reads the
+version from `package.json`), a PostgreSQL server, and one thing on GitHub:
 
 - **A GitHub App**, which signs a person in and reads and writes the
   repositories. For local work, create a second App whose callback URL is
@@ -53,26 +53,35 @@ Open `http://localhost:5173`, the address of `BETTER_AUTH_URL`, and not the
 port of the API: the session cookie belongs to the address that the browser
 reads.
 
+**To sign in before the App exists**, ask a link by email with an address of
+`ADMIN_EMAILS`. Without `SMTP_URL`, the API sends no mail. Outside production,
+it writes the link in its log. Open that link. You then reach « Brancher un
+dépôt », which needs the App.
+
 In production, the API serves the built page itself: set `WEB_ROOT` to
 `packages/web/build/client`. The page and the API then have one origin, and
 the browser needs no CORS. `packages/api/Dockerfile` builds that image, and
 [docs/deploy.md](docs/deploy.md) gives the order of a deployment and every
 variable.
 
-| Variable                  | Package | What it is                                                                                             |
-| ------------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
-| `DATABASE_URL`            | api, db | The PostgreSQL server.                                                                                 |
-| `DATABASE_TLS`            | api     | `true` to connect with TLS when the URL does not say so.                                               |
-| `PORT`                    | api     | The port of the API. The default is 8001.                                                              |
-| `BETTER_AUTH_URL`         | api     | The address of the editor, as the browser reads it. The default is `http://localhost:5173`.            |
-| `BETTER_AUTH_SECRET`      | api     | At least 32 characters. It signs the sessions and encrypts the GitHub tokens. Required in production.  |
-| `GITHUB_CLIENT_ID`        | api     | The client ID of the GitHub App, for the sign-in.                                                      |
-| `GITHUB_CLIENT_SECRET`    | api     | The client secret of that GitHub App.                                                                  |
-| `ADMIN_EMAILS`            | api     | The addresses of the admins, separated by commas. See [Accounts and rights](#accounts-and-rights).     |
-| `WEB_ROOT`                | api     | The folder of the built page. When it is set, the API serves the page.                                 |
-| `COMMIT_EMAIL_DOMAIN`     | api     | The domain of the address a commit gives its author. See [docs/repositories.md](docs/repositories.md). |
-| `I18N_GITHUB_APP_ID`      | api     | The ID of the GitHub App that reads and writes the repositories.                                       |
-| `I18N_GITHUB_PRIVATE_KEY` | api     | The private key of that App, in PEM format.                                                            |
+| Variable                  | Package | What it is                                                                                               |
+| ------------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`            | api, db | The PostgreSQL server.                                                                                   |
+| `DATABASE_TLS`            | api     | `true` to connect with TLS when the URL does not say so.                                                 |
+| `PORT`                    | api     | The port of the API. The default is 8001.                                                                |
+| `BETTER_AUTH_URL`         | api     | The address of the editor, as the browser reads it. The default is `http://localhost:5173`.              |
+| `BETTER_AUTH_SECRET`      | api     | At least 32 characters. It signs the sessions and encrypts the GitHub tokens. Required in production.    |
+| `GITHUB_CLIENT_ID`        | api     | The client ID of the GitHub App, for the sign-in.                                                        |
+| `GITHUB_CLIENT_SECRET`    | api     | The client secret of that GitHub App.                                                                    |
+| `ADMIN_EMAILS`            | api     | The addresses of the admins, separated by commas. See [Accounts and rights](#accounts-and-rights).       |
+| `WEB_ROOT`                | api     | The folder of the built page. When it is set, the API serves the page.                                   |
+| `COMMIT_EMAIL_DOMAIN`     | api     | The domain of the address a commit gives its author. See [docs/repositories.md](docs/repositories.md).   |
+| `I18N_GITHUB_APP_ID`      | api     | The ID of the GitHub App that reads and writes the repositories.                                         |
+| `I18N_GITHUB_PRIVATE_KEY` | api     | The private key of that App, in PEM format.                                                              |
+| `GITHUB_WEBHOOK_SECRET`   | api     | The secret of the webhook of the App. Without it, a change made on GitHub shows after five minutes.      |
+| `GITHUB_APP_SLUG`         | api     | The name of the App in its address, `github.com/apps/<slug>`. The default is `i18n-editor`.              |
+| `SMTP_URL`                | api     | The SMTP server of the links by email. Without it, no mail leaves. See [docs/deploy.md](docs/deploy.md). |
+| `MAIL_FROM`               | api     | The sender of the mails. The default uses the host of `BETTER_AUTH_URL`.                                 |
 
 ## Accounts and rights
 
