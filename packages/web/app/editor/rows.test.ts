@@ -5,6 +5,7 @@ import {
   afterProposal,
   afterPublication,
   countsOf,
+  emptyCountOf,
   openOf,
   pageNumbersOf,
   shareOf,
@@ -133,12 +134,52 @@ describe('the rows of the table', () => {
   });
 
   it('shows a value that was just published before the catalogue says it', () => {
-    const patched = withPublished(catalogue, new Map([[idOf({ file: 'common', key: 'bye' }), 'Goodbye']]));
+    const patched = withPublished(catalogue, new Map([[idOf({ file: 'common', key: 'bye' }), { value: 'Goodbye' }]]));
 
     expect(rowsOf(patched, []).find((row) => row.key === 'bye')).toMatchObject({
       state: 'published',
       published: 'Goodbye',
     });
+  });
+});
+
+describe('a key left empty on purpose (DB-611)', () => {
+  const marked: Catalogue = {
+    ...catalogue,
+    entries: [
+      ...catalogue.entries,
+      { file: 'woodlock', key: 'hints.3_image', source: '/img/3.png', value: '', state: 'translated', empty: true },
+      { file: 'woodlock', key: 'hints.4_image', source: '/img/4.png', value: '', state: 'review', empty: true },
+    ],
+  };
+  const rowOf = (rows: Row[], key: string) => rows.find((row) => row.key === key)!;
+
+  it('is published, holds no text, and counts apart', () => {
+    const rows = rowsOf(marked, []);
+
+    expect(rowOf(rows, 'hints.3_image')).toMatchObject({ state: 'published', published: '', empty: true, was: null });
+    expect(emptyCountOf(rows)).toBe(1);
+    expect(countsOf(rows).missing).toBe(2);
+  });
+
+  it('is to read again with no old text when the source changed since the mark', () => {
+    expect(rowOf(rowsOf(marked, []), 'hints.4_image')).toMatchObject({ state: 'review', empty: true, was: null });
+  });
+
+  it('shows a mark that was just published, and a removed one as missing again', () => {
+    const rows = rowsOf(
+      withPublished(
+        marked,
+        new Map([
+          [idOf({ file: 'common', key: 'bye' }), { value: '', empty: true as const }],
+          [idOf({ file: 'woodlock', key: 'hints.3_image' }), { value: '' }],
+        ]),
+      ),
+      [],
+    );
+
+    expect(rowOf(rows, 'bye')).toMatchObject({ state: 'published', published: '', empty: true });
+    expect(rowOf(rows, 'hints.3_image')).toMatchObject({ state: 'missing', published: null, empty: false });
   });
 });
 
@@ -295,6 +336,7 @@ describe('a search of the table', () => {
       : null,
     state: proposed ? 'proposed' : published === null ? 'missing' : 'published',
     was: null,
+    empty: false,
   });
   const rows = [
     row('settings.logout', 'Déconnexion', null),
@@ -540,6 +582,7 @@ describe('neighboursOf', () => {
     proposal: state === 'proposed' ? proposal(file, key, value ?? '') : null,
     state,
     was: null,
+    empty: false,
   });
 
   const rows: Row[] = [

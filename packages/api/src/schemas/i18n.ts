@@ -159,6 +159,11 @@ export type FileState = z.infer<typeof fileStateSchema>;
 export const localeManifestSchema = z.object({
   source: z.string().min(1).optional(),
   files: z.record(fileName, z.record(z.string().min(1), fileStateSchema)).default({}),
+  /**
+   * The keys each language leaves empty on purpose, as `<file>:<key>` (DB-611).
+   * `source` is the hash of the source text when the key was marked.
+   */
+  empty: z.record(z.string().min(1), z.record(z.string().min(1), z.object({ source: z.string().min(1) }))).optional(),
 });
 
 export type LocaleManifest = z.infer<typeof localeManifestSchema>;
@@ -182,11 +187,21 @@ export const proposalSchema = z.object({
   readAt: z.string().regex(/^[0-9a-f]{40}$/, 'A commit is a full lowercase sha'),
   values: z
     .array(
-      z.object({
-        file: fileName,
-        key: translationKey,
-        value: z.string(),
-      }),
+      z
+        .object({
+          file: fileName,
+          key: translationKey,
+          value: z.string(),
+          /**
+           * Marks the key as empty on purpose (DB-611). `false`, or no field,
+           * removes the mark that the branch holds.
+           */
+          empty: z.boolean().optional(),
+        })
+        .refine((row) => row.empty !== true || row.value === '', {
+          message: 'A key left empty on purpose has the value ""',
+          path: ['value'],
+        }),
     )
     .min(1)
     .max(2000),

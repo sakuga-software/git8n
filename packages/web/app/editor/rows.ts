@@ -25,8 +25,13 @@ export interface Row {
   /** What waits on the branch of the language, with the batch a publication names. */
   proposal: ProposedKey | null;
   state: RowState;
-  /** For `review`: the source text the published translation answers. `source` is the text now. */
+  /**
+   * For `review`: the source text the published translation answers. `source` is the text now.
+   * Null for a key left empty on purpose: its mark keeps no text.
+   */
   was: string | null;
+  /** The base branch leaves the key empty on purpose (DB-611). It is `published`, or `review` when the source changed. */
+  empty: boolean;
 }
 
 export const idOf = (row: { file: string; key: string }): string => `${row.file}\n${row.key}`;
@@ -116,7 +121,8 @@ export const rowsOf = (catalogue: Catalogue, proposed: readonly ProposedKey[]): 
             : entry.state === 'translated'
               ? 'published'
               : 'missing',
-        was: !proposal && entry.state === 'review' ? (entry.was ?? '') : null,
+        was: !proposal && entry.state === 'review' && !entry.empty ? (entry.was ?? '') : null,
+        empty: entry.empty === true,
       };
     })
     .sort(
@@ -133,6 +139,10 @@ export const countsOf = (rows: readonly Row[]): Record<RowState, number> => ({
   proposed: rows.filter((row) => row.state === 'proposed').length,
   published: rows.filter((row) => row.state === 'published').length,
 });
+
+/** The published keys left empty on purpose (DB-611). `published` counts them too. */
+export const emptyCountOf = (rows: readonly Row[]): number =>
+  rows.filter((row) => row.state === 'published' && row.empty).length;
 
 /**
  * The share of the keys that is published, in whole percent, or `null` with no key.
@@ -195,18 +205,30 @@ export const accessOf = (rights: Rights, targets: readonly string[], source?: st
   };
 };
 
+/** What a publication copied for a key: its value, and whether it leaves the key empty on purpose. */
+export type PublishedValue = Pick<ProposedKey, 'value' | 'empty'>;
+
 /**
  * The value a publication copied, shown before the catalogue says it.
  *
  * The API holds a catalogue for five minutes. Without this, a key that was
  * just published leaves the proposals and reads `missing` until then.
+ *
+ * `""` with no mark is a key that is missing again: its mark was removed (DB-611).
  */
-export const withPublished = (catalogue: Catalogue, published: ReadonlyMap<string, string>): Catalogue => ({
+export const withPublished = (catalogue: Catalogue, published: ReadonlyMap<string, PublishedValue>): Catalogue => ({
   ...catalogue,
   entries: catalogue.entries.map((entry) => {
-    const value = published.get(idOf(entry));
+    const copied = published.get(idOf(entry));
 
-    return value === undefined ? entry : { ...entry, value, state: 'translated' as const };
+    if (copied === undefined) return entry;
+
+    const { was: _was, empty: _empty, ...rest } = entry;
+
+    if (copied.empty) return { ...rest, value: '', state: 'translated' as const, empty: true as const };
+    if (copied.value === '') return { ...rest, value: null, state: 'missing' as const };
+
+    return { ...rest, value: copied.value, state: 'translated' as const };
   }),
 });
 

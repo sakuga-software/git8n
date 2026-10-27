@@ -57,6 +57,8 @@ import {
   statesOf,
   rowsOf,
   withPublished,
+  emptyCountOf,
+  type PublishedValue,
   withWrites,
   type Page,
   type Row,
@@ -414,7 +416,7 @@ function Editor({
   const openIndex = useRef(0);
   const [drafts, setDrafts] = useState<ReadonlyMap<string, string>>(new Map());
   const [approved, setApproved] = useState<ReadonlySet<string>>(new Set());
-  const [published, setPublished] = useState<ReadonlyMap<string, string>>(new Map());
+  const [published, setPublished] = useState<ReadonlyMap<string, PublishedValue>>(new Map());
   const [busy, setBusy] = useState<'proposing' | 'publishing' | 'keeping' | null>(null);
   const [writeError, setWriteError] = useState<{
     title: string;
@@ -593,6 +595,8 @@ function Editor({
   }
 
   const mayPropose = access.mayPropose(opened);
+  // A source text says something: only a translation is left empty on purpose (DB-611).
+  const mayMark = mayPropose && opened !== repository.source;
   const editsSource = opened === repository.source;
   const states = statesOf(editsSource);
   const mayPublish = access.mayPublish(opened);
@@ -696,10 +700,14 @@ function Editor({
     }, LEAVE_MS);
   };
 
-  const save = async () => {
+  /**
+   * Proposes values. A row sent with `empty` takes the mark « vide voulu », and one sent
+   * without it loses the mark (DB-611).
+   */
+  const send = async (sent: Array<{ row: Row; value: string; empty?: true }>) => {
     if (catalogue.state !== 'done' || proposed.state !== 'done') return;
 
-    if (changed.length === 0 || busy !== null || leaving.size > 0) return;
+    if (sent.length === 0 || busy !== null || leaving.size > 0) return;
 
     setBusy('proposing');
     setWriteError(null);
@@ -707,13 +715,17 @@ function Editor({
     setSentNote(null);
 
     try {
-      const sent = changed.map(([id, value]) => ({ row: byId.get(id)!, value }));
       const answer = await propose(api, {
         repository: repository.id,
         language: opened,
         // The revision the translator read. The API refuses a head of its own.
         readAt: catalogue.value.commit,
-        values: sent.map(({ row, value }) => ({ file: row.file, key: row.key, value })),
+        values: sent.map(({ row, value, empty }) => ({
+          file: row.file,
+          key: row.key,
+          value,
+          ...(empty ? { empty } : {}),
+        })),
       });
 
       // The cache keeps no read that the page draws under its own record of the write.
@@ -726,7 +738,7 @@ function Editor({
           afterProposal(
             before,
             proposed.value,
-            sent.map(({ row, value }) => ({
+            sent.map(({ row, value, empty }) => ({
               file: row.file,
               key: row.key,
               value,
@@ -736,6 +748,7 @@ function Editor({
               readAt: answer.readAt,
               author: account,
               at: new Date().toISOString(),
+              ...(empty ? { empty } : {}),
             })),
           ),
         );
@@ -754,6 +767,16 @@ function Editor({
       setBusy(null);
     }
   };
+
+  const save = () => send(changed.map(([id, value]) => ({ row: byId.get(id)!, value })));
+
+  /**
+   * Proposes `""` with the mark « vide voulu », or removes the mark.
+   *
+   * A removal proposes the published value again: a key that the base branch left empty is then missing.
+   */
+  const markEmpty = (row: Row, empty: boolean) =>
+    send([{ row, value: empty ? '' : (row.published ?? ''), ...(empty ? { empty: true as const } : {}) }]);
 
   const release = async () => {
     if (proposed.state !== 'done' || ticked.length === 0 || busy !== null || leaving.size > 0) return;
@@ -774,7 +797,9 @@ function Editor({
       forgetReads(`catalogue\n${readKey}`);
       forgetReads(`proposed\n${readKey}`);
       forgetReads('overview');
-      const values = new Map(sent.map((row) => [idOf(row), row.proposal!.value]));
+      const values = new Map(
+        sent.map((row) => [idOf(row), { value: row.proposal!.value, empty: row.proposal!.empty }]),
+      );
 
       setReport({
         published: answer.published.length,
@@ -841,7 +866,15 @@ function Editor({
           (before) =>
             new Map([
               ...before,
-              ...answer.kept.map((row) => [idOf(row), byId.get(idOf(row))?.published ?? ''] as const),
+              ...answer.kept.map((row) => {
+                const held = byId.get(idOf(row));
+
+                // A key left empty on purpose is kept empty, with its mark (DB-611).
+                return [
+                  idOf(row),
+                  { value: held?.published ?? '', ...(held?.empty ? { empty: true as const } : {}) },
+                ] as const;
+              }),
             ]),
         );
         reloadProgress();
@@ -994,6 +1027,7 @@ function Editor({
         }
         // The whole language, not what the file or the search keeps.
         counts={read ? countsOf(rows) : null}
+        emptyCount={read ? emptyCountOf(rows) : 0}
         readOnly={read && !mayPropose}
         notices={notices}
         compact={view === 'key'}
@@ -1304,6 +1338,8 @@ function Editor({
               onApprove={approve}
               refused={refusedWhy}
               onSubmit={save}
+              onMark={mayMark ? markEmpty : undefined}
+              markDisabled={busy !== null || leaving.size > 0}
               empty={empty}
               notice={pullBand}
               fileHref={(name) => fileUrl(repository, catalogue.value.commit, catalogue.value.source, name)}
@@ -1353,6 +1389,8 @@ function Editor({
                   refused={refusedWhy}
                   leaving={leaving}
                   onSubmit={save}
+                  onMark={mayMark ? markEmpty : undefined}
+                  markDisabled={busy !== null || leaving.size > 0}
                   empty={empty}
                   fileHref={(name) => fileUrl(repository, catalogue.value.commit, catalogue.value.source, name)}
                   commitHref={(commit) => commitUrl(repository, commit)}

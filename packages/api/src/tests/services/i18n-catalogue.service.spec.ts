@@ -460,6 +460,8 @@ describe('when the catalogue cannot be read', () => {
       'fetch',
       vi.fn(async (url: string) => {
         if (String(url).includes('/commits/')) return ok({ sha: 'c0ffee' });
+        // The history of the branch says nothing to read again: the failure is the one of the file.
+        if (String(url).includes('/commits?')) return ok([]);
         if (/locales\/[^/?]+\?/.test(String(url))) return ok([{ name: 'a.json', type: 'file', sha: 'x' }]);
 
         return ok({ sha: 'x', download_url: 'https://…' });

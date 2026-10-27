@@ -68,8 +68,13 @@ export interface CatalogueEntry {
   value: string | null;
   /** `review`: a translation whose source changed after it was written (DB-607). */
   state: 'translated' | 'missing' | 'review';
-  /** For `review` only: the source text the translation answers. `source` is the text now. */
+  /**
+   * For `review` only: the source text the translation answers. `source` is the text now.
+   * A key left empty on purpose has none.
+   */
   was?: string;
+  /** The key is left empty on purpose in this language (DB-611): `value` is `''`, and it counts as translated. */
+  empty?: true;
 }
 
 export interface Catalogue {
@@ -168,6 +173,8 @@ export interface ProposedValue {
   file: string;
   key: string;
   value: string;
+  /** Leaves the key empty on purpose (DB-611), with `value: ''`. No field removes the mark. */
+  empty?: boolean;
 }
 
 export interface Proposal {
@@ -341,6 +348,8 @@ export interface ProposedKey {
   author: string;
   at: string;
   readAt: string;
+  /** The batch leaves the key empty on purpose (DB-611). */
+  empty?: true;
 }
 
 export interface ApprovedKey {
@@ -452,6 +461,8 @@ export interface LanguageProgress {
   missing: number;
   /** Translations whose source changed after they were written (DB-607). */
   review: number;
+  /** The published keys left empty on purpose, counted in `published` too (DB-611). Absent from an older API. */
+  empty?: number;
   total: number;
 }
 

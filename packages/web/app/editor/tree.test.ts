@@ -8,6 +8,7 @@ const row = (file: string, key: string, state: Row['state']): Row => ({
   source: 'Texte',
   published: state === 'published' ? 'Text' : null,
   proposal: null,
+  empty: false,
   state,
   was: null,
 });

@@ -45,6 +45,7 @@ export function LanguageHeader({
   code,
   source,
   counts,
+  emptyCount = 0,
   readOnly,
   notices,
   onNewKey,
@@ -59,6 +60,11 @@ export function LanguageHeader({
   source: { name: string; code: string } | null;
   /** `null` before the first read: the legend then says dashes, never zeros. */
   counts: Record<RowState, number> | null;
+  /**
+   * The published keys left empty on purpose (DB-611). They are in the published count: this
+   * says how much of it holds no text, so that 100 % does not hide them.
+   */
+  emptyCount?: number;
   /** The account reads this language and cannot write it. The title says so: a dialog alone would hide why a field refuses. */
   readOnly: boolean;
   notices: readonly string[];
@@ -120,6 +126,12 @@ export function LanguageHeader({
             <p className="text-sub flex flex-wrap items-center gap-x-[18px] gap-y-1 text-[13px]">
               <span>
                 <strong className="text-ink font-semibold">{share}</strong> publié
+                {emptyCount > 0 && (
+                  <span title="Des clés publiées sans texte, parce que cette langue n'en veut pas.">
+                    {' '}
+                    dont {countOf(emptyCount)} {emptyCount > 1 ? 'vides voulues' : 'vide voulue'}
+                  </span>
+                )}
               </span>
               {/* A language with nothing to read again does not say so: most never have any. */}
               {LEGEND.filter(({ state }) => state !== 'review' || (counts?.review ?? 0) > 0).map(
