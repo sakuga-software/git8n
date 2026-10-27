@@ -16,7 +16,8 @@ import {
 } from '@i18n-editor/mcp/api';
 import { useState } from 'react';
 import { api } from '~/utils/api';
-import { Failure, Loading } from '~/editor/states';
+import { MembersSkeleton } from '~/editor/skeleton';
+import { Failure } from '~/editor/states';
 import { Busy, Choice, Tick } from '~/editor/ui';
 import { readErrorOf, useRead, type ReadError } from '~/editor/use-read';
 import { personOf, rightsChange, ROLE_ITEMS, sameRights } from './members-rules';
@@ -30,7 +31,7 @@ import { personOf, rightsChange, ROLE_ITEMS, sameRights } from './members-rules'
 export function MembersPanel({ repository }: { repository: Repository }) {
   const [list, reload] = useRead(`members\n${repository.id}`, () => readMembers(api, repository.id));
 
-  if (list.state === 'loading') return <Loading>Lecture des membres…</Loading>;
+  if (list.state === 'loading') return <MembersSkeleton />;
   if (list.state === 'failed') {
     return <Failure title="Les membres n'ont pas pu être lus." error={list.error} onRetry={reload} />;
   }

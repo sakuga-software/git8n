@@ -587,7 +587,7 @@ function Editor({
     return (
       <Blocked icon={<Repository size={18} />}>
         <p className="text-sm leading-normal">Ce dépôt n'est pas branché, ou il ne l'est plus.</p>
-        <Link to="/" className="hover:text-signal text-[13px] underline">
+        <Link to="/" viewTransition className="hover:text-signal text-[13px] underline">
           Voir tous les dépôts
         </Link>
       </Blocked>
@@ -951,6 +951,7 @@ function Editor({
             {manages(rightsIn(me.value, repository.id)) && (
               <Link
                 to={`/repositories/${encodeURIComponent(repository.id)}/settings`}
+                viewTransition
                 onClick={(event) => {
                   if (!mayLeave(changed.length)) event.preventDefault();
                 }}

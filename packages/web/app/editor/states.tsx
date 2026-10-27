@@ -4,10 +4,10 @@ import { Spinner } from '@heroui/react/spinner';
 import { Alert, Refused, Retry } from './icons';
 import type { ReadError } from './use-read';
 
-/** Something is on its way. Centred in the room it is given. */
+/** Something is on its way. Centred in the room it is given, and drawn only if the wait lasts. */
 export function Loading({ children }: { children: React.ReactNode }) {
   return (
-    <div role="status" className="text-sub flex items-center justify-center gap-2.5 px-4 py-16 text-sm">
+    <div role="status" className="waited text-sub flex items-center justify-center gap-2.5 px-4 py-16 text-sm">
       <Spinner size="sm" color="current" />
       {children}
     </div>

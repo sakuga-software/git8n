@@ -457,10 +457,41 @@
   }
 }
 
+/*
+ * A wait shows only if it lasts (DB-652): a read that answers in less than a
+ * blink draws no spinner and no skeleton, so nothing flashes.
+ */
+.waited,
+.skeleton {
+  animation: appear 200ms cubic-bezier(0.19, 1, 0.22, 1) 250ms both;
+}
+
+.bone {
+  background: var(--color-line-soft);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* A page that opens fades over the one before it, and the header does not move: it is the same in both. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 160ms;
+  animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+}
+
 /* Reduced motion keeps what confirms an action, and drops what moves. */
 @media (prefers-reduced-motion: reduce) {
   .arrive {
     animation-name: appear;
+  }
+
+  .bone {
+    animation: none;
   }
 
   .shut[data-leaving] {
