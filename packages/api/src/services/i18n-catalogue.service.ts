@@ -107,6 +107,44 @@ export interface Catalogue {
  */
 export { GithubAppNotConfiguredError as I18nNotConfiguredError };
 
+/** How far a cold read of a catalogue is: `done` of its `total` locale files. */
+export interface CatalogueProgress {
+  done: number;
+  total: number;
+}
+
+/** Who follows the read of a catalogue, by `<repository>:<language>` (DB-654). */
+const watchers = new Map<string, Set<(progress: CatalogueProgress) => void>>();
+
+const keyOf = (repositoryId: string, language: string) => `${repositoryId}:${language}`;
+
+/**
+ * Calls `listener` each time a read of this catalogue takes one more file.
+ *
+ * A read that another caller started counts too: two readers share one read.
+ * Call the function it returns to stop.
+ */
+export const watchCatalogue = (
+  repositoryId: string,
+  language: string,
+  listener: (progress: CatalogueProgress) => void,
+): (() => void) => {
+  const key = keyOf(repositoryId, language);
+  const held = watchers.get(key) ?? new Set();
+
+  held.add(listener);
+  watchers.set(key, held);
+
+  return () => {
+    held.delete(listener);
+    if (held.size === 0) watchers.delete(key);
+  };
+};
+
+const tell = (key: string, progress: CatalogueProgress) => {
+  for (const listener of watchers.get(key) ?? []) listener(progress);
+};
+
 interface ContentsEntry {
   name: string;
   type: string;
@@ -414,11 +452,16 @@ const read = async (repository: I18nRepository, language: string): Promise<Catal
   }
 
   const pathOf = (lang: string, file: string) => `${repository.localesPath}/${lang}/${file}.json`;
-  const contents = await inParallel(toRead, READS_AT_ONCE, (file) => {
+  const key = keyOf(repository.id, language);
+  let done = 0;
+
+  tell(key, { done, total: toRead.length });
+
+  const contents = await inParallel(toRead, READS_AT_ONCE, async (file) => {
     const sourceContent = blobOf(repository, token, sourceFiles.get(file)!, pathOf(source, file));
     const targetSha = targetFiles.get(file);
 
-    return Promise.all([
+    const both = await Promise.all([
       sourceContent,
       // A file the target does not hold yet is every key missing, not a
       // failure.
@@ -428,6 +471,11 @@ const read = async (repository: I18nRepository, language: string): Promise<Catal
           ? Promise.resolve({} as Record<string, unknown>)
           : blobOf(repository, token, targetSha, pathOf(language, file)),
     ]);
+
+    done += 1;
+    tell(key, { done, total: toRead.length });
+
+    return both;
   });
 
   for (const [index, file] of toRead.entries()) {
@@ -498,7 +546,7 @@ export const getCatalogue = (
   options: { now?: Date } = {},
 ): Promise<Catalogue> =>
   catalogues.get(
-    `${repository.id}:${language}`,
+    keyOf(repository.id, language),
     () =>
       read(repository, language).catch((error: unknown) => {
         // An operator or a caller acts on these two. Wrapped, they reach the

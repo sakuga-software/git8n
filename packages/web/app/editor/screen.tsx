@@ -6,7 +6,7 @@ import { use, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router';
 import {
-  catalogue as readCatalogue,
+  catalogueStream as readCatalogueStream,
   createKeys,
   keepTranslations,
   progress as readProgress,
@@ -17,6 +17,7 @@ import {
   repositories as readRepositories,
   rightsIn,
   rightsOf,
+  type CatalogueProgress,
   type PublishPull,
   type RefusedKey,
 } from '@i18n-editor/mcp/api';
@@ -38,6 +39,7 @@ import { PendingBar } from '~/editor/pending-bar';
 import { KeySearch } from '~/editor/search';
 import { Languages } from '~/editor/languages';
 import { treeOf, under } from '~/editor/tree';
+import { CatalogueLoading } from '~/editor/catalogue-progress';
 import { Blocked, Failure, Loading } from '~/editor/states';
 import { Sliding, useSwap } from '~/editor/motion';
 import { KeyTable } from '~/editor/table';
@@ -392,11 +394,22 @@ function Editor({
 
   // A value typed and not sent stays on the rows it was typed against: the poll waits for it.
   const poll = { everyMs: POLL_MS, when: () => waiting.current === 0 };
+  // The count of files read shows on the first read alone: a poll reads with no sign.
+  const [catalogueProgress, setCatalogueProgress] = useState<({ key: string } & CatalogueProgress) | null>(null);
+  const showsProgress = useRef(true);
   const [catalogue, reloadCatalogue] = useRead(
     readKey && `catalogue\n${readKey}`,
-    () => readCatalogue(api, repository!.id, opened!),
+    () => {
+      const key = readKey!;
+
+      return readCatalogueStream(api, repository!.id, opened!, (progress) => {
+        if (showsProgress.current) setCatalogueProgress({ key, ...progress });
+      });
+    },
     poll,
   );
+
+  showsProgress.current = catalogue.state !== 'done';
   const [proposed, reloadProposed] = useRead(
     readKey && `proposed\n${readKey}`,
     () => readProposedKeys(api, repository!.id, opened!),
@@ -1187,7 +1200,7 @@ function Editor({
       )}
       {!read && !failed && (
         <div className="border-line rounded-[10px] border">
-          <Loading>Lecture des traductions…</Loading>
+          <CatalogueLoading progress={catalogueProgress?.key === readKey ? catalogueProgress : null} />
         </div>
       )}
       {catalogue.state === 'done' && catalogue.stale && (

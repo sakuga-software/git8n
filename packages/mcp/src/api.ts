@@ -361,6 +361,73 @@ export const catalogue = (config: ApiConfig, repository: string, language: strin
     `/i18n/catalogue?repository=${encodeURIComponent(repository)}&language=${encodeURIComponent(language)}`,
   );
 
+/** How far a cold read of a catalogue is: `done` of its `total` locale files (DB-654). */
+export interface CatalogueProgress {
+  done: number;
+  total: number;
+}
+
+/** One line of `/i18n/catalogue/stream`. */
+type CatalogueLine =
+  | { progress: CatalogueProgress }
+  | { catalogue: Catalogue }
+  | { error: { status: number; message: string } };
+
+/**
+ * The catalogue of `catalogue`, with `onProgress` called while a cold read takes its files (DB-654).
+ *
+ * The API answers NDJSON. A read that fails after the answer started says so in a line, with its status.
+ */
+export const catalogueStream = async (
+  config: ApiConfig,
+  repository: string,
+  language: string,
+  onProgress: (progress: CatalogueProgress) => void,
+): Promise<Catalogue> => {
+  const path = `/i18n/catalogue/stream?repository=${encodeURIComponent(repository)}&language=${encodeURIComponent(language)}`;
+  const response = await fetch(`${config.url}${path}`, {
+    signal: AbortSignal.timeout(60 * 1000),
+    ...(config.token === undefined ? { credentials: 'include' as const } : {}),
+    headers: {
+      ...(config.token === undefined ? {} : { Authorization: `Bearer ${config.token}` }),
+      Accept: 'application/x-ndjson',
+    },
+  });
+
+  if (!response.ok || !response.body) {
+    const said = await response.text().catch(() => '');
+
+    throw new ApiError(said || `${path} answered ${response.status}`, response.status);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let rest = '';
+
+  for (;;) {
+    const { done, value } = await reader.read();
+
+    rest += decoder.decode(value, { stream: !done });
+
+    const lines = rest.split('\n');
+
+    // The last piece can be half a line: it waits for the next chunk.
+    rest = done ? '' : lines.pop()!;
+
+    for (const text of lines) {
+      if (!text.trim()) continue;
+
+      const line = JSON.parse(text) as CatalogueLine;
+
+      if ('progress' in line) onProgress(line.progress);
+      else if ('catalogue' in line) return line.catalogue;
+      else throw new ApiError(line.error.message, line.error.status);
+    }
+
+    if (done) throw new ApiError(`${path} ended before the catalogue`, 502);
+  }
+};
+
 export const waiting = (config: ApiConfig, repository: string, language: string) =>
   ask<WaitingBatch[]>(
     config,
