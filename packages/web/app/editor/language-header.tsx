@@ -1,4 +1,5 @@
 import { Button } from '@heroui/react/button';
+import { Tooltip } from '@heroui/react/tooltip';
 import { Lock, Plus } from './icons';
 import { shareOf, type RowState } from './rows';
 
@@ -13,7 +14,7 @@ const LEGEND: { state: RowState; one: string; many: string; mark: string }[] = [
 
 /**
  * The share of each state, as one bar. The missing part is hatched, so the
- * state that asks for work reads with no colour. The legend writes the numbers.
+ * state that asks for work reads with no colour. The tooltip of the bar writes the numbers.
  */
 function Progress({ counts }: { counts: Record<RowState, number> | null }) {
   const total = counts ? counts.published + counts.proposed + counts.missing + counts.review : 0;
@@ -29,6 +30,50 @@ function Progress({ counts }: { counts: Record<RowState, number> | null }) {
       {counts.proposed > 0 && <span className="bg-signal min-w-1.5" style={{ flexGrow: counts.proposed }} />}
       {counts.review > 0 && <span className="bg-alarm-line min-w-1.5" style={{ flexGrow: counts.review }} />}
       {counts.missing > 0 && <span className="hatched min-w-1.5" style={{ flexGrow: counts.missing }} />}
+    </div>
+  );
+}
+
+/** The states that the legend writes. A language with nothing to read again does not say so: most never have any. */
+const legendOf = (counts: Record<RowState, number> | null) =>
+  LEGEND.filter(({ state }) => state !== 'review' || (counts?.review ?? 0) > 0);
+
+const countText = (counts: Record<RowState, number> | null, { state, one, many }: (typeof LEGEND)[number]): string =>
+  counts ? `${countOf(counts[state])} ${counts[state] > 1 ? many : one}` : `– ${many}`;
+
+const emptyText = (emptyCount: number): string =>
+  `dont ${countOf(emptyCount)} ${emptyCount > 1 ? 'vides voulues' : 'vide voulue'}`;
+
+/** The figures of the bar as one sentence, for a screen reader (DB-656). */
+const summaryOf = (share: string, counts: Record<RowState, number> | null, emptyCount: number): string =>
+  [
+    `${share} publié`,
+    ...(emptyCount > 0 ? [emptyText(emptyCount)] : []),
+    ...legendOf(counts).map((entry) => countText(counts, entry)),
+  ].join(', ');
+
+/** The figures of the bar, which its tooltip shows (DB-656). */
+function Legend({
+  share,
+  counts,
+  emptyCount,
+}: {
+  share: string;
+  counts: Record<RowState, number> | null;
+  emptyCount: number;
+}) {
+  return (
+    <div className="flex flex-col gap-1 text-[13px]">
+      <span>
+        <strong className="font-semibold">{share}</strong> publié
+        {emptyCount > 0 && ` ${emptyText(emptyCount)}`}
+      </span>
+      {legendOf(counts).map((entry) => (
+        <span key={entry.state} className="inline-flex items-center gap-1.5">
+          <span aria-hidden="true" className={`size-2 rounded-xs ${entry.mark}`} />
+          {countText(counts, entry)}
+        </span>
+      ))}
     </div>
   );
 }
@@ -118,28 +163,19 @@ export function LanguageHeader({
 
         {!compact && (
           <>
-            <Progress counts={counts} />
-
-            <p className="text-sub flex flex-wrap items-center gap-x-[18px] gap-y-1 text-[13px]">
-              <span>
-                <strong className="text-ink font-semibold">{share}</strong> publié
-                {emptyCount > 0 && (
-                  <span title="Des clés publiées sans texte, parce que cette langue n'en veut pas.">
-                    {' '}
-                    dont {countOf(emptyCount)} {emptyCount > 1 ? 'vides voulues' : 'vide voulue'}
-                  </span>
-                )}
-              </span>
-              {/* A language with nothing to read again does not say so: most never have any. */}
-              {LEGEND.filter(({ state }) => state !== 'review' || (counts?.review ?? 0) > 0).map(
-                ({ state, one, many, mark }) => (
-                  <span key={state} className="inline-flex items-center gap-1.5">
-                    <span aria-hidden="true" className={`size-2 rounded-xs ${mark}`} />
-                    {counts ? `${countOf(counts[state])} ${counts[state] > 1 ? many : one}` : `– ${many}`}
-                  </span>
-                ),
-              )}
-            </p>
+            <Tooltip delay={300}>
+              <Tooltip.Trigger
+                role="img"
+                tabIndex={0}
+                aria-label={summaryOf(share, counts, emptyCount)}
+                className="max-w-[640px] cursor-default rounded-full py-1.5"
+              >
+                <Progress counts={counts} />
+              </Tooltip.Trigger>
+              <Tooltip.Content placement="bottom start">
+                <Legend share={share} counts={counts} emptyCount={emptyCount} />
+              </Tooltip.Content>
+            </Tooltip>
           </>
         )}
       </div>
