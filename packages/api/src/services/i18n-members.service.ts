@@ -9,8 +9,10 @@ import {
   newId,
   pendingMemberLanguages,
   pendingMembers,
+  pgCodeOf,
   users,
 } from '@i18n-editor/db';
+import { APIError } from 'better-auth/api';
 import { auth } from '@/auth';
 import { env } from '@/config/env';
 import { db } from '@/db';
@@ -99,8 +101,10 @@ export async function admitPending(userId: string): Promise<void> {
         });
       } catch (error) {
         // The sign-in goes on. The invitation stays, and the next sign-in tries again.
-        logger.error('An invitation was not turned into a member', { invitation: row.id, error });
-        continue;
+        if (!isTaken(error)) {
+          logger.error('An invitation was not turned into a member', { invitation: row.id, error });
+          continue;
+        }
       }
     }
 
@@ -283,16 +287,20 @@ const userOfAddress = async (email: string): Promise<string | undefined> =>
       .where(and(sql`lower(${users.email}) = ${email}`, eq(users.emailVerified, true)))
   )[0]?.id;
 
+/** Whether an insert lost to a row that a unique index already holds, when two adds of one person race. */
+const isTaken = (error: unknown): boolean =>
+  pgCodeOf(error) === '23505' ||
+  (error instanceof APIError && error.body?.code === 'USER_IS_ALREADY_A_MEMBER_OF_THIS_ORGANIZATION');
+
 /** Makes an account a member with these rights. */
 const admit = async (repository: I18nRepository, userId: string, rights: MemberRights): Promise<string> => {
-  const [held] = await db()
-    .select({ id: members.id })
-    .from(members)
-    .where(and(eq(members.organizationId, repository.organizationId), eq(members.userId, userId)));
+  try {
+    return await addMemberWithLanguages(repository.organizationId, userId, rights);
+  } catch (error) {
+    if (isTaken(error)) throw new MemberError(409, 'This person is already a member of this repository.');
 
-  if (held) throw new MemberError(409, 'This person is already a member of this repository.');
-
-  return addMemberWithLanguages(repository.organizationId, userId, rights);
+    throw error;
+  }
 };
 
 /**
@@ -323,38 +331,33 @@ export async function addPerson(
 
   if (userId) return { outcome: 'member', memberId: await admit(repository, userId, rights) };
 
-  const [taken] = await db()
-    .select({ id: pendingMembers.id })
-    .from(pendingMembers)
-    .where(
-      and(
-        eq(pendingMembers.organizationId, repository.organizationId),
-        github ? eq(pendingMembers.githubId, github.id) : eq(pendingMembers.email, person.email as string),
-      ),
-    );
-
-  if (taken) throw new MemberError(409, 'An invitation already waits for this person.');
-
   const invitationId = newId();
+  const inserted = await db().transaction(async (tx) => {
+    const [row] = await tx
+      .insert(pendingMembers)
+      .values({
+        id: invitationId,
+        organizationId: repository.organizationId,
+        email: github ? null : (person.email as string),
+        githubId: github?.id ?? null,
+        githubLogin: github?.login ?? null,
+        role: rights.role,
+        writesSource: rights.writesSource,
+        invitedBy,
+      })
+      .onConflictDoNothing()
+      .returning({ id: pendingMembers.id });
 
-  await db()
-    .insert(pendingMembers)
-    .values({
-      id: invitationId,
-      organizationId: repository.organizationId,
-      email: github ? null : (person.email as string),
-      githubId: github?.id ?? null,
-      githubLogin: github?.login ?? null,
-      role: rights.role,
-      writesSource: rights.writesSource,
-      invitedBy,
-    });
+    if (row && rights.languages.length > 0) {
+      await tx
+        .insert(pendingMemberLanguages)
+        .values(sorted(rights.languages).map((language) => ({ pendingMemberId: invitationId, language })));
+    }
 
-  if (rights.languages.length > 0) {
-    await db()
-      .insert(pendingMemberLanguages)
-      .values(sorted(rights.languages).map((language) => ({ pendingMemberId: invitationId, language })));
-  }
+    return row;
+  });
+
+  if (!inserted) throw new MemberError(409, 'An invitation already waits for this person.');
 
   return { outcome: 'invited', invitationId, by: github ? 'github' : 'email' };
 }
