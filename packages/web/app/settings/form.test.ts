@@ -8,6 +8,7 @@ import {
   previewOf,
   problemsOf,
   sectionOf,
+  sectionsFor,
   SETTINGS_SECTIONS,
 } from './form';
 
@@ -155,7 +156,22 @@ describe('sectionOf', () => {
 
   it('opens the first section when the address names none, or one that does not exist', () => {
     expect(sectionOf(null)).toBe('repository');
-    expect(sectionOf('members')).toBe('repository');
+    expect(sectionOf('nothing')).toBe('repository');
+  });
+
+  /** An owner who is not an admin manages the members, and opens no other section (DB-637). */
+  it('opens the members for an owner, whatever the address names', () => {
+    const owner = sectionsFor(false);
+
+    expect(owner.map((section) => section.id)).toEqual(['members']);
+    expect(sectionOf('repository', owner)).toBe('members');
+    expect(sectionOf(null, owner)).toBe('members');
+    expect(sectionsFor(true).map((section) => section.id)).toEqual([
+      'repository',
+      'publication',
+      'messages',
+      'members',
+    ]);
   });
 });
 

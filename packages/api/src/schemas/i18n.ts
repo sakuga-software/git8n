@@ -1,4 +1,4 @@
-import { PUBLISH_MODES } from '@i18n-editor/db';
+import { MEMBER_ROLES, PUBLISH_MODES } from '@i18n-editor/db';
 import { templateProblem, type TemplateKind, type TemplateProblem } from '@i18n-editor/db/messages';
 import { z } from 'zod';
 
@@ -274,3 +274,34 @@ export const overviewQuerySchema = z.object({
   sort: z.enum(OVERVIEW_SORTS).default('name'),
   order: z.enum(['asc', 'desc']).default('asc'),
 });
+
+const languageTag = z.string().regex(/^[A-Za-z0-9_-]+$/, 'A language is a tag such as fr or pt-BR');
+
+/** A GitHub login: letters, digits and single hyphens, 39 characters at most. */
+const githubLogin = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/, 'A GitHub login holds letters, digits and hyphens');
+
+/** What a member may do in a repository (DB-637). */
+const memberRights = {
+  role: z.enum(MEMBER_ROLES),
+  languages: z.array(languageTag).max(100),
+  writesSource: z.boolean(),
+};
+
+/** A person to add to a repository, named by address or by GitHub login (DB-637). */
+export const newMemberSchema = z
+  .object({ email: z.email().trim().toLowerCase().optional(), githubLogin: githubLogin.optional(), ...memberRights })
+  .refine((body) => (body.email === undefined) !== (body.githubLogin === undefined), {
+    message: 'Name the person by email or by githubLogin, not both',
+  });
+
+/** A change of the rights of a member, or of an invitation. An absent field keeps its value. */
+export const memberChangeSchema = z
+  .object({
+    role: memberRights.role.optional(),
+    languages: memberRights.languages.optional(),
+    writesSource: memberRights.writesSource.optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, { message: 'Name at least one field to change' });

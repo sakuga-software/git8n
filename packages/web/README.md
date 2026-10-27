@@ -42,14 +42,8 @@ itself. The editor names its own colours `signal`, `alarm`, `panel` and `edge`.
 
 An account adds a key to the source language with « Nouvelle clé » if its member
 row of the repository says `writes_source`. It is a right of its own: a reviewer of
-every language does not hold it, and neither does an admin. Until the « Membres »
-screen, somebody with access to the database grants it:
-
-```sql
-update members set writes_source = true
-where user_id = '<the id of the account>'
-  and organization_id = (select organization_id from i18n_repositories where owner = 'acme' and name = 'app');
-```
+every language does not hold it, and neither does an admin. An admin or an owner
+of the repository gives it in Réglages → Membres, with the box « Source ».
 
 The key is written on the base branch at once, with no proposal. It adds and
 never changes: a key that the file holds is refused. The account then reads every
