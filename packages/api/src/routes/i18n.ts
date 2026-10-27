@@ -9,9 +9,19 @@ import {
   mayPropose,
   mayPublish,
   mayWriteSource,
+  mayManageMembers,
   membershipsOf,
   rightsOf,
 } from '@/services/i18n-rights.service';
+import {
+  addPerson,
+  changeInvitation,
+  changeMember,
+  listMembers,
+  MemberError,
+  removeInvitation,
+  removeMember,
+} from '@/services/i18n-members.service';
 import {
   acknowledge,
   createKeys,
@@ -22,7 +32,14 @@ import {
   type Author,
 } from '@/services/i18n-git.service';
 import { avatarsByInstallation } from '@/services/i18n-avatars.service';
-import { GithubAppNotConfiguredError, GithubError, installations, repositoriesOf } from '@/services/github-app.service';
+import {
+  ask as askGithub,
+  GithubAppNotConfiguredError,
+  GithubError,
+  installations,
+  installationToken,
+  repositoriesOf,
+} from '@/services/github-app.service';
 import { getCatalogue, manifestPathOf } from '@/services/i18n-catalogue.service';
 import { progressOf } from '@/services/i18n-progress.service';
 import {
@@ -49,9 +66,12 @@ import {
   newRepositorySchema,
   proposalSchema,
   publicationSchema,
+  memberChangeSchema,
+  newMemberSchema,
   repositoryChangeSchema,
   reviewSchema,
 } from '@/schemas/i18n';
+import { auth } from '@/auth';
 
 const router = new Hono<HonoEnv>();
 
@@ -548,6 +568,113 @@ router.get('/me', signedIn, async (c) => {
       installUrl: admin ? `https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new` : null,
     },
   });
+});
+
+/**
+ * The repository of a request on its members, when the account manages them:
+ * an admin, or an owner of the repository (DB-637).
+ */
+const managedRepository = async (c: Parameters<typeof signedIn>[0]) => {
+  const repository = await readableRepository(c, c.req.param('id'));
+  const user = getUser(c);
+
+  if (!mayManageMembers(user.admin === true, await rightsOf(user.id, repository.id))) {
+    throw new HTTPException(403, { message: 'Only an admin or an owner of the repository manages its members.' });
+  }
+
+  return repository;
+};
+
+/** Answers a refusal of the members with its status, and lets any other failure through. */
+const membersAnswer = async <T>(change: () => Promise<T>): Promise<T> => {
+  try {
+    return await change();
+  } catch (error) {
+    if (error instanceof MemberError) throw new HTTPException(error.status, { message: error.message });
+
+    throw error;
+  }
+};
+
+/** The members of a repository, and the invitations that wait for a first sign-in. */
+router.get('/repositories/:id/members', signedIn, async (c) => {
+  const repository = await managedRepository(c);
+
+  return c.json({ success: true, data: await listMembers(repository) });
+});
+
+/**
+ * Adds a person by address or by GitHub login.
+ *
+ * A person with an account becomes a member at once. Another person gets an
+ * invitation. An invitation by address also sends the magic link (DB-645).
+ */
+router.post('/repositories/:id/members', signedIn, async (c) => {
+  const repository = await managedRepository(c);
+  const { data, error, success } = await parsed(c, newMemberSchema);
+
+  if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
+
+  const resolveLogin = async (login: string) => {
+    try {
+      const token = await installationToken(repository.installationId, { repository: repository.name });
+      const found = await askGithub<{ id: number; login: string }>(`/users/${encodeURIComponent(login)}`, token);
+
+      return { id: String(found.id), login: found.login };
+    } catch (failure) {
+      if (failure instanceof GithubError && failure.status === 404) return null;
+
+      throw failure;
+    }
+  };
+
+  const added = await membersAnswer(() =>
+    answer(() => addPerson(repository, data as Parameters<typeof addPerson>[1], getUser(c).id, resolveLogin)),
+  );
+
+  if (added.outcome === 'invited' && added.by === 'email' && data.email) {
+    await auth().api.signInMagicLink({ body: { email: data.email, callbackURL: '/' }, headers: c.req.raw.headers });
+  }
+
+  return c.json({ success: true, data: added }, 201);
+});
+
+router.patch('/repositories/:id/members/:memberId', signedIn, async (c) => {
+  const repository = await managedRepository(c);
+  const { data, error, success } = await parsed(c, memberChangeSchema);
+
+  if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
+
+  await membersAnswer(() => changeMember(repository, c.req.param('memberId'), data));
+
+  return c.json({ success: true, data: null });
+});
+
+router.delete('/repositories/:id/members/:memberId', signedIn, async (c) => {
+  const repository = await managedRepository(c);
+
+  await membersAnswer(() => removeMember(repository, c.req.param('memberId')));
+
+  return c.json({ success: true, data: null });
+});
+
+router.patch('/repositories/:id/invitations/:invitationId', signedIn, async (c) => {
+  const repository = await managedRepository(c);
+  const { data, error, success } = await parsed(c, memberChangeSchema);
+
+  if (!success) throw new HTTPException(400, { message: JSON.stringify(error.issues) });
+
+  await membersAnswer(() => changeInvitation(repository, c.req.param('invitationId'), data));
+
+  return c.json({ success: true, data: null });
+});
+
+router.delete('/repositories/:id/invitations/:invitationId', signedIn, async (c) => {
+  const repository = await managedRepository(c);
+
+  await membersAnswer(() => removeInvitation(repository, c.req.param('invitationId')));
+
+  return c.json({ success: true, data: null });
 });
 
 export default router;

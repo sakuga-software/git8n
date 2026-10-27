@@ -149,13 +149,26 @@ export const SETTINGS_SECTIONS = [
     title: 'Messages',
     fields: ['proposalCommit', 'publicationCommit', 'pullRequestTitle', 'pullRequestBody'],
   },
+  // The members are not fields of the form: each change of a member is sent at once (DB-637).
+  { id: 'members', title: 'Membres', fields: [] },
 ] as const satisfies readonly { id: string; title: string; fields: readonly SettingsField[] }[];
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]['id'];
 
+export type SettingsSectionEntry = (typeof SETTINGS_SECTIONS)[number];
+
+/**
+ * The sections an account opens. An admin opens every one. An owner who is
+ * not an admin manages the members, and changes nothing else (DB-637).
+ */
+export const sectionsFor = (admin: boolean): readonly SettingsSectionEntry[] =>
+  admin ? SETTINGS_SECTIONS : SETTINGS_SECTIONS.filter((section) => section.id === 'members');
+
 /** The section that the `?section=` of the address names, or the first one for any other value. */
-export const sectionOf = (value: string | null): SettingsSection =>
-  SETTINGS_SECTIONS.find((section) => section.id === value)?.id ?? SETTINGS_SECTIONS[0].id;
+export const sectionOf = (
+  value: string | null,
+  sections: readonly SettingsSectionEntry[] = SETTINGS_SECTIONS,
+): SettingsSection => sections.find((section) => section.id === value)?.id ?? sections[0].id;
 
 /** The first section, in the order of the tabs, that holds one of these fields. */
 export const firstSectionWith = (fields: Iterable<SettingsField>): SettingsSection | null => {

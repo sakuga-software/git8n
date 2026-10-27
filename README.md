@@ -94,20 +94,18 @@ account opens nothing:
     becomes its owner.
 - **The source language** needs `writes_source` on the member row.
 
-To administer gives no right to write a language. Until the « Membres » screen,
-an admin grants the rights in the database:
+To administer gives no right to write a language. An admin, or an owner of the
+repository, grants the rights in **Réglages → Membres**:
 
-```sql
--- A reviewer of English in one repository.
-with member as (
-  insert into members (id, organization_id, user_id, role)
-  select md5(random()::text), r.organization_id, u.id, 'reviewer'
-  from users u, i18n_repositories r
-  where lower(u.email) = 'translator@example.com' and r.owner = 'acme' and r.name = 'app'
-  returning id
-)
-insert into member_languages (member_id, language) select id, 'en' from member;
-```
+- **By address.** A person who has an account with this verified address
+  becomes a member at once. Any other person gets an invitation and a mail with
+  a magic link (DB-645): they sign in with no GitHub account. The mail needs
+  `SMTP_URL` (`docs/deploy.md`).
+- **By GitHub login.** The editor keeps the numeric ID of the login. The person
+  becomes a member at their first sign-in with GitHub.
+
+An invitation waits under « En attente de connexion » until the first sign-in.
+The last owner of a repository cannot be removed or lose the role.
 
 ## Documentation
 

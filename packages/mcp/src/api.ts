@@ -222,7 +222,7 @@ export interface WaitingBatch {
   readAt: string;
 }
 
-const ask = async <T>(config: ApiConfig, path: string, body?: unknown, method?: 'PATCH'): Promise<T> => {
+const ask = async <T>(config: ApiConfig, path: string, body?: unknown, method?: 'PATCH' | 'DELETE'): Promise<T> => {
   const response = await fetch(`${config.url}${path}`, {
     method: method ?? (body === undefined ? 'GET' : 'POST'),
     signal: AbortSignal.timeout(60 * 1000),
@@ -550,3 +550,64 @@ export const overview = (
 
   return ask<OverviewPage>(config, `/i18n/overview${search ? `?${search}` : ''}`);
 };
+
+/** What a member, or an invitation, may do in a repository (DB-637). */
+export interface MemberRights {
+  role: Membership['role'];
+  /** The target languages, never the source: `writesSource` gives it. */
+  languages: string[];
+  writesSource: boolean;
+}
+
+export interface Member extends MemberRights {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  image: string | null;
+}
+
+/** A person added before their first sign-in, by address or by GitHub login. */
+export interface Invitation extends MemberRights {
+  id: string;
+  email: string | null;
+  githubLogin: string | null;
+  createdAt: string;
+}
+
+export interface MemberList {
+  members: Member[];
+  invitations: Invitation[];
+}
+
+/** What adding a person did: a member now, or an invitation that waits for the first sign-in. */
+export type AddedMember =
+  | { outcome: 'member'; memberId: string }
+  | { outcome: 'invited'; invitationId: string; by: 'email' | 'github' };
+
+const membersPath = (repository: string) => `/i18n/repositories/${encodeURIComponent(repository)}`;
+
+export const readMembers = (config: ApiConfig, repository: string) =>
+  ask<MemberList>(config, `${membersPath(repository)}/members`);
+
+export const addMember = (
+  config: ApiConfig,
+  repository: string,
+  person: ({ email: string } | { githubLogin: string }) & MemberRights,
+) => ask<AddedMember>(config, `${membersPath(repository)}/members`, person);
+
+export const changeMember = (config: ApiConfig, repository: string, memberId: string, change: Partial<MemberRights>) =>
+  ask<null>(config, `${membersPath(repository)}/members/${encodeURIComponent(memberId)}`, change, 'PATCH');
+
+export const removeMember = (config: ApiConfig, repository: string, memberId: string) =>
+  ask<null>(config, `${membersPath(repository)}/members/${encodeURIComponent(memberId)}`, undefined, 'DELETE');
+
+export const changeInvitation = (
+  config: ApiConfig,
+  repository: string,
+  invitationId: string,
+  change: Partial<MemberRights>,
+) => ask<null>(config, `${membersPath(repository)}/invitations/${encodeURIComponent(invitationId)}`, change, 'PATCH');
+
+export const removeInvitation = (config: ApiConfig, repository: string, invitationId: string) =>
+  ask<null>(config, `${membersPath(repository)}/invitations/${encodeURIComponent(invitationId)}`, undefined, 'DELETE');

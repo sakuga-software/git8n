@@ -945,7 +945,7 @@ function Editor({
                 </Outside>
               )}
             </span>
-            {me.value.admin && (
+            {(me.value.admin || rightsIn(me.value, repository.id).rights?.role === 'owner') && (
               <Link
                 to={`/repositories/${encodeURIComponent(repository.id)}/settings`}
                 onClick={(event) => {

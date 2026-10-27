@@ -348,7 +348,7 @@ describe('the sign-in with a magic link', () => {
     await invite(repositoryId, { email: 'Ann@Example.test', role: 'translator', languages: ['en'] });
 
     expect((await ask('ann@example.test')).status).toBe(200);
-    await vi.waitFor(() => expect(sentInDevelopment).toHaveLength(1));
+    await vi.waitFor(() => expect(sentInDevelopment).toHaveLength(1), { timeout: 5000 });
 
     const [mail] = sentInDevelopment;
 

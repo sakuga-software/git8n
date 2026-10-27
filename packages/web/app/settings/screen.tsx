@@ -5,6 +5,7 @@ import { DEFAULT_TEMPLATES, type TemplateKind } from '@i18n-editor/db/messages';
 import {
   issuesOf,
   repositories as readRepositories,
+  rightsIn,
   rightsOf,
   updateRepository,
   type Repository,
@@ -17,6 +18,7 @@ import { PublishModeSwitch } from '~/editor/pull-state';
 import { Signed } from '~/editor/shell';
 import { Blocked, Failure, Loading } from '~/editor/states';
 import { Busy } from '~/editor/ui';
+import { MembersPanel } from './members';
 import { forgetReads, readErrorOf, useRead, type ReadError } from '~/editor/use-read';
 import {
   changeOf,
@@ -26,7 +28,9 @@ import {
   previewOf,
   problemsOf,
   sectionOf,
+  sectionsFor,
   SETTINGS_SECTIONS,
+  type SettingsSectionEntry,
   variablesOf,
   type SettingsField,
   type SettingsForm,
@@ -63,7 +67,7 @@ const TEMPLATE_KINDS_SHOWN: readonly TemplateKind[] = [
 /** Where the table of a repository is. */
 const tablePathOf = (repositoryId: string): string => `/repositories/${encodeURIComponent(repositoryId)}`;
 
-/** The settings of a repository, for an admin (DB-609). */
+/** The settings of a repository, for an admin (DB-609), and its members for an owner (DB-637). */
 export default function SettingsScreen() {
   return <Signed>{({ waiting }) => <Settings waiting={waiting} />}</Signed>;
 }
@@ -82,10 +86,13 @@ function Settings({ waiting }: { waiting: React.RefObject<number> }) {
     );
   }
 
-  if (!me.value.admin) {
+  const admin = me.value.admin;
+  const owner = repositoryId !== null && rightsIn(me.value, repositoryId).rights?.role === 'owner';
+
+  if (!admin && !owner) {
     return (
       <Blocked icon={<Lock size={18} />}>
-        <p className="text-sm leading-normal">Seul un admin modifie les réglages d'un dépôt.</p>
+        <p className="text-sm leading-normal">Seuls un admin et un propriétaire du dépôt ouvrent ses réglages.</p>
         <Link to={repositoryId ? tablePathOf(repositoryId) : '/'} className="text-sub text-[13px] underline">
           Revenir aux traductions
         </Link>
@@ -113,15 +120,18 @@ function Settings({ waiting }: { waiting: React.RefObject<number> }) {
     forgetReads('overview');
   };
 
-  return <SettingsOf repository={repository} waiting={waiting} onSaved={saved} />;
+  return <SettingsOf repository={repository} admin={admin} waiting={waiting} onSaved={saved} />;
 }
 
 function SettingsOf({
   repository,
+  admin,
   waiting,
   onSaved,
 }: {
   repository: Repository;
+  /** An owner who is not an admin opens the members alone. */
+  admin: boolean;
   waiting: React.RefObject<number>;
   onSaved: () => void;
 }) {
@@ -133,7 +143,8 @@ function SettingsOf({
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [params, setParams] = useSearchParams();
-  const section = sectionOf(params.get('section'));
+  const sections = sectionsFor(admin);
+  const section = sectionOf(params.get('section'), sections);
 
   const change = useMemo(() => changeOf(saved, form), [saved, form]);
   const changed = Object.keys(change).length;
@@ -255,7 +266,7 @@ function SettingsOf({
     }
   };
 
-  const panels: Record<SettingsSection, React.ReactNode> = {
+  const panels: Record<Exclude<SettingsSection, 'members'>, React.ReactNode> = {
     repository: (
       <>
         <Field id="settings-branch" label="Branche" problem={shown('branch')}>
@@ -363,11 +374,7 @@ function SettingsOf({
   const title = SETTINGS_SECTIONS.find(({ id }) => id === section)?.title;
 
   return (
-    <form
-      onSubmit={save}
-      aria-label={`Réglages de ${repository.owner}/${repository.name}`}
-      className="mx-auto flex w-full max-w-[1000px] flex-col gap-6"
-    >
+    <div className="mx-auto flex w-full max-w-[1000px] flex-col gap-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h1 className="text-[22px] font-semibold tracking-[-0.01em]">
@@ -376,7 +383,11 @@ function SettingsOf({
               {repository.owner}/{repository.name}
             </span>
           </h1>
-          <p className="text-sub text-sm leading-normal">Ce que l'éditeur lit de ce dépôt, et comment il y écrit.</p>
+          <p className="text-sub text-sm leading-normal">
+            {admin
+              ? "Ce que l'éditeur lit de ce dépôt, comment il y écrit, et qui le traduit."
+              : 'Qui traduit ce dépôt, et ce que chacun peut faire.'}
+          </p>
         </div>
         <Link to={tablePathOf(repository.id)} className="text-sub hover:text-ink text-[13px] no-underline">
           Revenir aux traductions
@@ -384,67 +395,82 @@ function SettingsOf({
       </div>
 
       <div className="flex flex-col gap-6 md:grid md:grid-cols-[176px_minmax(0,1fr)] md:items-start md:gap-10">
-        <SectionTabs current={section} marks={marks} onSelect={open} />
+        <SectionTabs sections={sections} current={section} marks={marks} onSelect={open} />
 
-        <div className="flex min-w-0 flex-col gap-8">
+        {section === 'members' ? (
           <section
             role="tabpanel"
-            id={`settings-panel-${section}`}
-            aria-labelledby={`settings-tab-${section}`}
-            className="flex flex-col gap-4"
+            id="settings-panel-members"
+            aria-labelledby="settings-tab-members"
+            className="flex min-w-0 flex-col gap-4"
           >
             <h2 className="border-line border-b pb-2 text-[15px] font-semibold">{title}</h2>
-            {panels[section]}
+            <MembersPanel repository={repository} />
           </section>
+        ) : (
+          <form
+            onSubmit={save}
+            aria-label={`Réglages de ${repository.owner}/${repository.name}`}
+            className="flex min-w-0 flex-col gap-8"
+          >
+            <section
+              role="tabpanel"
+              id={`settings-panel-${section}`}
+              aria-labelledby={`settings-tab-${section}`}
+              className="flex flex-col gap-4"
+            >
+              <h2 className="border-line border-b pb-2 text-[15px] font-semibold">{title}</h2>
+              {panels[section]}
+            </section>
+            {sendError && (
+              <Failure title="Les réglages n'ont pas été enregistrés. Rien n'a changé." error={sendError} written />
+            )}
 
-          {sendError && (
-            <Failure title="Les réglages n'ont pas été enregistrés. Rien n'a changé." error={sendError} written />
-          )}
-
-          <div className="border-line sticky bottom-0 -mx-2 flex flex-wrap items-center justify-between gap-3 border-t bg-white px-2 py-3">
-            <span role="status" className="text-muted inline-flex items-center gap-1.5 text-xs">
-              {done ? (
-                <>
-                  <Published size={14} />
-                  Réglages enregistrés.
-                </>
-              ) : changed > 0 ? (
-                `${changed} ${changed > 1 ? 'réglages modifiés' : 'réglage modifié'}, pas encore enregistrés.`
-              ) : (
-                'Aucun changement.'
-              )}
-            </span>
-            <div className="flex items-center gap-2">
-              {changed > 0 && (
-                <Button
-                  variant="ghost"
-                  isDisabled={busy}
-                  onPress={() => {
-                    setForm(saved);
-                    setTouched(new Set());
-                    setRefused({});
-                    setSendError(null);
-                  }}
-                >
-                  <Undo size={15} />
-                  Annuler les changements
-                </Button>
-              )}
-              <Button type="submit" isDisabled={busy || changed === 0 || blocked}>
-                {busy ? (
+            <div className="border-line sticky bottom-0 -mx-2 flex flex-wrap items-center justify-between gap-3 border-t bg-white px-2 py-3">
+              <span role="status" className="text-muted inline-flex items-center gap-1.5 text-xs">
+                {done ? (
                   <>
-                    <Busy />
-                    Enregistrement…
+                    <Published size={14} />
+                    Réglages enregistrés.
                   </>
+                ) : changed > 0 ? (
+                  `${changed} ${changed > 1 ? 'réglages modifiés' : 'réglage modifié'}, pas encore enregistrés.`
                 ) : (
-                  'Enregistrer'
+                  'Aucun changement.'
                 )}
-              </Button>
+              </span>
+              <div className="flex items-center gap-2">
+                {changed > 0 && (
+                  <Button
+                    variant="ghost"
+                    isDisabled={busy}
+                    onPress={() => {
+                      setForm(saved);
+                      setTouched(new Set());
+                      setRefused({});
+                      setSendError(null);
+                    }}
+                  >
+                    <Undo size={15} />
+                    Annuler les changements
+                  </Button>
+                )}
+                <Button type="submit" isDisabled={busy || changed === 0 || blocked}>
+                  {busy ? (
+                    <>
+                      <Busy />
+                      Enregistrement…
+                    </>
+                  ) : (
+                    'Enregistrer'
+                  )}
+                </Button>
+              </div>
             </div>
-          </div>
-        </div>
+          </form>
+        )}
       </div>
-    </form>
+    </div>
   );
 }
 
@@ -457,10 +483,12 @@ const MARK_TEXT: Record<TabMark, string> = {
 
 /** The tabs of the sections: a column beside the page on a wide screen, a row above it on a narrow one. */
 function SectionTabs({
+  sections,
   current,
   marks,
   onSelect,
 }: {
+  sections: readonly SettingsSectionEntry[];
   current: SettingsSection;
   marks: Record<SettingsSection, TabMark | null>;
   onSelect: (section: SettingsSection) => void;
@@ -468,7 +496,7 @@ function SectionTabs({
   const tabs = useRef<Partial<Record<SettingsSection, HTMLButtonElement | null>>>({});
 
   const move = (event: React.KeyboardEvent, index: number) => {
-    const last = SETTINGS_SECTIONS.length - 1;
+    const last = sections.length - 1;
     const step: Record<string, number> = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
     const to =
       event.key === 'Home'
@@ -483,7 +511,7 @@ function SectionTabs({
 
     event.preventDefault();
 
-    const next = SETTINGS_SECTIONS[to].id;
+    const next = sections[to].id;
 
     onSelect(next);
     tabs.current[next]?.focus();
@@ -495,7 +523,7 @@ function SectionTabs({
       aria-label="Sections des réglages"
       className="border-line flex gap-1 overflow-x-auto border-b pb-2 md:sticky md:top-4 md:flex-col md:overflow-visible md:border-b-0 md:pb-0"
     >
-      {SETTINGS_SECTIONS.map(({ id, title }, index) => {
+      {sections.map(({ id, title }, index) => {
         const selected = id === current;
         const mark = marks[id];
 
