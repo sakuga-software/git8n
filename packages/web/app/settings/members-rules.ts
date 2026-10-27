@@ -29,3 +29,13 @@ export const sameRights = (a: MemberRights, b: MemberRights): boolean =>
   a.role === b.role &&
   a.writesSource === b.writesSource &&
   [...a.languages].sort().join(',') === [...b.languages].sort().join(',');
+
+/**
+ * The fields of `draft` that differ from `saved`. A save sends these alone, so
+ * it does not write back a field that another manager changed in between.
+ */
+export const rightsChange = (saved: MemberRights, draft: MemberRights): Partial<MemberRights> => ({
+  ...(draft.role !== saved.role ? { role: draft.role } : {}),
+  ...(draft.writesSource !== saved.writesSource ? { writesSource: draft.writesSource } : {}),
+  ...(sameRights({ ...saved, languages: draft.languages }, saved) ? {} : { languages: draft.languages }),
+});

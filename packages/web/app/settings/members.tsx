@@ -19,7 +19,7 @@ import { api } from '~/utils/api';
 import { Failure, Loading } from '~/editor/states';
 import { Busy, Choice, Tick } from '~/editor/ui';
 import { readErrorOf, useRead, type ReadError } from '~/editor/use-read';
-import { personOf, ROLE_ITEMS, sameRights } from './members-rules';
+import { personOf, rightsChange, ROLE_ITEMS, sameRights } from './members-rules';
 
 /**
  * The members of a repository and the invitations that wait (DB-637).
@@ -254,7 +254,9 @@ function PersonRow({ repository, entry, onChanged }: { repository: Repository; e
     languages: entry.value.languages,
     writesSource: entry.value.writesSource,
   };
-  const [draft, setDraft] = useState<MemberRights>(saved);
+  // Null while the row is not edited: the row then follows the list, also after another manager changes it.
+  const [edited, setEdited] = useState<MemberRights | null>(null);
+  const draft = edited ?? saved;
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<ReadError | null>(null);
@@ -262,7 +264,7 @@ function PersonRow({ repository, entry, onChanged }: { repository: Repository; e
   const changed = !sameRights(saved, draft);
   // A refusal speaks of the draft that was sent. A new draft makes it out of date.
   const edit = (rights: MemberRights) => {
-    setDraft(rights);
+    setEdited(sameRights(rights, saved) ? null : rights);
     setError(null);
   };
   const { id } = entry.value;
@@ -283,6 +285,7 @@ function PersonRow({ repository, entry, onChanged }: { repository: Repository; e
 
     try {
       await write();
+      setEdited(null);
       onChanged();
     } catch (failure) {
       setError(readErrorOf(failure));
@@ -295,8 +298,8 @@ function PersonRow({ repository, entry, onChanged }: { repository: Repository; e
   const save = () =>
     run(() =>
       entry.kind === 'member'
-        ? changeMember(api, repository.id, id, draft)
-        : changeInvitation(api, repository.id, id, draft),
+        ? changeMember(api, repository.id, id, rightsChange(saved, draft))
+        : changeInvitation(api, repository.id, id, rightsChange(saved, draft)),
     );
   const resend = async () => {
     setBusy(true);
