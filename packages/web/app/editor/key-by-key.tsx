@@ -236,10 +236,12 @@ export function KeyByKey({
             >
               {states.map((state) => (
                 <ToggleButton key={state} id={state}>
-                  {FILTER_LABEL[state]} {/* A count nobody read is a dash, never a zero. */}
-                  <span className={`font-mono text-xs ${COUNT_STYLE[state]}`}>
-                    {counts === null ? '–' : countOf(counts[state])}
-                  </span>
+                  {FILTER_LABEL[state]} {/* A count nobody read is a dash. A tab with no row shows no count. */}
+                  {counts?.[state] !== 0 && (
+                    <span className={`font-mono text-xs ${COUNT_STYLE[state]}`}>
+                      {counts === null ? '–' : countOf(counts[state])}
+                    </span>
+                  )}
                 </ToggleButton>
               ))}
             </ToggleButtonGroup>
