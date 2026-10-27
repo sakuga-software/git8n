@@ -157,17 +157,46 @@ export interface PublicationState {
   pullRequest: PublishPull | null;
 }
 
-export interface Rights {
+/** What an account may do in one repository (DB-637). */
+export interface Membership {
+  repositoryId: string;
+  languages: string[];
+  /** An owner also manages the members. A reviewer publishes. A translator proposes. */
+  role: 'owner' | 'reviewer' | 'translator';
+  /** Whether the account may add a key to the source language (DB-238). */
+  writesSource: boolean;
+}
+
+/** What `/i18n/me` answers: the account, and what it may do in each repository where it is a member. */
+export interface Me {
   admin: boolean;
   /** Where an admin installs the GitHub App. Null for any other account, and absent from an API older than DB-581. */
   installUrl?: string | null;
+  memberships: Membership[];
+}
+
+/** What an account may do in one repository: the view of `Me` that the screens of a repository read. */
+export interface Rights {
+  admin: boolean;
   rights: {
     languages: string[];
-    role: 'translator' | 'reviewer';
+    role: Membership['role'];
     /** Whether the account may add a key to the source language. Absent from an API older than DB-238. */
     writesSource?: boolean;
   } | null;
 }
+
+/** The rights of `me` in one repository. */
+export const rightsIn = (me: Me, repositoryId: string): Rights => {
+  const membership = me.memberships.find((held) => held.repositoryId === repositoryId);
+
+  return {
+    admin: me.admin,
+    rights: membership
+      ? { languages: membership.languages, role: membership.role, writesSource: membership.writesSource }
+      : null,
+  };
+};
 
 export interface ProposedValue {
   file: string;
@@ -219,7 +248,7 @@ const ask = async <T>(config: ApiConfig, path: string, body?: unknown, method?: 
 
 export const repositories = (config: ApiConfig) => ask<Repository[]>(config, '/i18n/repositories');
 
-export const rightsOf = (config: ApiConfig) => ask<Rights>(config, '/i18n/me');
+export const rightsOf = (config: ApiConfig) => ask<Me>(config, '/i18n/me');
 
 /** One installation of the GitHub App, and the repositories it reaches. For an admin. */
 export interface Installation {

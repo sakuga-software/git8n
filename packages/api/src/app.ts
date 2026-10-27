@@ -10,6 +10,10 @@ const app = new Hono<HonoEnv>();
 
 app.onError(errorHandler);
 
+// The organization plugin opens routes to every signed-in account: a member
+// could change their own role. The routes of `/i18n` do these changes, with their own checks.
+app.all('/api/auth/organization/*', (c) => c.notFound());
+
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth().handler(c.req.raw));
 
 app.route('/i18n', i18nRoutes);

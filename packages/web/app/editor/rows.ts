@@ -187,7 +187,8 @@ export const accessOf = (rights: Rights, targets: readonly string[], source?: st
   const granted = rights.rights?.languages ?? [];
   const mayCreate = rights.rights?.writesSource === true;
   const isTarget = (language: string) => granted.includes(language) && targets.includes(language);
-  const reviews = (language: string) => isTarget(language) && rights.rights?.role === 'reviewer';
+  const reviews = (language: string) =>
+    isTarget(language) && (rights.rights?.role === 'reviewer' || rights.rights?.role === 'owner');
   // The source is written and published by `writes_source` alone (DB-607).
   // Every account that opens the repository reads it: it is what a
   // translation answers.

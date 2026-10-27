@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Catalogue, ProposedKey } from '@i18n-editor/mcp/api';
+import { rightsIn, type Catalogue, type ProposedKey } from '@i18n-editor/mcp/api';
 import {
   accessOf,
   afterProposal,
@@ -235,6 +235,25 @@ describe('what an account can do', () => {
 
     expect(access.mayPublish('en')).toBe(true);
     expect(access.mayPublish('de')).toBe(false);
+  });
+
+  it('lets an owner publish the languages of its grant, as a reviewer does', () => {
+    const access = accessOf({ admin: false, rights: { languages: ['en'], role: 'owner' } }, targets);
+
+    expect(access.mayPublish('en')).toBe(true);
+    expect(access.mayPublish('de')).toBe(false);
+  });
+
+  /** A member of one repository holds nothing in another (DB-637). */
+  it('reads the rights of the open repository only', () => {
+    const me = {
+      admin: false,
+      memberships: [{ repositoryId: 'r1', languages: ['en'], role: 'reviewer' as const, writesSource: false }],
+    };
+
+    expect(accessOf(rightsIn(me, 'r1'), targets).mayPublish('en')).toBe(true);
+    expect(accessOf(rightsIn(me, 'r2'), targets).mayPropose('en')).toBe(false);
+    expect(rightsIn(me, 'r2')).toEqual({ admin: false, rights: null });
   });
 
   /** A grant can name a language the repository does not translate into. */

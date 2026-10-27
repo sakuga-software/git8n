@@ -61,6 +61,7 @@ const repository: I18nRepository = {
   publicationCommitTemplate: null,
   pullRequestTitleTemplate: null,
   pullRequestBodyTemplate: null,
+  organizationId: 'organization-1',
   createdAt: new Date('2026-10-26T00:00:00Z'),
 };
 

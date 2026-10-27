@@ -1,5 +1,13 @@
 import { eq } from 'drizzle-orm';
-import { newId, users } from '@i18n-editor/db';
+import {
+  i18nRepositories,
+  memberLanguages,
+  members,
+  type MemberRole,
+  newId,
+  organizations,
+  users,
+} from '@i18n-editor/db';
 import { auth } from '@/auth';
 import { db } from '@/db';
 
@@ -44,4 +52,42 @@ export async function signedInAdmin(): Promise<{ userId: string; headers: Record
   const userId = held?.id ?? (await insertAccount({ name: 'Admin', email: ADMIN_EMAIL }));
 
   return { userId, headers: await authHeaders(userId) };
+}
+
+/** An organization with no member, as the connection of a repository writes it. */
+export async function insertOrganization(): Promise<string> {
+  const id = newId();
+
+  await db().insert(organizations).values({ id, name: id, slug: id });
+
+  return id;
+}
+
+/** Makes `userId` a member of a repository, with a role and languages. */
+export async function grant(
+  userId: string,
+  repositoryId: string,
+  options: { role?: MemberRole; languages?: string[]; writesSource?: boolean } = {},
+): Promise<void> {
+  const [repository] = await db()
+    .select({ organizationId: i18nRepositories.organizationId })
+    .from(i18nRepositories)
+    .where(eq(i18nRepositories.id, repositoryId));
+  const memberId = newId();
+
+  await db()
+    .insert(members)
+    .values({
+      id: memberId,
+      organizationId: repository.organizationId,
+      userId,
+      role: options.role ?? 'translator',
+      writesSource: options.writesSource ?? false,
+    });
+
+  if (options.languages?.length) {
+    await db()
+      .insert(memberLanguages)
+      .values(options.languages.map((language) => ({ memberId, language })));
+  }
 }

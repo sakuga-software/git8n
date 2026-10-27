@@ -1,12 +1,24 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { bearer } from 'better-auth/plugins';
+import { organization } from 'better-auth/plugins/organization';
 import type { GithubOptions } from 'better-auth/social-providers';
 import type { MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { authAccounts, authSessions, authVerifications, type Database, newId, users } from '@i18n-editor/db';
+import {
+  authAccounts,
+  authSessions,
+  authVerifications,
+  type Database,
+  invitations,
+  members,
+  newId,
+  organizations,
+  users,
+} from '@i18n-editor/db';
 import { env } from './config/env';
 import { db } from './db';
+import { ac, roles } from './permissions';
 
 /** The account of a request that `withAuth` let through. */
 export interface AuthUser {
@@ -37,6 +49,9 @@ export function createAuth(options: AuthOptions) {
         auth_sessions: authSessions,
         auth_accounts: authAccounts,
         auth_verifications: authVerifications,
+        organizations,
+        members,
+        invitations,
       },
     }),
     advanced: { database: { generateId: () => newId() } },
@@ -64,8 +79,26 @@ export function createAuth(options: AuthOptions) {
         },
       },
     }),
-    // The MCP server sends the session token as a bearer token. The browser sends the cookie.
-    plugins: [bearer()],
+    plugins: [
+      // The MCP server sends the session token as a bearer token. The browser sends the cookie.
+      bearer(),
+      // One organization for each repository holds its members (DB-637). The
+      // routes of the editor do every change: `app.ts` closes the routes of the plugin.
+      organization({
+        ac,
+        roles,
+        allowUserToCreateOrganization: false,
+        disableOrganizationDeletion: true,
+        schema: {
+          organization: { modelName: 'organizations' },
+          invitation: { modelName: 'invitations' },
+          member: {
+            modelName: 'members',
+            additionalFields: { writesSource: { type: 'boolean', required: false, defaultValue: false, input: true } },
+          },
+        },
+      }),
+    ],
   });
 }
 

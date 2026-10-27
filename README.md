@@ -84,16 +84,29 @@ account opens nothing:
   address is the public address of the GitHub profile, or the primary address
   if the profile shows none. The editor reads it again at each sign-in, so a
   change on GitHub counts at the next sign-in.
-- **A translator** proposes in the languages of its row of `i18n_translators`.
-- **A reviewer** also publishes these languages.
-- **The source language** needs `writes_source` on the row.
+- **A member** of a repository holds rights in that repository only (DB-637).
+  Each repository has a better-auth organization, and a member is a row of
+  `members` in it, with a role and a row of `member_languages` for each
+  language:
+  - **a translator** proposes in its languages;
+  - **a reviewer** also publishes them;
+  - **an owner** also manages the members. The admin who connects a repository
+    becomes its owner.
+- **The source language** needs `writes_source` on the member row.
 
-To administer gives no right to write a language. An admin grants the rights in
-the database for now:
+To administer gives no right to write a language. Until the « Membres » screen,
+an admin grants the rights in the database:
 
 ```sql
-insert into i18n_translators (user_id, languages, role)
-select id, '{en}', 'reviewer' from users where lower(email) = 'translator@example.com';
+-- A reviewer of English in one repository.
+with member as (
+  insert into members (id, organization_id, user_id, role)
+  select md5(random()::text), r.organization_id, u.id, 'reviewer'
+  from users u, i18n_repositories r
+  where lower(u.email) = 'translator@example.com' and r.owner = 'acme' and r.name = 'app'
+  returning id
+)
+insert into member_languages (member_id, language) select id, 'en' from member;
 ```
 
 ## Documentation

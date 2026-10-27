@@ -24,8 +24,11 @@ export interface OverviewQuery {
   q?: string;
   sort: OverviewSort;
   order: 'asc' | 'desc';
-  /** The languages the caller may read. `undefined` means every language. */
-  languages?: readonly string[];
+  /**
+   * The repositories the caller may read, and the languages of each (DB-637).
+   * `undefined` means every repository. A language list of `undefined` means every language of that repository.
+   */
+  access?: ReadonlyMap<string, readonly string[] | undefined>;
 }
 
 export interface RepositoryOverview {
@@ -129,12 +132,15 @@ const readPull = async (row: I18nRepository, now: number): Promise<RepositoryOve
 export const overview = async (query: OverviewQuery, options: { now?: Date } = {}): Promise<OverviewPage> => {
   const now = (options.now ?? new Date()).getTime();
   const needle = query.q?.trim().toLowerCase();
-  const matched = (await listRepositories()).filter((row) => !needle || fullName(row).toLowerCase().includes(needle));
+  const matched = (await listRepositories()).filter(
+    (row) => (!query.access || query.access.has(row.id)) && (!needle || fullName(row).toLowerCase().includes(needle)),
+  );
+  const languagesOfRow = (row: I18nRepository) => query.access?.get(row.id);
   const direction = query.order === 'desc' ? -1 : 1;
   const progressById = new Map<string, ProgressRead>();
 
   if (query.sort === 'progress') {
-    const reads = await mapLimited(matched, PARALLEL_READS, (row) => readProgress(row, query.languages));
+    const reads = await mapLimited(matched, PARALLEL_READS, (row) => readProgress(row, languagesOfRow(row)));
 
     matched.forEach((row, index) => progressById.set(row.id, reads[index]));
   }
@@ -155,7 +161,7 @@ export const overview = async (query: OverviewQuery, options: { now?: Date } = {
 
   const rows = await mapLimited(slice, PARALLEL_READS, async (row): Promise<RepositoryOverview> => {
     const [progress, pullRequest] = await Promise.all([
-      progressById.get(row.id) ?? readProgress(row, query.languages),
+      progressById.get(row.id) ?? readProgress(row, languagesOfRow(row)),
       readPull(row, now),
     ]);
     const { source, targets } = languagesOf(row);

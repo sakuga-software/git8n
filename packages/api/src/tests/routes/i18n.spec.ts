@@ -1,12 +1,13 @@
 import '../setup-env';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { i18nRepositories, i18nTranslators, newId } from '@i18n-editor/db';
+import { and, eq } from 'drizzle-orm';
+import { i18nRepositories, members, newId } from '@i18n-editor/db';
 import app from '../../app';
 import { env } from '@/config/env';
 import { clearI18nCatalogueCache } from '@/services/i18n-catalogue.service';
 import { clearI18nProgressCache } from '@/services/i18n-progress.service';
 import { clearAvatarCache } from '@/services/i18n-avatars.service';
-import { authHeaders, insertAccount, signedInAdmin } from '../db/fixtures';
+import { authHeaders, grant, insertAccount, insertOrganization, signedInAdmin } from '../db/fixtures';
 import { useTestDb } from '../db/test-db';
 import { fakeRepo } from '../services/fake-github-repo';
 
@@ -65,12 +66,20 @@ const github = () =>
     return ok({ content: base64({ hello: french ? 'Bonjour' : 'Hello' }), encoding: 'base64', sha: 's' });
   });
 
-/** A repository the editor translates, written down as the route would. */
+/** A repository the editor translates, written down as the route would. A second call answers the same one. */
 async function repository() {
+  const [held] = await db()
+    .select()
+    .from(i18nRepositories)
+    .where(and(eq(i18nRepositories.owner, 'acme'), eq(i18nRepositories.name, 'acme-app')));
+
+  if (held) return held;
+
   const [row] = await db()
     .insert(i18nRepositories)
     .values({
       id: newId(),
+      organizationId: await insertOrganization(),
       installationId: 42,
       owner: 'acme',
       name: 'acme-app',
@@ -83,17 +92,16 @@ async function repository() {
   return row;
 }
 
-/** An account that translates `languages`, with no admin right. */
+/** An account that translates `languages` in `acme/acme-app`, or in `repo`, with no admin right. */
 async function translator(
   languages: string[],
-  role: 'translator' | 'reviewer' = 'translator',
-  options: { writesSource?: boolean } = {},
+  role: 'translator' | 'reviewer' | 'owner' = 'translator',
+  options: { writesSource?: boolean; repo?: { id: string } } = {},
 ) {
   const userId = await insertAccount();
+  const repo = options.repo ?? (await repository());
 
-  await db()
-    .insert(i18nTranslators)
-    .values({ userId, languages, role, writesSource: options.writesSource ?? false } as never);
+  await grant(userId, repo.id, { languages, role, writesSource: options.writesSource });
 
   return { userId, headers: await authHeaders(userId) };
 }
@@ -116,7 +124,13 @@ describe('GET /i18n/repositories', () => {
   /** The header shows the picture of the owner beside the name (DB-617). */
   it('gives each repository the picture of the account that holds its installation', async () => {
     const repo = await repository();
-    const other = { ...repo, id: newId(), installationId: 7, name: 'other-app' };
+    const other = {
+      ...repo,
+      id: newId(),
+      organizationId: await insertOrganization(),
+      installationId: 7,
+      name: 'other-app',
+    };
 
     await db()
       .insert(i18nRepositories)
@@ -216,6 +230,7 @@ describe('GET /i18n/catalogue', () => {
       .insert(i18nRepositories)
       .values({
         id: newId(),
+        organizationId: await insertOrganization(),
         installationId: 42,
         owner: 'acme',
         name: 'acme-app',
@@ -265,6 +280,27 @@ describe('POST /i18n/repositories', () => {
     expect((body.data as { created?: boolean }).created).toBe(true);
     expect(body.data.source).toBe('fr');
     expect(body.data.targets).toEqual(['en']);
+  });
+
+  /** A repository holds its members in an organization of its own, and the admin who connects it owns it (DB-637). */
+  it('gives the repository an organization, and makes the admin who connects it its owner', async () => {
+    const admin = await signedInAdmin();
+    const res = await app.request('/i18n/repositories', {
+      method: 'POST',
+      headers: { ...admin.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        installationId: 42,
+        owner: 'acme',
+        name: 'acme-app',
+        localesPath: 'src',
+        languages: ['fr'],
+      }),
+    });
+    const { id } = ((await res.json()) as { data: { id: string } }).data;
+    const [row] = await db().select().from(i18nRepositories).where(eq(i18nRepositories.id, id));
+    const owners = await db().select().from(members).where(eq(members.organizationId, row.organizationId));
+
+    expect(owners.map(({ userId, role }) => ({ userId, role }))).toEqual([{ userId: admin.userId, role: 'owner' }]);
   });
 
   it('keeps the path of a manifest that is not beside the languages', async () => {
@@ -671,7 +707,7 @@ describe('GET /i18n/me', () => {
     const admin = await signedInAdmin();
     const res = await app.request('/i18n/me', { headers: admin.headers });
 
-    expect(await res.json()).toMatchObject({ data: { admin: true, rights: null } });
+    expect(await res.json()).toMatchObject({ data: { admin: true, memberships: [] } });
   });
 
   /** The first step of connecting a repository is to install the App (DB-581). */
@@ -686,12 +722,16 @@ describe('GET /i18n/me', () => {
     expect(await of(headers)).toBeNull();
   });
 
-  it('tells a reviewer their languages and their role', async () => {
+  it('tells a reviewer their languages and their role, in each repository', async () => {
+    const repo = await repository();
     const { headers } = await translator(['en', 'de'], 'reviewer');
     const res = await app.request('/i18n/me', { headers });
 
     expect(await res.json()).toMatchObject({
-      data: { admin: false, rights: { languages: ['en', 'de'], role: 'reviewer', writesSource: false } },
+      data: {
+        admin: false,
+        memberships: [{ repositoryId: repo.id, languages: ['de', 'en'], role: 'reviewer', writesSource: false }],
+      },
     });
   });
 
@@ -700,7 +740,7 @@ describe('GET /i18n/me', () => {
     const { headers } = await translator([], 'translator', { writesSource: true });
     const res = await app.request('/i18n/me', { headers });
 
-    expect(await res.json()).toMatchObject({ data: { rights: { languages: [], writesSource: true } } });
+    expect(await res.json()).toMatchObject({ data: { memberships: [{ languages: [], writesSource: true }] } });
   });
 
   /**
@@ -716,7 +756,7 @@ describe('GET /i18n/me', () => {
     const res = await app.request('/i18n/me', { headers: await authHeaders(userId) });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ data: { admin: false, rights: null } });
+    expect(await res.json()).toMatchObject({ data: { admin: false, memberships: [] } });
   });
 });
 
@@ -1669,5 +1709,86 @@ describe('PATCH /i18n/repositories/:id', () => {
     expect(repo.commits.get(repo.refs.get('main')!)!.message).toBe(
       'translate(en): 1 key published\n\n- en common:hello',
     );
+  });
+});
+
+/** The rights of a member hold in its repository, and in no other (DB-637). */
+describe('members of one repository', () => {
+  async function otherRepository() {
+    const [row] = await db()
+      .insert(i18nRepositories)
+      .values({
+        id: newId(),
+        organizationId: await insertOrganization(),
+        installationId: 42,
+        owner: 'acme',
+        name: 'other-app',
+        branch: 'main',
+        localesPath: 'src/locales',
+        languages: ['fr', 'en'],
+      } as never)
+      .returning();
+
+    return row;
+  }
+
+  it('lists to a member only the repositories where it is a member', async () => {
+    const repo = await repository();
+
+    await otherRepository();
+
+    const { headers } = await translator(['en']);
+    const listed = (await (await app.request('/i18n/repositories', { headers })).json()) as {
+      data: Array<{ id: string }>;
+    };
+
+    expect(listed.data.map((row) => row.id)).toEqual([repo.id]);
+  });
+
+  it('refuses to a member the catalogue and the writes of another repository', async () => {
+    await repository();
+
+    const other = await otherRepository();
+    const { headers } = await translator(['en'], 'reviewer');
+    const read = await app.request(`/i18n/catalogue?repository=${other.id}&language=en`, { headers });
+    const proposed = await app.request('/i18n/proposals', {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        repository: other.id,
+        language: 'en',
+        readAt: 'a'.repeat(40),
+        values: [{ file: 'common', key: 'hello', value: 'Hi' }],
+      }),
+    });
+
+    expect(read.status).toBe(403);
+    expect(proposed.status).toBe(403);
+  });
+
+  it('gives an owner the rights of a reviewer in its languages', async () => {
+    const repo = await repository();
+    const { headers } = await translator(['en'], 'owner');
+    const res = await app.request('/i18n/me', { headers });
+
+    expect(await res.json()).toMatchObject({ data: { memberships: [{ repositoryId: repo.id, role: 'owner' }] } });
+  });
+
+  /** The plugin lets any signed-in account call its routes. A translator could make itself an owner. */
+  it('closes the routes of the organization plugin, even to a member', async () => {
+    const repo = await repository();
+    const { headers, userId } = await translator(['en']);
+
+    for (const path of ['update-member-role', 'add-member', 'remove-member', 'invite-member', 'leave', 'update']) {
+      const res = await app.request(`/api/auth/organization/${path}`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organizationId: repo.organizationId, memberId: userId, role: 'owner' }),
+      });
+
+      expect(res.status).toBe(404);
+    }
+
+    expect((await app.request('/api/auth/organization/list', { headers })).status).toBe(404);
   });
 });

@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
-import { i18nRepositories, newId, type I18nRepository, type PublishMode } from '@i18n-editor/db';
+import { i18nRepositories, newId, organizations, type I18nRepository, type PublishMode } from '@i18n-editor/db';
+import { auth } from '@/auth';
 import { db } from '@/db';
 import { withoutTrailingSlashes } from '@/utils/trailing-slashes';
 import {
@@ -144,8 +145,11 @@ export interface Added {
  * Adding the same repository twice is an operator pressing a button again, not
  * an error. It must not make a second row: two rows would each answer for it
  * with a branch of their own.
+ *
+ * A new repository gets the organization that holds its members (DB-637).
+ * `creatorId` becomes its owner, and no other account is a member.
  */
-export const addRepository = async (input: NewRepository): Promise<Added> => {
+export const addRepository = async (input: NewRepository, creatorId: string): Promise<Added> => {
   if (input.languages.length === 0) {
     throw new Error('A repository needs at least its source language.');
   }
@@ -160,23 +164,35 @@ export const addRepository = async (input: NewRepository): Promise<Added> => {
 
   await ensureReachable(input.installationId, input.owner, input.name);
 
-  const [created] = await db()
-    .insert(i18nRepositories)
-    .values({
-      id: newId(),
-      installationId: input.installationId,
-      owner: input.owner,
-      name: input.name,
-      branch: input.branch || 'main',
-      // A path that ends in a slash would double in a URL.
-      localesPath: withoutTrailingSlashes(input.localesPath),
-      manifestPath: input.manifestPath ?? null,
-      languages: input.languages,
-      publishMode: input.publishMode ?? 'commit',
-    })
-    .returning();
+  const id = newId();
+  const organization = await auth().api.createOrganization({
+    body: { name: `${input.owner}/${input.name}`, slug: id, userId: creatorId },
+  });
 
-  return { repository: created, created: true };
+  try {
+    const [created] = await db()
+      .insert(i18nRepositories)
+      .values({
+        id,
+        organizationId: organization.id,
+        installationId: input.installationId,
+        owner: input.owner,
+        name: input.name,
+        branch: input.branch || 'main',
+        // A path that ends in a slash would double in a URL.
+        localesPath: withoutTrailingSlashes(input.localesPath),
+        manifestPath: input.manifestPath ?? null,
+        languages: input.languages,
+        publishMode: input.publishMode ?? 'commit',
+      })
+      .returning();
+
+    return { repository: created, created: true };
+  } catch (error) {
+    // The plugin cannot delete an organization, so the editor removes the one it made for nothing.
+    await db().delete(organizations).where(eq(organizations.id, organization.id));
+    throw error;
+  }
 };
 
 /** What an admin changes on a connected repository. An absent field keeps its value (DB-609). */

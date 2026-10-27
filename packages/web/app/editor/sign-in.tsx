@@ -10,7 +10,7 @@ const SIGN_IN_ERROR = 'error';
  * The sign-in of the editor, with GitHub only (DB-570).
  *
  * A sign-in grants no language. An account opens the table only if it
- * administers, or if a row of `i18n_translators` names it.
+ * administers, or if it is a member of a repository (DB-637).
  */
 export function SignIn() {
   const [error, setError] = useState<string | null>(() =>

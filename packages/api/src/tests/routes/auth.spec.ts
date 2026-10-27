@@ -1,11 +1,11 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { authSessions, i18nTranslators, users } from '@i18n-editor/db';
+import { authSessions, i18nRepositories, newId, users } from '@i18n-editor/db';
 import app from '@/app';
 import type { GithubProfile } from 'better-auth/social-providers';
 import { createAuth, isAdmin, useAuth } from '@/auth';
 import { env } from '@/config/env';
-import { ADMIN_EMAIL, authHeaders, insertAccount } from '../db/fixtures';
+import { ADMIN_EMAIL, authHeaders, grant, insertAccount, insertOrganization } from '../db/fixtures';
 import { useTestDb } from '../db/test-db';
 
 const { db } = useTestDb();
@@ -20,10 +20,25 @@ const me = async (headers: Record<string, string> = {}) => {
   return { status: res.status, body: res.status === 200 ? ((await res.json()) as { data: unknown }).data : null };
 };
 
-const grant = (userId: string, row: Partial<typeof i18nTranslators.$inferInsert>) =>
-  db()
-    .insert(i18nTranslators)
-    .values({ userId, ...row });
+/** Makes `userId` a member of a new repository. */
+const grantIn = async (userId: string, options: Parameters<typeof grant>[2]) => {
+  const id = newId();
+
+  await db()
+    .insert(i18nRepositories)
+    .values({
+      id,
+      organizationId: await insertOrganization(),
+      installationId: 42,
+      owner: 'acme',
+      name: id,
+      localesPath: 'src/locales',
+      languages: ['fr', 'en'],
+    });
+  await grant(userId, id, options);
+
+  return id;
+};
 
 describe('isAdmin', () => {
   const admins = new Set(['admin@example.test']);
@@ -67,18 +82,18 @@ describe('who a session is', () => {
 
     expect(await me(await authHeaders(userId))).toEqual({
       status: 200,
-      body: { admin: false, rights: null, installUrl: null },
+      body: { admin: false, memberships: [], installUrl: null },
     });
   });
 
   it('gives a translator the languages of its row', async () => {
     const userId = await insertAccount();
 
-    await grant(userId, { languages: ['en'] });
+    const repositoryId = await grantIn(userId, { languages: ['en'] });
 
     expect((await me(await authHeaders(userId))).body).toEqual({
       admin: false,
-      rights: { languages: ['en'], role: 'translator', writesSource: false },
+      memberships: [{ repositoryId, languages: ['en'], role: 'translator', writesSource: false }],
       installUrl: null,
     });
   });
@@ -86,30 +101,34 @@ describe('who a session is', () => {
   it('gives a reviewer its role', async () => {
     const userId = await insertAccount();
 
-    await grant(userId, { languages: ['en'], role: 'reviewer' });
+    await grantIn(userId, { languages: ['en'], role: 'reviewer' });
 
-    expect((await me(await authHeaders(userId))).body).toMatchObject({ rights: { role: 'reviewer' } });
+    expect((await me(await authHeaders(userId))).body).toMatchObject({ memberships: [{ role: 'reviewer' }] });
   });
 
   it('gives the source to the account whose row says so', async () => {
     const userId = await insertAccount();
 
-    await grant(userId, { writesSource: true });
+    await grantIn(userId, { writesSource: true });
 
-    expect((await me(await authHeaders(userId))).body).toMatchObject({ rights: { writesSource: true } });
+    expect((await me(await authHeaders(userId))).body).toMatchObject({ memberships: [{ writesSource: true }] });
   });
 
   it('makes an admin of a verified address of ADMIN_EMAILS, whatever its case', async () => {
     const userId = await insertAccount({ email: 'BOSS@example.test' });
 
     expect(env.ADMIN_EMAILS.has('boss@example.test')).toBe(true);
-    expect((await me(await authHeaders(userId))).body).toEqual({ admin: true, rights: null, installUrl: INSTALL_URL });
+    expect((await me(await authHeaders(userId))).body).toEqual({
+      admin: true,
+      memberships: [],
+      installUrl: INSTALL_URL,
+    });
   });
 
   it('makes no admin of an address of ADMIN_EMAILS that GitHub did not verify', async () => {
     const userId = await insertAccount({ email: ADMIN_EMAIL, emailVerified: false });
 
-    expect((await me(await authHeaders(userId))).body).toEqual({ admin: false, rights: null, installUrl: null });
+    expect((await me(await authHeaders(userId))).body).toEqual({ admin: false, memberships: [], installUrl: null });
   });
 });
 
@@ -190,7 +209,7 @@ describe('the sign-in with GitHub', () => {
     expect(answer.location).toBe(`${EDITOR}/`);
     expect(await me({ cookie: answer.cookie })).toEqual({
       status: 200,
-      body: { admin: true, rights: null, installUrl: INSTALL_URL },
+      body: { admin: true, memberships: [], installUrl: INSTALL_URL },
     });
   });
 
@@ -202,6 +221,6 @@ describe('the sign-in with GitHub', () => {
     expect(await db().select({ email: users.email, verified: users.emailVerified }).from(users)).toEqual([
       { email: ADMIN_EMAIL, verified: false },
     ]);
-    expect((await me({ cookie: second.cookie })).body).toEqual({ admin: false, rights: null, installUrl: null });
+    expect((await me({ cookie: second.cookie })).body).toEqual({ admin: false, memberships: [], installUrl: null });
   });
 });

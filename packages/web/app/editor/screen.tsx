@@ -15,6 +15,7 @@ import {
   publicationState as readPublication,
   publish,
   repositories as readRepositories,
+  rightsIn,
   rightsOf,
   type PublishPull,
   type RefusedKey,
@@ -368,7 +369,10 @@ function Editor({
         : (repositories.value[0] ?? null)
       : null;
   const access = useMemo(
-    () => (me.state === 'done' && repository ? accessOf(me.value, repository.targets, repository.source) : null),
+    () =>
+      me.state === 'done' && repository
+        ? accessOf(rightsIn(me.value, repository.id), repository.targets, repository.source)
+        : null,
     [me, repository],
   );
   // The source comes first in the list, and opens only when it is chosen: a
