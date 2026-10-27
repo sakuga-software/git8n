@@ -12,6 +12,7 @@ catalog:
   '@types/react-dom': ^19.3.0
   better-auth: ^1.7.5
   drizzle-orm: 0.45.3
+  nodemailer: 10.1.0
   postgres: 3.4.9
   react: ^19.3.0
   react-dom: ^19.3.0

@@ -1,11 +1,22 @@
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { authSessions, i18nRepositories, newId, users } from '@i18n-editor/db';
+import {
+  authAccounts,
+  authSessions,
+  i18nRepositories,
+  memberLanguages,
+  members,
+  newId,
+  pendingMembers,
+  users,
+} from '@i18n-editor/db';
 import app from '@/app';
 import type { GithubProfile } from 'better-auth/social-providers';
-import { createAuth, isAdmin, useAuth } from '@/auth';
+import { createAuth, isAdmin, sendMagicLinkTo, useAuth } from '@/auth';
+import { useDatabase } from '@/db';
+import { sentInDevelopment } from '@/services/mail.service';
 import { env } from '@/config/env';
-import { ADMIN_EMAIL, authHeaders, grant, insertAccount, insertOrganization } from '../db/fixtures';
+import { ADMIN_EMAIL, authHeaders, grant, insertAccount, insertOrganization, invite } from '../db/fixtures';
 import { useTestDb } from '../db/test-db';
 
 const { db } = useTestDb();
@@ -200,6 +211,97 @@ describe('the sign-in with GitHub', () => {
     };
   };
 
+  /** A person added by GitHub login is a member at the first sign-in (DB-645). */
+  it('makes a member of the GitHub account that an invitation names, and deletes the invitation', async () => {
+    const repositoryId = await grantIn(await insertAccount(), {});
+
+    await invite(repositoryId, { githubId: '4242', role: 'reviewer', languages: ['en'] });
+
+    const answer = await signIn({ id: '4242', email: 'ann@example.test', emailVerified: false, name: 'Ann' });
+
+    expect((await me({ cookie: answer.cookie })).body).toMatchObject({
+      memberships: [{ repositoryId, role: 'reviewer', languages: ['en'] }],
+    });
+    expect(await db().select().from(pendingMembers)).toEqual([]);
+  });
+
+  /** Without this rule, an address added to GitHub and never verified takes the invitation. */
+  it('gives an invitation by address to a GitHub account only when GitHub verified the address', async () => {
+    const repositoryId = await grantIn(await insertAccount(), {});
+
+    await invite(repositoryId, { email: 'ann@example.test', languages: ['en'] });
+
+    const unverified = await signIn({ id: '1', email: 'ann@example.test', emailVerified: false, name: 'Ann' });
+
+    expect((await me({ cookie: unverified.cookie })).body).toMatchObject({ memberships: [] });
+
+    await db().delete(users);
+
+    const verified = await signIn({ id: '1', email: 'ann@example.test', emailVerified: true, name: 'Ann' });
+
+    expect((await me({ cookie: verified.cookie })).body).toMatchObject({ memberships: [{ repositoryId }] });
+  });
+
+  /** A person invited by address signs in with a magic link, then with GitHub: one account (DB-645). */
+  it('joins a GitHub sign-in to the account of the same verified address', async () => {
+    const userId = await insertAccount({ email: 'ann@example.test', emailVerified: true });
+    const answer = await signIn({ id: '7', email: 'ann@example.test', emailVerified: true, name: 'Ann' });
+
+    expect(answer.location).toBe(`${EDITOR}/`);
+    expect(await db().select({ id: users.id }).from(users)).toEqual([{ id: userId }]);
+  });
+
+  it('does not join a GitHub sign-in whose address GitHub did not verify', async () => {
+    await insertAccount({ email: 'ann@example.test', emailVerified: true });
+
+    const answer = await signIn({ id: '7', email: 'ann@example.test', emailVerified: false, name: 'Ann' });
+
+    expect(answer.location).toContain('error=');
+    expect(await db().select().from(authSessions)).toEqual([]);
+  });
+
+  /**
+   * A person adds an invited address to their GitHub account, and does not
+   * verify it. The owner of the address then opens a magic link. better-auth
+   * removes the GitHub link and the sessions of the account before it marks
+   * the address verified, so the invitation goes to the owner of the address.
+   */
+  it('gives an invitation to the owner of the address, not to a GitHub account that claimed it unverified', async () => {
+    const repositoryId = await grantIn(await insertAccount(), {});
+
+    await invite(repositoryId, { email: 'ann@example.test', role: 'owner', languages: ['en'] });
+
+    const claim = await signIn({ id: '666', email: 'ann@example.test', emailVerified: false, name: 'Mallory' });
+
+    expect((await me({ cookie: claim.cookie })).body).toMatchObject({ memberships: [] });
+
+    await app.request(`${EDITOR}/api/auth/sign-in/magic-link`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: EDITOR },
+      body: JSON.stringify({ email: 'ann@example.test', callbackURL: `${EDITOR}/` }),
+    });
+    await vi.waitFor(() => expect(sentInDevelopment).toHaveLength(1), { timeout: 5000 });
+
+    const link = sentInDevelopment[0].text.match(/https?:\/\/\S+/)?.[0] ?? '';
+    const opened = await app.request(link);
+    const cookie = opened.headers
+      .getSetCookie()
+      .map((line) => line.split(';')[0])
+      .join('; ');
+
+    sentInDevelopment.length = 0;
+
+    expect((await me({ cookie })).body).toMatchObject({ memberships: [{ repositoryId, role: 'owner' }] });
+    // The session and the GitHub link of the claim are gone.
+    expect((await me({ cookie: claim.cookie })).status).toBe(401);
+    expect(await db().select().from(authAccounts)).toEqual([]);
+
+    const again = await signIn({ id: '666', email: 'ann@example.test', emailVerified: false, name: 'Mallory' });
+
+    expect(again.location).toContain('error=');
+    expect((await me({ cookie: again.cookie })).status).toBe(401);
+  });
+
   it('sends the browser to GitHub, then back to the editor with a session', async () => {
     const answer = await signIn({ id: '42', email: ADMIN_EMAIL, emailVerified: true, name: 'Mathieu' });
 
@@ -222,5 +324,131 @@ describe('the sign-in with GitHub', () => {
       { email: ADMIN_EMAIL, verified: false },
     ]);
     expect((await me({ cookie: second.cookie })).body).toEqual({ admin: false, memberships: [], installUrl: null });
+  });
+});
+
+/** The sign-in by magic link, for a person invited by address (DB-645). */
+describe('the sign-in with a magic link', () => {
+  afterEach(() => {
+    sentInDevelopment.length = 0;
+  });
+
+  const ask = (email: string) =>
+    app.request(`${EDITOR}/api/auth/sign-in/magic-link`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: EDITOR },
+      body: JSON.stringify({ email, callbackURL: `${EDITOR}/` }),
+    });
+
+  const linkIn = (text: string) => text.match(/https?:\/\/\S+/)?.[0] ?? '';
+
+  it('sends an invited address a link that opens a session, and makes the account a member', async () => {
+    const repositoryId = await grantIn(await insertAccount(), {});
+
+    await invite(repositoryId, { email: 'Ann@Example.test', role: 'translator', languages: ['en'] });
+
+    expect((await ask('ann@example.test')).status).toBe(200);
+    await vi.waitFor(() => expect(sentInDevelopment).toHaveLength(1));
+
+    const [mail] = sentInDevelopment;
+
+    expect(mail.to).toBe('ann@example.test');
+    expect(mail.text).toContain(`acme/${repositoryId}`);
+
+    const opened = await app.request(linkIn(mail.text));
+    const cookie = opened.headers
+      .getSetCookie()
+      .map((line) => line.split(';')[0])
+      .join('; ');
+
+    expect(opened.status).toBe(302);
+    expect((await me({ cookie })).body).toMatchObject({
+      admin: false,
+      memberships: [{ repositoryId, role: 'translator', languages: ['en'] }],
+    });
+    expect(
+      await db()
+        .select({ name: users.name, verified: users.emailVerified })
+        .from(users)
+        .where(eq(users.email, 'ann@example.test')),
+    ).toEqual([{ name: 'ann', verified: true }]);
+    expect(await db().select().from(pendingMembers)).toEqual([]);
+  });
+
+  it('answers the same to an address it does not know, and sends it nothing', async () => {
+    const res = await ask('stranger@example.test');
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: true });
+
+    await sendMagicLinkTo('stranger@example.test', `${EDITOR}/link`);
+
+    expect(sentInDevelopment).toEqual([]);
+    expect(await db().select().from(users)).toEqual([]);
+  });
+
+  it('sends a link to an admin, and to the verified address of a member, and to no other account', async () => {
+    const memberId = await insertAccount({ email: 'member@example.test', emailVerified: true });
+    const unverifiedId = await insertAccount({ email: 'unverified@example.test', emailVerified: false });
+    const repositoryId = await grantIn(memberId, {});
+
+    await grant(unverifiedId, repositoryId);
+    await insertAccount({ email: 'nobody@example.test' });
+
+    for (const address of [ADMIN_EMAIL, 'member@example.test', 'unverified@example.test', 'nobody@example.test']) {
+      await sendMagicLinkTo(address, `${EDITOR}/link`);
+    }
+
+    expect(sentInDevelopment.map((mail) => mail.to)).toEqual([ADMIN_EMAIL, 'member@example.test']);
+  });
+
+  /** A member with no language would refuse a second try as « already a member ». */
+  it('keeps the invitation, and adds no member, when its languages cannot be written', async () => {
+    const userId = await insertAccount({ email: 'ann@example.test', emailVerified: true });
+    const repositoryId = await grantIn(await insertAccount(), {});
+
+    await invite(repositoryId, { email: 'ann@example.test', languages: ['en'] });
+
+    const real = db();
+    const failing = new Proxy(real, {
+      get(target, property, receiver) {
+        if (property !== 'insert') return Reflect.get(target, property, receiver);
+
+        return (table: unknown) =>
+          table === memberLanguages
+            ? { values: () => Promise.reject(new Error('the database refused the languages')) }
+            : target.insert(table as never);
+      },
+    });
+
+    useDatabase({ db: failing, close: async () => {} });
+
+    try {
+      await authHeaders(userId);
+    } finally {
+      useDatabase({ db: real, close: async () => {} });
+    }
+
+    expect(await db().select().from(members).where(eq(members.userId, userId))).toEqual([]);
+    expect(await db().select({ email: pendingMembers.email }).from(pendingMembers)).toEqual([
+      { email: 'ann@example.test' },
+    ]);
+
+    await authHeaders(userId);
+
+    expect(await db().select({ role: members.role }).from(members).where(eq(members.userId, userId))).toEqual([
+      { role: 'translator' },
+    ]);
+  });
+
+  it('keeps the rights of a member that an invitation names again', async () => {
+    const userId = await insertAccount({ email: 'ann@example.test', emailVerified: true });
+    const repositoryId = await grantIn(userId, { role: 'reviewer', languages: ['en'] });
+
+    await invite(repositoryId, { email: 'ann@example.test', role: 'translator' });
+    await authHeaders(userId);
+
+    expect(await db().select({ role: members.role }).from(members)).toEqual([{ role: 'reviewer' }]);
+    expect(await db().select().from(pendingMembers)).toEqual([]);
   });
 });

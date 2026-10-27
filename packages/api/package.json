@@ -17,6 +17,7 @@
     "drizzle-orm": "catalog:",
     "hono": "^4.13.8",
     "jsonwebtoken": "^9.0.3",
+    "nodemailer": "catalog:",
     "postgres": "catalog:",
     "winston": "^3.19.0",
     "zod": "catalog:"
