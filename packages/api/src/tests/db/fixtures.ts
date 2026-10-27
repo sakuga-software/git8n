@@ -6,6 +6,8 @@ import {
   type MemberRole,
   newId,
   organizations,
+  pendingMemberLanguages,
+  pendingMembers,
   users,
 } from '@i18n-editor/db';
 import { auth } from '@/auth';
@@ -90,4 +92,35 @@ export async function grant(
       .insert(memberLanguages)
       .values(options.languages.map((language) => ({ memberId, language })));
   }
+}
+
+/** A member that waits for its first sign-in, named by address or by GitHub ID. */
+export async function invite(
+  repositoryId: string,
+  options: { email?: string; githubId?: string; role?: MemberRole; languages?: string[]; writesSource?: boolean },
+): Promise<string> {
+  const [repository] = await db()
+    .select({ organizationId: i18nRepositories.organizationId })
+    .from(i18nRepositories)
+    .where(eq(i18nRepositories.id, repositoryId));
+  const id = newId();
+
+  await db()
+    .insert(pendingMembers)
+    .values({
+      id,
+      organizationId: repository.organizationId,
+      email: options.email?.toLowerCase() ?? null,
+      githubId: options.githubId ?? null,
+      role: options.role ?? 'translator',
+      writesSource: options.writesSource ?? false,
+    });
+
+  if (options.languages?.length) {
+    await db()
+      .insert(pendingMemberLanguages)
+      .values(options.languages.map((language) => ({ pendingMemberId: id, language })));
+  }
+
+  return id;
 }

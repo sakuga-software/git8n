@@ -50,6 +50,13 @@
       "when": 1793092856307,
       "tag": "0006_drop_global_translators",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793093194640,
+      "tag": "0007_pending_members",
+      "breakpoints": true
     }
   ]
 }

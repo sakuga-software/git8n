@@ -1,5 +1,16 @@
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, index, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  boolean,
+  check,
+  index,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 
 /**
  * An account of the editor. better-auth writes it at the first sign-in with GitHub.
@@ -249,4 +260,51 @@ export const memberLanguages = pgTable(
     language: text('language').notNull(),
   },
   (table) => [primaryKey({ columns: [table.memberId, table.language] })],
+);
+
+/**
+ * A member that has no account yet (DB-637, DB-645). An admin or an owner adds
+ * a person by address or by GitHub login before their first sign-in.
+ *
+ * The first session of an account that matches the row makes it a member, and
+ * deletes the row. An address matches only when it is verified: by the magic
+ * link, or by GitHub. A GitHub login is kept as its numeric ID, which stays
+ * the same when the person changes their login.
+ */
+export const pendingMembers = pgTable(
+  'pending_members',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    /** Lower case. */
+    email: text('email'),
+    githubId: text('github_id'),
+    /** The login at the time of the invitation, to show it. `githubId` is what matches. */
+    githubLogin: text('github_login'),
+    role: text('role').notNull(),
+    writesSource: boolean('writes_source').notNull().default(false),
+    invitedBy: text('invited_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('pending_members_organization_email_idx').on(table.organizationId, table.email),
+    uniqueIndex('pending_members_organization_github_idx').on(table.organizationId, table.githubId),
+    index('pending_members_email_idx').on(table.email),
+    index('pending_members_github_id_idx').on(table.githubId),
+    check('pending_members_names_somebody', sql`${table.email} is not null or ${table.githubId} is not null`),
+  ],
+);
+
+/** The languages a pending member will write, one row per language. */
+export const pendingMemberLanguages = pgTable(
+  'pending_member_languages',
+  {
+    pendingMemberId: text('pending_member_id')
+      .notNull()
+      .references(() => pendingMembers.id, { onDelete: 'cascade' }),
+    language: text('language').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.pendingMemberId, table.language] })],
 );

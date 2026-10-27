@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { bearer } from 'better-auth/plugins';
+import { magicLink } from 'better-auth/plugins/magic-link';
 import { organization } from 'better-auth/plugins/organization';
 import type { GithubOptions } from 'better-auth/social-providers';
 import type { MiddlewareHandler } from 'hono';
@@ -19,6 +20,9 @@ import {
 import { env } from './config/env';
 import { db } from './db';
 import { ac, roles } from './permissions';
+import { admitPending, mayReceiveMagicLink, repositoriesInvitingAddress } from './services/i18n-members.service';
+import { sendMail } from './services/mail.service';
+import { logger } from './utils/logger';
 
 /** The account of a request that `withAuth` let through. */
 export interface AuthUser {
@@ -64,10 +68,31 @@ export function createAuth(options: AuthOptions) {
     account: {
       modelName: 'auth_accounts',
       encryptOAuthTokens: true,
-      // GitHub is the only way in, so an address never belongs to two accounts.
-      accountLinking: { enabled: false },
+      // A person invited by address signs in with a magic link, then maybe
+      // with GitHub (DB-645). The two join into one account only if GitHub says
+      // that the address is verified. Do not add GitHub to `trustedProviders`:
+      // a trusted provider joins an address that it did not verify.
+      accountLinking: { enabled: true },
     },
     verification: { modelName: 'auth_verifications' },
+    databaseHooks: {
+      user: {
+        create: {
+          // A magic link creates an account with no name when the form sends none.
+          before: async (user) => ({
+            data: { ...user, name: user.name?.trim() || user.email.split('@')[0] },
+          }),
+        },
+      },
+      session: {
+        create: {
+          // Each sign-in makes the account a member where an invitation waits for it (DB-645).
+          after: async (session) => {
+            await admitPending(session.userId);
+          },
+        },
+      },
+    },
     emailAndPassword: { enabled: false },
     ...(options.github && {
       socialProviders: {
@@ -84,6 +109,15 @@ export function createAuth(options: AuthOptions) {
       bearer(),
       // One organization for each repository holds its members (DB-637). The
       // routes of the editor do every change: `app.ts` closes the routes of the plugin.
+      magicLink({
+        // The answer is the same for every address, and comes before the mail
+        // leaves: a slow answer would say that the address is known.
+        sendMagicLink: async ({ email, url }) => {
+          void sendMagicLinkTo(email, url).catch((error: unknown) =>
+            logger.error('The magic link was not sent', { error }),
+          );
+        },
+      }),
       organization({
         ac,
         roles,
@@ -99,6 +133,23 @@ export function createAuth(options: AuthOptions) {
         },
       }),
     ],
+  });
+}
+
+/** Sends a magic link, to an address that may receive one (DB-645). Any other address gets nothing. */
+export async function sendMagicLinkTo(email: string, url: string): Promise<void> {
+  if (!(await mayReceiveMagicLink(email))) return;
+
+  const inviting = await repositoriesInvitingAddress(email);
+  const intro =
+    inviting.length > 0
+      ? `Vous êtes invité à traduire ${inviting.join(', ')} dans l'éditeur des traductions.`
+      : "Voici votre lien de connexion à l'éditeur des traductions.";
+
+  await sendMail({
+    to: email,
+    subject: inviting.length > 0 ? 'Invitation à traduire' : 'Votre lien de connexion',
+    text: `Bonjour,\n\n${intro}\n\nOuvrez ce lien pour vous connecter. Il sert une seule fois et expire dans 5 minutes :\n${url}\n\nSi vous n'avez rien demandé, ignorez ce message.`,
   });
 }
 
