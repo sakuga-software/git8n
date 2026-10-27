@@ -1,6 +1,5 @@
 import { Button } from '@heroui/react/button';
-import { Modal } from '@heroui/react/modal';
-import { Info, Lock, Plus } from './icons';
+import { Lock, Plus } from './icons';
 import { shareOf, type RowState } from './rows';
 
 const countOf = (value: number): string => value.toLocaleString('fr-FR');
@@ -47,7 +46,6 @@ export function LanguageHeader({
   counts,
   emptyCount = 0,
   readOnly,
-  notices,
   onNewKey,
   newKeyDisabled,
   compact = false,
@@ -67,13 +65,12 @@ export function LanguageHeader({
   emptyCount?: number;
   /** The account reads this language and cannot write it. The title says so: a dialog alone would hide why a field refuses. */
   readOnly: boolean;
-  notices: readonly string[];
   /** `null` for an account that does not write the source. */
   onNewKey: (() => void) | null;
   newKeyDisabled: boolean;
   /**
-   * The header of the view of one key: one line, no bar, and the remarks as a
-   * number. The room goes to the key.
+   * The header of the view of one key: one line and no bar. The room goes to
+   * the key.
    */
   compact?: boolean;
   /** What the view puts at the right end: the switch between the two views. */
@@ -148,40 +145,6 @@ export function LanguageHeader({
       </div>
 
       <div className="flex flex-wrap items-center gap-2.5">
-        {notices.length > 0 && (
-          <Modal>
-            <Button
-              variant="tertiary"
-              aria-label={`${notices.length} ${notices.length > 1 ? 'remarques' : 'remarque'}`}
-              className="border-line bg-panel text-sub border"
-            >
-              <Info size={15} className="text-muted" />
-              {notices.length} {!compact && (notices.length > 1 ? 'remarques' : 'remarque')}
-            </Button>
-            <Modal.Backdrop>
-              <Modal.Container size="md">
-                <Modal.Dialog>
-                  <Modal.CloseTrigger aria-label="Fermer" />
-                  <Modal.Header>
-                    <Modal.Heading>À savoir sur cette langue</Modal.Heading>
-                  </Modal.Header>
-                  <Modal.Body>
-                    <ul className="text-sub flex list-disc flex-col gap-2.5 pl-5 text-sm leading-normal">
-                      {notices.map((text) => (
-                        <li key={text}>{text}</li>
-                      ))}
-                    </ul>
-                  </Modal.Body>
-                  <Modal.Footer>
-                    <Button slot="close" variant="outline">
-                      Fermer
-                    </Button>
-                  </Modal.Footer>
-                </Modal.Dialog>
-              </Modal.Container>
-            </Modal.Backdrop>
-          </Modal>
-        )}
         {onNewKey && !compact && (
           <Button variant="outline" isDisabled={newKeyDisabled} onPress={onNewKey} className="border-ink">
             <Plus size={15} />
