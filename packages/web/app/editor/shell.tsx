@@ -1,5 +1,5 @@
 import { Dropdown } from '@heroui/react/dropdown';
-import { createContext, useMemo, useRef, useState } from 'react';
+import { createContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { signOut, useSession } from '~/utils/auth-client';
 import { ChevronDown, Lock, Wrench } from '~/editor/icons';
@@ -54,6 +54,9 @@ export const ShellSlots = createContext<Slots>({ project: null, side: null, fold
 
 const FOLDED = 'i18n.side-panel.folded';
 
+/** How long the panel marks its new content to fade in. `app.css` holds the durations. */
+const SWAP_MS = 400;
+
 /** The choice of the person, kept by the browser. A browser that refuses the storage keeps the panel open. */
 const foldedAtStart = (): boolean => {
   try {
@@ -76,6 +79,12 @@ export function Shell({
   const [project, setProject] = useState<HTMLElement | null>(null);
   const [side, setSide] = useState<HTMLElement | null>(null);
   const [folded, setFoldedState] = useState(foldedAtStart);
+  // Only a fold that the person asks for fades the content in: a block that mounts later appears at once.
+  const [swap, setSwap] = useState<'folded' | 'unfolded' | null>(null);
+  const swapEnd = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(swapEnd.current), []);
+
   const slots = useMemo(
     () => ({
       project,
@@ -83,6 +92,9 @@ export function Shell({
       folded,
       setFolded: (next: boolean) => {
         setFoldedState(next);
+        setSwap(next ? 'folded' : 'unfolded');
+        window.clearTimeout(swapEnd.current);
+        swapEnd.current = window.setTimeout(() => setSwap(null), SWAP_MS);
 
         try {
           window.localStorage.setItem(FOLDED, next ? '1' : '0');
@@ -153,7 +165,8 @@ export function Shell({
         <aside
           ref={setSide}
           aria-label="Langues et fichiers"
-          className={`border-line bg-side flex min-w-0 flex-col gap-[22px] border-r pt-3.5 pb-5 empty:hidden md:relative md:overflow-y-auto ${
+          data-swap={swap ?? undefined}
+          className={`side-panel border-line bg-side flex min-w-0 flex-col gap-[22px] overflow-x-hidden border-r pt-3.5 pb-5 empty:hidden md:relative md:overflow-y-auto motion-safe:md:transition-[flex-basis] motion-safe:md:duration-220 motion-safe:md:ease-[cubic-bezier(0.25,1,0.5,1)] ${
             folded ? 'flex-[0_0_60px] px-2.5' : 'flex-[1_1_264px] px-3'
           }`}
         />
