@@ -12,6 +12,7 @@ import {
   draftsAfterProposal,
   filesIn,
   idOf,
+  manages,
   linesOf,
   matching,
   matchIn,
@@ -242,6 +243,15 @@ describe('what an account can do', () => {
 
     expect(access.mayPublish('en')).toBe(true);
     expect(access.mayPublish('de')).toBe(false);
+  });
+
+  /** The settings and the branch label show to who manages the repository (DB-659). */
+  it('says that an admin and an owner manage the repository, and no other member', () => {
+    expect(manages({ admin: true, rights: null })).toBe(true);
+    expect(manages({ admin: false, rights: { languages: [], role: 'owner' } })).toBe(true);
+    expect(manages({ admin: false, rights: { languages: ['en'], role: 'reviewer' } })).toBe(false);
+    expect(manages({ admin: false, rights: { languages: ['en'], role: 'translator' } })).toBe(false);
+    expect(manages({ admin: false, rights: null })).toBe(false);
   });
 
   /** A member of one repository holds nothing in another (DB-637). */

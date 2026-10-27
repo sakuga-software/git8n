@@ -49,6 +49,7 @@ import {
   draftsAfterProposal,
   filesIn,
   idOf,
+  manages,
   matching,
   neighboursOf,
   openOf,
@@ -957,7 +958,7 @@ function Editor({
                 </Outside>
               )}
             </span>
-            {(me.value.admin || rightsIn(me.value, repository.id).rights?.role === 'owner') && (
+            {manages(rightsIn(me.value, repository.id)) && (
               <Link
                 to={`/repositories/${encodeURIComponent(repository.id)}/settings`}
                 onClick={(event) => {
@@ -969,21 +970,22 @@ function Editor({
                 Réglages
               </Link>
             )}
-            {/* The window: a translator must know which state of the repository this is. */}
-            <span title="La branche et le commit lus par cette page" className="text-muted font-mono text-xs">
-              <Outside href={branchUrl(repository)} className="text-sub no-underline">
-                {repository.branch}
-              </Outside>{' '}
-              @{' '}
-              {catalogue.state === 'done' ? (
-                // The commit that was read, not the head of the branch.
-                <Outside href={commitUrl(repository, catalogue.value.commit)} className="text-sub no-underline">
-                  {catalogue.value.commit.slice(0, 7)}
-                </Outside>
-              ) : (
-                '–'
-              )}
-            </span>
+            {manages(rightsIn(me.value, repository.id)) && (
+              <span title="La branche et le commit lus par cette page" className="text-muted font-mono text-xs">
+                <Outside href={branchUrl(repository)} className="text-sub no-underline">
+                  {repository.branch}
+                </Outside>{' '}
+                @{' '}
+                {catalogue.state === 'done' ? (
+                  // The commit that was read, not the head of the branch.
+                  <Outside href={commitUrl(repository, catalogue.value.commit)} className="text-sub no-underline">
+                    {catalogue.value.commit.slice(0, 7)}
+                  </Outside>
+                ) : (
+                  '–'
+                )}
+              </span>
+            )}
           </>,
           slots.project,
         )}
