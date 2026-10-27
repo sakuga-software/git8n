@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { hashKey, QueryClient, useQuery, type QueryObserverResult } from '@tanstack/react-query';
 import { ApiError } from '@i18n-editor/mcp/api';
 
@@ -94,6 +94,14 @@ export const readOf = <T>(result: QueryObserverResult<T>): Read<T> => {
   return { state: 'done', value: result.data };
 };
 
+/** Whether a poll starts now: the tab shows, no poll is in flight, and `when` says yes. */
+export const mayPoll = (visible: boolean, inFlight: boolean, when?: () => boolean): boolean =>
+  visible && !inFlight && (when?.() ?? true);
+
+/** The answer during a poll. It does not say that it refreshes, but it keeps a failure. */
+export const quietly = <T>(answer: Read<T>): Read<T> =>
+  answer.state === 'done' && answer.refreshing ? { state: 'done', value: answer.value } : answer;
+
 /**
  * The reads to drop when the last page that shows them leaves.
  *
@@ -138,11 +146,41 @@ const dropIfLeft = (hash: string): void => {
  * still stays, and says that it can be out of date. A read of another thing,
  * another language for example, shows its own answer from the cache, or loads:
  * it never shows the answer of the thing before.
+ *
+ * With `poll`, the read starts again every `everyMs` while the tab shows and
+ * `when` says yes (DB-651). Then a change made outside the editor, a merge on
+ * GitHub for example, shows with no reload. A poll does not say that it
+ * refreshes: the screen does not blink every few seconds. A poll that fails
+ * says that the answer can be out of date, as any other read does.
  */
-export const useRead = <T>(key: string | null, read: () => Promise<T>): [Read<T>, () => void] => {
+export const useRead = <T>(
+  key: string | null,
+  read: () => Promise<T>,
+  poll?: { everyMs: number; when?: () => boolean },
+): [Read<T>, () => void] => {
   const queryKey = key === null ? ['none'] : queryKeyOf(key);
   const result = useQuery({ queryKey, queryFn: read, enabled: key !== null }, reads);
   const { refetch } = result;
+  const polling = useRef(false);
+  const everyMs = poll?.everyMs;
+  const when = useRef(poll?.when);
+
+  when.current = poll?.when;
+
+  useEffect(() => {
+    if (key === null || everyMs === undefined) return;
+
+    const timer = window.setInterval(() => {
+      if (!mayPoll(document.visibilityState === 'visible', polling.current, when.current)) return;
+
+      polling.current = true;
+      void refetch().finally(() => {
+        polling.current = false;
+      });
+    }, everyMs);
+
+    return () => window.clearInterval(timer);
+  }, [key, everyMs, refetch]);
 
   useEffect(() => {
     if (key === null) return;
@@ -155,5 +193,8 @@ export const useRead = <T>(key: string | null, read: () => Promise<T>): [Read<T>
     };
   }, [key]);
 
-  return [readOf(result), useCallback(() => void refetch(), [refetch])];
+  const answer = readOf(result);
+  const reload = useCallback(() => void refetch(), [refetch]);
+
+  return [polling.current ? quietly(answer) : answer, reload];
 };

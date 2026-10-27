@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { auth } from './auth';
 import { env } from './config/env';
 import { errorHandler } from './middlewares/error-handler';
+import githubWebhook from './routes/github-webhook';
 import i18nRoutes from './routes/i18n';
 import type { HonoEnv } from './types/hono';
 
@@ -17,6 +18,8 @@ app.all('/api/auth/organization/*', (c) => c.notFound());
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth().handler(c.req.raw));
 
 app.route('/i18n', i18nRoutes);
+
+app.route('/api/github/webhook', githubWebhook);
 
 app.get('/health', (c) => c.json({ status: 'ok' }));
 

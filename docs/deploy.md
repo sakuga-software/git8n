@@ -70,8 +70,13 @@ address from that header. Without the header, all the clients share one limit.
 | `SMTP_URL`                | no       | The SMTP server that sends the magic links to invited people (DB-645). Without it, no mail leaves, and an invited person without GitHub cannot sign in. | `smtps://user:password@smtp.example.com:465`       |
 | `MAIL_FROM`               | no       | The sender of the mails. The default is `Traductions <no-reply@<host of BETTER_AUTH_URL>>`.                                                             | `Traductions <no-reply@example.com>`               |
 | `GITHUB_APP_SLUG`         | no       | The name of the GitHub App in its address, `github.com/apps/<slug>`. The page links to its installation page.                                           | `i18n-editor`                                      |
+| `GITHUB_WEBHOOK_SECRET`   | no       | The secret of the webhook of the GitHub App (DB-651). Without it, the API takes no event, and a change made on GitHub shows after five minutes.         | 32 random bytes in hex                             |
 | `PORT`                    | no       | The port of the API. The image sets 8001.                                                                                                               | `8001`                                             |
 | `WEB_ROOT`                | no       | The folder of the built page. The image sets `/app/web`.                                                                                                | `/app/web`                                         |
+
+**A Scaleway server blocks the outbound SMTP ports 465 and 587**: the connection
+waits and no mail leaves. Scaleway TEM also listens on 2465 and 2587, so write
+`smtps://<project id>:<secret key>@smtp.tem.scaleway.com:2465`.
 
 [`github-app.md`](github-app.md) says how to create the App and get its four
 values. The callback URL of the App must be `BETTER_AUTH_URL` followed by

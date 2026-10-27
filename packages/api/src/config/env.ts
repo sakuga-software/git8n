@@ -45,6 +45,11 @@ const schema = z.object({
   SMTP_URL: z.string().optional(),
   /** The sender of the mails. The default uses the host of `BETTER_AUTH_URL`. */
   MAIL_FROM: z.string().optional(),
+  /**
+   * The secret of the webhook of the GitHub App (DB-651). Without it, the API
+   * takes no event, and a change made on GitHub shows after the cache time.
+   */
+  GITHUB_WEBHOOK_SECRET: z.string().min(16).optional(),
   I18N_GITHUB_APP_ID: z.string().optional(),
   I18N_GITHUB_PRIVATE_KEY: z.string().optional(),
 });

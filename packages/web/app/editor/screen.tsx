@@ -73,6 +73,9 @@ const PAGE = 100;
 /** How long a row takes to close. `app.css` holds the same duration. */
 const LEAVE_MS = 200;
 
+/** How often an open page reads GitHub again, to show a change made outside the editor (DB-651). */
+const POLL_MS = 30_000;
+
 const names = new Intl.DisplayNames('fr', { type: 'language', fallback: 'code' });
 
 /** « Anglais » for « anglais »: a title starts with a capital, and `Intl` gives none. */
@@ -383,20 +386,29 @@ function Editor({
       : (access?.languages.find((code) => code !== repository?.source) ?? access?.languages[0] ?? null);
   const readKey = repository && opened ? `${repository.id}\n${opened}` : null;
 
-  const [catalogue, reloadCatalogue] = useRead(readKey && `catalogue\n${readKey}`, () =>
-    readCatalogue(api, repository!.id, opened!),
+  // A value typed and not sent stays on the rows it was typed against: the poll waits for it.
+  const poll = { everyMs: POLL_MS, when: () => waiting.current === 0 };
+  const [catalogue, reloadCatalogue] = useRead(
+    readKey && `catalogue\n${readKey}`,
+    () => readCatalogue(api, repository!.id, opened!),
+    poll,
   );
-  const [proposed, reloadProposed] = useRead(readKey && `proposed\n${readKey}`, () =>
-    readProposedKeys(api, repository!.id, opened!),
+  const [proposed, reloadProposed] = useRead(
+    readKey && `proposed\n${readKey}`,
+    () => readProposedKeys(api, repository!.id, opened!),
+    poll,
   );
   // The other languages of the side panel. The open one counts its own rows, which a write changes at once.
-  const [progress, reloadProgress] = useRead(repository ? `progress\n${repository.id}` : null, () =>
-    readProgress(api, repository!.id),
+  const [progress, reloadProgress] = useRead(
+    repository ? `progress\n${repository.id}` : null,
+    () => readProgress(api, repository!.id),
+    poll,
   );
   // The pull request that carries the publications, for a repository that publishes through one (DB-606).
   const [publication, reloadPublication] = useRead(
     repository?.publishMode === 'pull_request' ? `publication\n${repository.id}` : null,
     () => readPublication(api, repository!.id),
+    poll,
   );
 
   const [filter, setFilter] = useState<RowState>('missing');

@@ -4,8 +4,8 @@
   "description": "Reads the locale files of a repository and commits the translations that a reviewer publishes.",
   "public": true,
   "hook_attributes": {
-    "url": "https://example.invalid/no-webhook",
-    "active": false
+    "url": "https://i18n.sakuga.dev/api/github/webhook",
+    "active": true
   },
   "redirect_url": "https://example.invalid/after-creation",
   "callback_urls": ["https://i18n.sakuga.dev/api/auth/callback/github"],
@@ -17,5 +17,5 @@
     "metadata": "read",
     "pull_requests": "write"
   },
-  "default_events": []
+  "default_events": ["push"]
 }
