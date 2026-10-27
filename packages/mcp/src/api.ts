@@ -267,6 +267,8 @@ export interface ReachableRepository {
   owner: string;
   name: string;
   private: boolean;
+  /** The last push to the repository. The list comes sorted by it, the newest first. */
+  pushedAt: string | null;
 }
 
 export interface ReachablePage {

@@ -32,11 +32,34 @@ export interface RepositoryChoice {
   owner: string;
   name: string;
   private: boolean;
+  /** The last push to the repository (DB-653). The list comes sorted by it. */
+  pushedAt?: string | null;
   /** The id of the row when the repository is connected already. */
   connectedId: string | null;
 }
 
 /** The key of a repository in the picker: `owner/name`, which GitHub compares whatever its case. */
+const AGO = new Intl.RelativeTimeFormat('fr', { numeric: 'auto' });
+
+const STEPS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+  ['year', 365 * 24 * 3600],
+  ['month', 30 * 24 * 3600],
+  ['week', 7 * 24 * 3600],
+  ['day', 24 * 3600],
+  ['hour', 3600],
+  ['minute', 60],
+];
+
+/** How long ago the last push was, as « il y a 3 jours », or null for a repository with no date. */
+export const pushedAgo = (pushedAt: string | null | undefined, now: number): string | null => {
+  if (!pushedAt) return null;
+
+  const seconds = (Date.parse(pushedAt) - now) / 1000;
+  const step = STEPS.find(([, size]) => Math.abs(seconds) >= size);
+
+  return step ? AGO.format(Math.round(seconds / step[1]), step[0]) : 'à l’instant';
+};
+
 export const keyOf = (repository: Pick<RepositoryChoice, 'owner' | 'name'>): string =>
   `${repository.owner}/${repository.name}`.toLowerCase();
 

@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { reachableRepositories, type Repository } from '@i18n-editor/mcp/api';
 import { api } from '~/utils/api';
 import { Retry } from './icons';
-import { keyOf, PICKER_PAGE, SEARCH_DELAY_MS, withPage, type RepositoryChoice } from './connect-flow';
+import { keyOf, PICKER_PAGE, pushedAgo, SEARCH_DELAY_MS, withPage, type RepositoryChoice } from './connect-flow';
 import { Busy } from './ui';
 import { readErrorOf, type ReadError } from './use-read';
 
@@ -176,7 +176,9 @@ export function RepositoryPicker({ reachable, picked, onPick, onOpen }: Props) {
                   )}
                 </span>
                 <span className="text-muted text-xs whitespace-nowrap">
-                  {row.connectedId ? 'Déjà branché' : row.account}
+                  {[row.connectedId ? 'Déjà branché' : row.account, pushedAgo(row.pushedAt, Date.now())]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </span>
                 <ListBox.ItemIndicator />
               </ListBox.Item>
