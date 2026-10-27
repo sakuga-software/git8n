@@ -217,7 +217,7 @@ export function KeyByKey({
   const why = refused.get(id);
 
   return (
-    <div className="border-line flex flex-wrap items-stretch overflow-hidden rounded-[10px] border">
+    <div className="border-line flex grow flex-wrap items-stretch overflow-hidden rounded-[10px] border">
       <div className="border-line flex min-w-0 flex-[1_1_340px] flex-col border-r">
         <div className="border-line flex flex-col gap-2.5 border-b p-3">
           <Sliding selected={counts === null ? null : filter} markClassName="segments-mark">
@@ -263,7 +263,11 @@ export function KeyByKey({
 
         {notice && <div className="border-line border-b p-3">{notice}</div>}
 
-        <ul ref={list} aria-label="Clés" className="flex max-h-[520px] min-h-40 flex-1 flex-col overflow-y-auto p-1.5">
+        <ul
+          ref={list}
+          aria-label="Clés"
+          className="flex max-h-[520px] min-h-40 flex-1 flex-col overflow-y-auto p-1.5 md:max-h-none md:basis-0"
+        >
           {page.rows.map((entry) => {
             const entryId = idOf(entry);
             const current = entryId === openId;

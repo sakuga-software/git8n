@@ -159,7 +159,7 @@ export function Shell({
         />
         {/* The inner column keeps its blocks at their own height: a flex item that scrolls would shrink. */}
         <main className="relative min-w-0 flex-[999_1_560px] md:overflow-y-auto">
-          <div className="flex flex-col gap-5 px-8 pt-6 pb-10">
+          <div className="flex min-h-full flex-col gap-5 px-8 pt-6 pb-10">
             <ShellSlots value={slots}>{children}</ShellSlots>
           </div>
         </main>
