@@ -72,7 +72,8 @@ function NewToken({ onCreated }: { onCreated: () => void }) {
   const create = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (name.trim() === '') return;
+    // A second token would take the place of the one on screen, which is readable this one time only.
+    if (name.trim() === '' || made) return;
 
     setBusy(true);
     setError(null);
@@ -113,7 +114,7 @@ function NewToken({ onCreated }: { onCreated: () => void }) {
             </span>
             <Choice label="Durée" value={life} items={LIFE_ITEMS} onChange={setLife} className="w-44" />
           </div>
-          <Button type="submit" isDisabled={busy || name.trim() === ''}>
+          <Button type="submit" isDisabled={busy || name.trim() === '' || made !== null}>
             {busy ? (
               <>
                 <Busy />
@@ -124,6 +125,11 @@ function NewToken({ onCreated }: { onCreated: () => void }) {
             )}
           </Button>
         </div>
+        {made && (
+          <p className="text-muted text-xs">
+            Copiez d'abord le jeton affiché ci-dessous, puis fermez-le pour en créer un autre.
+          </p>
+        )}
         {error && <Failure title="Le jeton n'a pas été créé." error={error} written />}
       </form>
 
