@@ -16,6 +16,7 @@ write('docs/index.html', '<p>the docs</p>');
 write('docs/guide/concepts.html', '<p>concepts</p>');
 write('docs/raw/guide/concepts.md', '# Concepts\n');
 write('docs/llms.txt', '# i18n-editor\n');
+write('docs/demo/index.html', '<p>the demo</p>');
 
 let app: (typeof import('../../app'))['default'];
 
@@ -50,6 +51,19 @@ describe('the site of the documentation', () => {
 
     expect(res.status).toBe(404);
     expect(await res.text()).not.toContain('the editor');
+  });
+
+  it('opens the demo on any of its paths, as the editor does', async () => {
+    expect(await (await app.request('/docs/demo/')).text()).toBe('<p>the demo</p>');
+    expect(await (await app.request('/docs/demo/index.html')).text()).toBe('<p>the demo</p>');
+    expect(await (await app.request('/docs/demo/repositories/demo-acme-shop')).text()).toBe('<p>the demo</p>');
+  });
+
+  it('answers 404 for a file of the demo that is not there, and not its page', async () => {
+    const res = await app.request('/docs/demo/assets/entry.client-old.js');
+
+    expect(res.status).toBe(404);
+    expect(await res.text()).not.toContain('the demo');
   });
 
   it('still opens the editor on its own paths', async () => {

@@ -1,12 +1,17 @@
+import { lazy, Suspense } from 'react';
 import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from 'react-router';
 
 import type { Route } from './+types/root';
 import './app.css';
 
+const BASE = import.meta.env.BASE_URL;
+
+const DemoChrome = __DEMO__ ? lazy(() => import('./demo/chrome')) : null;
+
 export const links: Route.LinksFunction = () => [
-  { rel: 'icon', href: '/favicon.ico', sizes: '32x32' },
-  { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
-  { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+  { rel: 'icon', href: `${BASE}favicon.ico`, sizes: '32x32' },
+  { rel: 'icon', href: `${BASE}favicon.svg`, type: 'image/svg+xml' },
+  { rel: 'apple-touch-icon', href: `${BASE}apple-touch-icon.png` },
   { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
   {
     rel: 'preconnect',
@@ -38,7 +43,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />;
+  return (
+    <>
+      <Outlet />
+      {DemoChrome && (
+        <Suspense>
+          <DemoChrome />
+        </Suspense>
+      )}
+    </>
+  );
 }
 
 /** The page of an error nothing else caught. It says what to do, in the language of the editor. */
@@ -58,7 +72,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
       </p>
       <p>
         {/* A link drawn as the primary button of HeroUI: `app.css` imports its `button.css`, which holds both classes. */}
-        <a href="/" className="button button--primary">
+        <a href={BASE} className="button button--primary">
           {missing ? "Ouvrir l'éditeur" : 'Recharger'}
         </a>
       </p>

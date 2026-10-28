@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "react-router build",
+    "build": "react-router build && node scripts/check-no-demo.mjs",
+    "build:demo": "I18N_EDITOR_DEMO=1 react-router build",
     "dev": "react-router dev",
+    "dev:demo": "I18N_EDITOR_DEMO=1 react-router dev --port 5209",
     "start": "react-router-serve ./build/server/index.js",
     "typecheck": "react-router typegen && tsc",
     "test": "vitest run"

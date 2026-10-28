@@ -25,6 +25,7 @@ an MCP server, with the rights of an account.
 pnpm install
 pnpm typecheck
 pnpm test
+pnpm -F @i18n-editor/docs demo  # the demo of the home page, built once
 pnpm -F @i18n-editor/docs dev   # the documentation, on port 5208
 ```
 

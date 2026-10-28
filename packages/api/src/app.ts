@@ -48,6 +48,13 @@ if (webRoot) {
     if (c.res.status === 200 && c.req.path.endsWith('.md')) c.header('Content-Type', 'text/markdown; charset=utf-8');
   });
   app.use('/*', serveStatic({ root: webRoot }));
+  // The demo of the home page of the documentation is the editor as a single page too (DB-673).
+  // A path with an extension names a file: a file that is not there answers 404, not the page.
+  app.get('/docs/demo/*', async (c, next) => {
+    if (/\.[^/]+$/.test(c.req.path)) return c.notFound();
+
+    return serveStatic({ root: webRoot, path: 'docs/demo/index.html' })(c, next);
+  });
   // The application is a single page: every other address opens it, and the router reads the path.
   app.get('/*', async (c, next) => {
     if (/^\/(api|i18n|docs)(\/|$)/.test(c.req.path)) return c.notFound();

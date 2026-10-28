@@ -11,6 +11,9 @@ hero:
       text: Getting started
       link: /guide/getting-started
     - theme: alt
+      text: Try the editor
+      link: '#demo-title'
+    - theme: alt
       text: Concepts
       link: /guide/concepts
     - theme: alt
