@@ -26,6 +26,32 @@ describe('an old host of the editor', () => {
     expect(new URL(res.headers.get('location')!).host).toBe(new URL(process.env.BETTER_AUTH_URL!).host);
   });
 
+  it('keeps the state and the code of an OAuth callback in the address', async () => {
+    const res = await app.request('/api/auth/callback/github?code=abc&state=xyz', {
+      headers: { host: 'old.example.test' },
+    });
+
+    expect(res.status).toBe(301);
+    expect(res.headers.get('location')).toBe(
+      new URL('/api/auth/callback/github?code=abc&state=xyz', process.env.BETTER_AUTH_URL).href,
+    );
+  });
+
+  it('serves a POST, such as a webhook delivery, as the host of BETTER_AUTH_URL does', async () => {
+    const post = (host: string) =>
+      app.request('/api/github/webhook', {
+        method: 'POST',
+        headers: { host, 'content-type': 'application/json', 'x-github-event': 'ping' },
+        body: '{}',
+      });
+    const onOldHost = await post('old.example.test');
+    const onNewHost = await post(new URL(process.env.BETTER_AUTH_URL!).host);
+
+    expect(onOldHost.status).not.toBe(301);
+    expect(onOldHost.headers.get('location')).toBeNull();
+    expect(onOldHost.status).toBe(onNewHost.status);
+  });
+
   it('serves every other host as before', async () => {
     const res = await app.request('/health', { headers: { host: 'other.example.test' } });
 

@@ -45,7 +45,8 @@ const schema = z.object({
   SMTP_URL: z.string().optional(),
   /**
    * The old hosts of the editor, separated by commas, such as `i18n.example.com`.
-   * A request to one of them answers 301 to the same path on `BETTER_AUTH_URL`.
+   * A GET or a HEAD to one of them answers 301 to the same path on `BETTER_AUTH_URL`.
+   * The API serves the other methods, such as a webhook delivery, on the old host.
    */
   REDIRECT_HOSTS: z
     .string()
