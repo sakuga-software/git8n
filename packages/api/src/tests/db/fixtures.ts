@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import {
   i18nRepositories,
@@ -45,6 +46,15 @@ export async function authHeaders(userId: string): Promise<Record<string, string
   const session = await context.internalAdapter.createSession(userId);
 
   return { authorization: `Bearer ${session.token}` };
+}
+
+/** The headers of a request of the browser: the session cookie, signed as better-auth signs it. */
+export async function cookieHeaders(userId: string): Promise<Record<string, string>> {
+  const context = await auth().$context;
+  const session = await context.internalAdapter.createSession(userId);
+  const signature = createHmac('sha256', context.secret).update(session.token).digest('base64');
+
+  return { cookie: `better-auth.session_token=${encodeURIComponent(`${session.token}.${signature}`)}` };
 }
 
 /** A new admin account, and the headers of its requests. */

@@ -34,15 +34,13 @@ The server needs two variables:
 | Variable                | What it is                                                         |
 | ----------------------- | ------------------------------------------------------------------ |
 | `I18N_EDITOR_API_URL`   | The address of the editor, for example `https://i18n.example.com`. |
-| `I18N_EDITOR_API_TOKEN` | A token of the account that the agent acts as.                     |
+| `I18N_EDITOR_API_TOKEN` | An access token of the account that the agent acts as.             |
 
 The server sends the token as `Authorization: Bearer <token>`.
 
-::: warning A token for an agent is coming
-The editor has no page that gives a token yet. [Access tokens](./tokens.md)
-describes the page that comes next. Until it exists, the API takes the session
-token of an account as a bearer token.
-:::
+Create the token in the editor: account menu, then **Jetons d'accès**.
+[Access tokens](./tokens.md) tells how, and what a token can and cannot do.
+Give the agent its own token, so that you can revoke it alone.
 
 ## Connect it to an agent
 
@@ -71,7 +69,7 @@ If a variable is missing, it stops with a message that names it.
 | Tool                | What it answers                                                                    |
 | ------------------- | ---------------------------------------------------------------------------------- |
 | `i18n_repositories` | The repositories, with their source language and their targets.                    |
-| `i18n_me`           | What this token may do: the repositories, and in each one the role and languages.  |
+| `i18n_me`           | What the account of the token may do: its repositories, roles and languages.       |
 | `i18n_keys`         | The keys of a language, by state and by file, with the `commit` they were read at. |
 | `i18n_key`          | One key: the source text, the target text and its state.                           |
 | `i18n_propose`      | Writes a whole batch as **one** commit on `i18n/<language>`.                       |

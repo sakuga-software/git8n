@@ -12,16 +12,17 @@ I18N_EDITOR_API_URL=https://i18n.example.com
 I18N_EDITOR_API_TOKEN=…
 ```
 
-The token is the `accessToken` that `POST /auth/login` answers, against the
-account's own credentials. It lasts fourteen days. The server never holds a
-password, and it acts as that account: its languages and its role are what the
-API enforces.
+The token is an **access token** of an account. Make it in the editor: open
+the account menu at the top right, then **Jetons d'accès**, and choose a name
+and a life (30 days, 90 days, one year, or no end). The page shows the token
+one time only: copy it then. The editor keeps its SHA-256 and never the token.
 
-```sh
-curl -s -X POST "$I18N_EDITOR_API_URL/auth/login" \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"…","password":"…"}' | jq -r .accessToken
-```
+The token acts as its account: its repositories, its languages and its role
+are what the API enforces. Revoke it on the same page when the agent stops.
+The server never holds a password.
+
+A token can read and propose, as its account does. It cannot make or revoke
+a token: only the session of the browser does that.
 
 ## Wiring it to an agent
 

@@ -1,6 +1,6 @@
 import { Dropdown } from '@heroui/react/dropdown';
 import { createContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { signOut, useSession } from '~/utils/auth-client';
 import { ChevronDown, Lock, Wrench } from '~/editor/icons';
 import { SignIn } from '~/editor/sign-in';
@@ -76,6 +76,7 @@ export function Shell({
   waiting: React.RefObject<number>;
   children: React.ReactNode;
 }) {
+  const navigate = useNavigate();
   const [project, setProject] = useState<HTMLElement | null>(null);
   const [side, setSide] = useState<HTMLElement | null>(null);
   const [folded, setFoldedState] = useState(foldedAtStart);
@@ -150,9 +151,14 @@ export function Shell({
               <Dropdown.Menu
                 aria-label="Mon compte"
                 onAction={(key) => {
-                  if (key === 'sign-out' && mayLeave(waiting.current)) void signOut();
+                  if (!mayLeave(waiting.current)) return;
+                  if (key === 'tokens') void navigate('/tokens', { viewTransition: true });
+                  if (key === 'sign-out') void signOut();
                 }}
               >
+                <Dropdown.Item id="tokens" textValue="Jetons d'accès">
+                  Jetons d'accès
+                </Dropdown.Item>
                 <Dropdown.Item id="sign-out" textValue="Se déconnecter">
                   Se déconnecter
                 </Dropdown.Item>

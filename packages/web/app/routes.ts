@@ -8,4 +8,8 @@ export default [
   route('repositories/:id/settings', 'routes/repository-settings.tsx'),
   // GitHub sends the browser here after an installation of the App. The editor reads the address (DB-581).
   route('setup', 'routes/editor.tsx', { id: 'setup' }),
+  // The access tokens of the signed-in account, for an agent or a CI job (DB-669).
+  route('tokens', 'routes/tokens.tsx'),
+  // `i18n-editor login` sends the person here to approve the code of the terminal (DB-669).
+  route('device', 'routes/device.tsx'),
 ] satisfies RouteConfig;

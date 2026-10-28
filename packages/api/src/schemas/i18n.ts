@@ -305,3 +305,12 @@ export const memberChangeSchema = z
     writesSource: memberRights.writesSource.optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: 'Name at least one field to change' });
+
+/** The longest life of an access token, in days. */
+export const ACCESS_TOKEN_MAX_DAYS = 365;
+
+/** A new access token (DB-669). `expiresInDays: null` makes a token that does not expire. */
+export const newAccessTokenSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  expiresInDays: z.number().int().min(1).max(ACCESS_TOKEN_MAX_DAYS).nullable(),
+});

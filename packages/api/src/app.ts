@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { auth } from './auth';
 import { env } from './config/env';
 import { errorHandler } from './middlewares/error-handler';
+import accessTokens from './routes/access-tokens';
 import githubWebhook from './routes/github-webhook';
 import i18nRoutes from './routes/i18n';
 import type { HonoEnv } from './types/hono';
@@ -15,7 +16,19 @@ app.onError(errorHandler);
 // could change their own role. The routes of `/i18n` do these changes, with their own checks.
 app.all('/api/auth/organization/*', (c) => c.notFound());
 
+// A person approves a device code on the page, with the session of the browser. A session token of
+// the command line that approves a second code would keep an access after the person signs it out.
+app.on(['GET', 'POST'], '/api/auth/*', async (c, next) => {
+  if (/^\/api\/auth\/device(\/(approve|deny))?\/*$/i.test(c.req.path) && c.req.header('authorization')) {
+    return c.json({ message: 'Approve a device code on the page of the editor.' }, 403);
+  }
+
+  await next();
+});
+
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth().handler(c.req.raw));
+
+app.route('/i18n/tokens', accessTokens);
 
 app.route('/i18n', i18nRoutes);
 

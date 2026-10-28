@@ -97,6 +97,61 @@ export const authVerifications = pgTable(
   ],
 );
 
+/**
+ * The codes of the better-auth device authorization plugin (DB-669). A
+ * command line asks for a code, and a signed-in person approves it in the
+ * editor. The command line then gets a session token.
+ */
+export const authDeviceCodes = pgTable(
+  'auth_device_codes',
+  {
+    id: text('id').primaryKey(),
+    deviceCode: text('device_code').notNull(),
+    userCode: text('user_code').notNull(),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    status: text('status').notNull(),
+    lastPolledAt: timestamp('last_polled_at', { withTimezone: true }),
+    pollingInterval: bigint('polling_interval', { mode: 'number' }),
+    clientId: text('client_id'),
+    scope: text('scope'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('auth_device_codes_device_code_idx').on(table.deviceCode),
+    uniqueIndex('auth_device_codes_user_code_idx').on(table.userCode),
+  ],
+);
+
+/**
+ * The access tokens of an account, for an agent or a CI job (DB-669).
+ *
+ * A token acts as its account. The table keeps the SHA-256 of the token and
+ * never the token: the page shows the token one time only, when it is made.
+ */
+export const accessTokens = pgTable(
+  'access_tokens',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    /** The first characters of the token, so that a person can tell their tokens apart. */
+    start: text('start').notNull(),
+    /** Null when the token does not expire. */
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('access_tokens_token_hash_idx').on(table.tokenHash),
+    index('access_tokens_user_id_idx').on(table.userId),
+  ],
+);
+
 export const PUBLISH_MODES = ['commit', 'pull_request'] as const;
 
 export type PublishMode = (typeof PUBLISH_MODES)[number];
