@@ -18,9 +18,14 @@ app.use('*', async (c, next) => {
 
   if (!host || !env.REDIRECT_HOSTS.includes(host)) return next();
 
+  // Only the path and the query move. A path such as `//evil.example` must not change the host.
   const url = new URL(c.req.url);
+  const target = new URL(env.BETTER_AUTH_URL);
 
-  return c.redirect(new URL(url.pathname + url.search, env.BETTER_AUTH_URL).toString(), 301);
+  target.pathname = url.pathname;
+  target.search = url.search;
+
+  return c.redirect(target.toString(), 301);
 });
 
 // The organization plugin opens routes to every signed-in account: a member
