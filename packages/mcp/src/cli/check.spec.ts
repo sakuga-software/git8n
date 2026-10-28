@@ -65,6 +65,11 @@ describe('placeholdersOf', () => {
     expect(placeholdersOf('{choice, select, yes {Yes} no {No}}')).toEqual(['{choice}']);
     expect(placeholdersOf('{choice, select, yes {Ja} no {Nein}}')).toEqual(['{choice}']);
     expect(placeholdersOf('{n, plural, offset:1 one {{who}} other {{who} and # more}}')).toEqual(['{n}', '{who}']);
+    expect(placeholdersOf('{{name}} has {count, plural, one {# item} other {# items}}')).toEqual([
+      '{count}',
+      '{{name}}',
+    ]);
+    expect(placeholdersOf('{count, plural, other {Hi {{name}}}}')).toEqual(['{count}', '{{name}}']);
   });
 
   it('reads a text with no placeholder as none, and a lone brace as text', () => {

@@ -145,7 +145,10 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 26
-      - run: git clone --depth 1 https://github.com/sakuga-software/i18n-editor /tmp/i18n-editor
+      # Pin the commit of i18n-editor that the job runs: a new version cannot change the check by itself.
+      - run: |
+          git clone --filter=blob:none https://github.com/sakuga-software/i18n-editor /tmp/i18n-editor
+          git -C /tmp/i18n-editor checkout <commit>
       - run: cd /tmp/i18n-editor && corepack enable && pnpm install --frozen-lockfile --filter @i18n-editor/mcp...
       - run: node --experimental-strip-types /tmp/i18n-editor/packages/mcp/src/cli/main.ts check --reporter github
 ```

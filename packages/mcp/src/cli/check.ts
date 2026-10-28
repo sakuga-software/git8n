@@ -114,6 +114,13 @@ const groupAt = (text: string, open: number): { inner: string; end: number } | n
 /** A text with an ICU `plural`, `select` or `selectordinal`. */
 const ICU_CHOICE = /\{\s*[A-Za-z_][\w.]*\s*,\s*(?:plural|select|selectordinal)\s*,/;
 
+/**
+ * The inside of a group `{{name}}` of i18next, in a text that also holds an ICU choice.
+ *
+ * A branch `one {{who}}` is read first as the branch, so its inside `{who}` stays an ICU argument.
+ */
+const I18NEXT_GROUP = /^\{\s*([^{},]+?)\s*(?:,[^{}]*)?\}$/;
+
 /** `name, plural, …`: an ICU argument. A choice holds its branches after the second comma. */
 const ICU_ARGUMENT = /^\s*([A-Za-z_][\w.]*)\s*(?:,\s*(plural|select|selectordinal)\s*,([\s\S]*))?(?:,[^{}]*)?$/;
 
@@ -130,8 +137,11 @@ const addIcuArguments = (text: string, found: Set<string>): void => {
     if (!group) return;
 
     const argument = ICU_ARGUMENT.exec(group.inner);
+    const interpolation = I18NEXT_GROUP.exec(group.inner);
 
-    if (argument) {
+    if (interpolation) {
+      found.add(`{{${interpolation[1]}}}`);
+    } else if (argument) {
       found.add(`{${argument[1]}}`);
 
       if (argument[2]) {
