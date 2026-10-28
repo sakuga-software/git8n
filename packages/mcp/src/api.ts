@@ -7,8 +7,8 @@
  * imported the services would carry those rules in its own discipline instead,
  * and there would be a write path that does not pass them.
  *
- * The credential is a bearer token of an account, which `POST /auth/login`
- * answers. The server never holds a password.
+ * The credential is a bearer token of an account: an access token of the page
+ * « Jetons » (DB-669). The server never holds a password.
  */
 
 /** What the API answers when it refuses, so the agent reads why. */
@@ -53,7 +53,7 @@ export const configOf = (env: Record<string, string | undefined>): ApiConfig => 
 
   if (!url || !token) {
     throw new NotConfiguredError(
-      'Set I18N_EDITOR_API_URL and I18N_EDITOR_API_TOKEN. The token is the accessToken that POST /auth/login answers.',
+      'Set I18N_EDITOR_API_URL and I18N_EDITOR_API_TOKEN. Make the token in the editor: account menu, then « Jetons d’accès ».',
     );
   }
 
@@ -690,3 +690,25 @@ export const removeInvitation = (config: ApiConfig, repository: string, invitati
 /** Sends the magic link of an invitation by address again (DB-645). */
 export const sendInvitationLink = (config: ApiConfig, repository: string, invitationId: string) =>
   ask<null>(config, `${membersPath(repository)}/invitations/${encodeURIComponent(invitationId)}/link`, {});
+
+/** An access token of the signed-in account (DB-669). The list never holds the token itself. */
+export interface AccessToken {
+  id: string;
+  name: string;
+  /** The first characters of the token, to tell the tokens apart. */
+  start: string;
+  /** Null when the token does not expire. */
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+/** Only the session of the browser manages the tokens: the API refuses a bearer token here. */
+export const accessTokens = (config: ApiConfig) => ask<AccessToken[]>(config, '/i18n/tokens');
+
+/** The answer holds `token`. It is the only time that the token is readable. */
+export const createAccessToken = (config: ApiConfig, token: { name: string; expiresInDays: number | null }) =>
+  ask<AccessToken & { token: string }>(config, '/i18n/tokens', token);
+
+export const revokeAccessToken = (config: ApiConfig, id: string) =>
+  ask<null>(config, `/i18n/tokens/${encodeURIComponent(id)}`, undefined, 'DELETE');

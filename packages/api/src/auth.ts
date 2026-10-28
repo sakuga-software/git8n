@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { bearer } from 'better-auth/plugins';
+import { deviceAuthorization } from 'better-auth/plugins/device-authorization';
 import { magicLink } from 'better-auth/plugins/magic-link';
 import { organization } from 'better-auth/plugins/organization';
 import type { GithubOptions } from 'better-auth/social-providers';
@@ -8,6 +9,7 @@ import type { MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import {
   authAccounts,
+  authDeviceCodes,
   authSessions,
   authVerifications,
   type Database,
@@ -20,6 +22,7 @@ import {
 import { env } from './config/env';
 import { db } from './db';
 import { ac, roles } from './permissions';
+import { ACCESS_TOKEN_PREFIX, accountOfAccessToken } from './services/access-tokens.service';
 import { admitPending, mayReceiveMagicLink, repositoriesInvitingAddress } from './services/i18n-members.service';
 import { sendMail } from './services/mail.service';
 import { logger } from './utils/logger';
@@ -30,7 +33,17 @@ export interface AuthUser {
   name: string;
   /** An admin sets the repositories up. It gives no right to write a language. */
   admin: boolean;
+  /**
+   * How the request proves the account:
+   * - `cookie`: the session of the browser;
+   * - `bearer`: a session token in `Authorization`, for example the token of a device code;
+   * - `token`: an access token of the « Jetons » page.
+   */
+  via: 'cookie' | 'bearer' | 'token';
 }
+
+/** The `client_id` that the command line sends to ask for a device code. The plugin refuses any other. */
+export const CLI_CLIENT_ID = 'i18n-editor-cli';
 
 export const SESSION_DAYS = 14;
 
@@ -53,6 +66,7 @@ export function createAuth(options: AuthOptions) {
         auth_sessions: authSessions,
         auth_accounts: authAccounts,
         auth_verifications: authVerifications,
+        auth_device_codes: authDeviceCodes,
         organizations,
         members,
         invitations,
@@ -105,8 +119,16 @@ export function createAuth(options: AuthOptions) {
       },
     }),
     plugins: [
-      // The MCP server sends the session token as a bearer token. The browser sends the cookie.
+      // The command line and the MCP server send a session token as a bearer token. The browser sends the cookie.
       bearer(),
+      // `i18n-editor login` (DB-669): the command line shows a code, and the person approves it on the page `/device`.
+      deviceAuthorization({
+        expiresIn: '10m',
+        interval: '5s',
+        verificationUri: new URL('/device', options.baseURL).toString(),
+        validateClient: (clientId) => clientId === CLI_CLIENT_ID,
+        schema: { deviceCode: { modelName: 'auth_device_codes' } },
+      }),
       // One organization for each repository holds its members (DB-637). The
       // routes of the editor do every change: `app.ts` closes the routes of the plugin.
       magicLink({
@@ -191,16 +213,38 @@ export function useAuth(instance: Auth): void {
 export const isAdmin = (user: { email: string; emailVerified: boolean }, admins: ReadonlySet<string>): boolean =>
   user.emailVerified && admins.has(user.email.trim().toLowerCase());
 
+/** The account of a request: an access token, or else a session. Null for a visitor. */
+async function accountOf(headers: Headers): Promise<AuthUser | null> {
+  const bearerToken = /^Bearer\s+(\S+)$/i.exec(headers.get('authorization') ?? '')?.[1];
+
+  if (bearerToken?.startsWith(ACCESS_TOKEN_PREFIX)) {
+    const user = await accountOfAccessToken(bearerToken);
+
+    return user && { id: user.id, name: user.name, admin: isAdmin(user, env.ADMIN_EMAILS), via: 'token' };
+  }
+
+  const session = await auth().api.getSession({ headers });
+
+  if (!session) return null;
+
+  const { user } = session;
+
+  return {
+    id: user.id,
+    name: user.name,
+    admin: isAdmin(user, env.ADMIN_EMAILS),
+    via: bearerToken ? 'bearer' : 'cookie',
+  };
+}
+
 /** Refuses a visitor with a 401, and puts the account on the context. */
 export function withAuth(): MiddlewareHandler {
   return async (c, next) => {
-    const session = await auth().api.getSession({ headers: c.req.raw.headers });
+    const user = await accountOf(c.req.raw.headers);
 
-    if (!session) throw new HTTPException(401, { message: 'Unauthorized' });
+    if (!user) throw new HTTPException(401, { message: 'Unauthorized' });
 
-    const { user } = session;
-
-    c.set('user', { id: user.id, name: user.name, admin: isAdmin(user, env.ADMIN_EMAILS) } satisfies AuthUser);
+    c.set('user', user);
     await next();
   };
 }
