@@ -107,7 +107,7 @@ const type = async (command: string) => {
     lines.value = [...lines.value];
     await wait(TYPE_MS);
   }
-  announced.value = `$ ${command}`;
+  announced.value = command;
 };
 
 async function runAgent() {
@@ -126,20 +126,19 @@ async function runAgent() {
 }
 
 async function playAgent() {
-  await type('i18n-editor keys --missing --lang de');
+  await type('i18n_keys({ repository: "acme/shop", language: "de", state: "missing" })');
   await wait(PAUSE_MS);
 
-  // The lines that `i18n-editor` prints (packages/mcp/src/cli/run.ts).
   const missing = ((await ask('missing')).keys ?? []) as Array<{ file: string; key: string }>;
   const ids = missing.map((row) => `${row.file}:${row.key}`);
   const width = Math.max(0, ...ids.map((id) => id.length));
 
   for (const id of ids) await print({ kind: 'output', text: `${id.padEnd(width)}  missing` });
-  await print({ kind: 'note', text: `${ids.length === 0 ? 0 : 1}–${ids.length} of ${ids.length}` });
+  await print({ kind: 'note', text: `${ids.length} keys missing. The agent translates them.` });
 
   if (missing.length > 0) {
     await wait(PAUSE_MS * 2);
-    await type('i18n-editor apply --lang de batch.json');
+    await type(`i18n_propose({ repository: "acme/shop", language: "de", values: [${ids.length} texts] })`);
     await wait(PAUSE_MS);
 
     const proposal = (await ask('apply')).proposal as { keys: number; commit: string; branch: string } | null;
@@ -147,7 +146,7 @@ async function playAgent() {
     await print({
       kind: 'note',
       text: proposal
-        ? `Proposed ${proposal.keys} key(s) in de as ${proposal.commit.slice(0, 7)} on ${proposal.branch}. A reviewer publishes them.`
+        ? `One commit ${proposal.commit.slice(0, 7)} on ${proposal.branch}: ${proposal.keys} keys proposed. A reviewer publishes them.`
         : 'Nothing to propose.',
     });
   }
@@ -200,7 +199,7 @@ onBeforeUnmount(() => {
 
       <div class="agent">
         <div class="agent-bar">
-          <span>An agent, with the CLI</span>
+          <span>An agent, through MCP</span>
           <button type="button" :disabled="!ready || running" @click="runAgent">
             {{ running ? 'Running…' : lines.length > 0 ? 'Run again' : 'Run the agent' }}
           </button>
@@ -208,7 +207,7 @@ onBeforeUnmount(() => {
         <pre
           ref="screen"
           class="agent-screen"
-        ><template v-if="lines.length === 0"><span v-if="failed" class="agent-note">The demo did not load. <a :href="demoUrl" target="_blank" rel="noopener">Open it in full screen</a>, or reload the page.</span><span v-else-if="!ready" class="agent-output">Loading the demo…</span><span v-else class="agent-note">The agent lists the German keys that are missing, and proposes them as one batch.</span></template><template v-for="(line, index) in lines" :key="index"><span v-if="line.kind === 'command'" class="agent-prompt">$ </span><span :class="`agent-${line.kind}`">{{ line.text }}</span>
+        ><template v-if="lines.length === 0"><span v-if="failed" class="agent-note">The demo did not load. <a :href="demoUrl" target="_blank" rel="noopener">Open it in full screen</a>, or reload the page.</span><span v-else-if="!ready" class="agent-output">Loading the demo…</span><span v-else class="agent-note">The agent lists the German keys that are missing, and proposes them as one batch.</span></template><template v-for="(line, index) in lines" :key="index"><span v-if="line.kind === 'command'" class="agent-prompt">→ </span><span :class="`agent-${line.kind}`">{{ line.text }}</span>
 </template></pre>
         <p class="sr-only" aria-live="polite">{{ announced }}</p>
       </div>

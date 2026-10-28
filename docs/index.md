@@ -14,7 +14,7 @@ hero:
       text: Try the editor
       link: '#demo-title'
     - theme: alt
-      text: Agents, MCP and CLI
+      text: Agents and MCP
       link: /agents/mcp
 
 features:
