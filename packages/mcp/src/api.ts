@@ -609,7 +609,15 @@ export interface OverviewPage {
 /** One page of the connected repositories, searched on `owner/name` and sorted. */
 export const overview = (
   config: ApiConfig,
-  query: { page?: number; perPage?: number; q?: string; sort?: OverviewSort; order?: 'asc' | 'desc' } = {},
+  query: {
+    page?: number;
+    perPage?: number;
+    q?: string;
+    sort?: OverviewSort;
+    order?: 'asc' | 'desc';
+    /** `held`: answer at once, with `progressPending` on a row that is not read yet. */
+    progress?: 'wait' | 'held';
+  } = {},
 ) => {
   const params = new URLSearchParams();
 
@@ -618,6 +626,7 @@ export const overview = (
   if (query.q) params.set('q', query.q);
   if (query.sort) params.set('sort', query.sort);
   if (query.order) params.set('order', query.order);
+  if (query.progress) params.set('progress', query.progress);
 
   const search = params.toString();
 

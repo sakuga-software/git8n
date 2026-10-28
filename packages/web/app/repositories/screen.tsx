@@ -179,7 +179,7 @@ function Repositories() {
   const [me, reloadMe] = useRead('me', () => rightsOf(api));
   const key = paramsOf(state).toString();
   const [list, reloadList] = useRead(`overview\n${key}`, () =>
-    overview(api, { ...state, q: state.q || undefined, perPage: LIST_PAGE }),
+    overview(api, { ...state, q: state.q || undefined, perPage: LIST_PAGE, progress: 'held' }),
   );
 
   // The search follows the field alone. The ref gives it the state of the last render without restarting it.

@@ -175,8 +175,15 @@ describe('GET /i18n/overview', () => {
     expect(calls.progress.filter((name) => name === 'repo-10')).toHaveLength(2);
   });
 
-  it('asks the cache for the rows of the page only, when the order is not by progress, and waits for no read', async () => {
-    await pageOf('?perPage=4');
+  it('reads the progress of the rows of the page only, when the order is not by progress', async () => {
+    const [first] = (await pageOf('?perPage=4')).rows;
+
+    expect([...calls.progress].sort()).toEqual(['broken', 'repo-01', 'repo-02', 'repo-03']);
+    expect(first.progressPending).toBeUndefined();
+  });
+
+  it('with progress=held, asks the cache for the rows of the page only, and waits for no read (DB-679)', async () => {
+    await pageOf('?perPage=4&progress=held');
 
     expect([...calls.held].sort()).toEqual(['broken', 'repo-01', 'repo-02', 'repo-03']);
     expect(calls.progress).toEqual([]);
@@ -185,7 +192,7 @@ describe('GET /i18n/overview', () => {
   it('answers the held progress of a row, and says that the read of the others started (DB-679)', async () => {
     calls.warm.add('repo-02');
 
-    const [first, second] = (await pageOf('?q=repo-0&perPage=2')).rows;
+    const [first, second] = (await pageOf('?q=repo-0&perPage=2&progress=held')).rows;
 
     expect(first).toMatchObject({ name: 'repo-01', progress: null, progressPending: true });
     expect(second).toMatchObject({ name: 'repo-02', progress: [{ language: 'en', published: 2 }, { language: 'de' }] });
@@ -193,7 +200,7 @@ describe('GET /i18n/overview', () => {
   });
 
   it('keeps a repository that GitHub refuses, and says why', async () => {
-    const [broken] = (await pageOf('?q=broken&sort=progress')).rows;
+    const [broken] = (await pageOf('?q=broken')).rows;
 
     expect(broken).toMatchObject({ progress: null, progressError: expect.stringContaining('502') });
   });
@@ -218,7 +225,7 @@ describe('GET /i18n/overview', () => {
   it('leaves the source out of the progress of a row, held or read', async () => {
     calls.warm.add('repo-07');
 
-    const [held] = (await pageOf('?q=repo-07')).rows;
+    const [held] = (await pageOf('?q=repo-07&progress=held')).rows;
     const [read] = (await pageOf('?q=repo-07&sort=progress')).rows;
 
     expect(held.progress?.map((entry) => entry.language)).toEqual(['en', 'de']);
@@ -233,7 +240,7 @@ describe('GET /i18n/overview', () => {
 
     calls.warm.add('repo-07');
 
-    const [held] = (await pageOf('?q=repo-07', await authHeaders(userId))).rows;
+    const [held] = (await pageOf('?q=repo-07&progress=held', await authHeaders(userId))).rows;
     const [read] = (await pageOf('?q=repo-07&sort=progress', await authHeaders(userId))).rows;
 
     expect(held.progress).toEqual([expect.objectContaining({ language: 'de' })]);

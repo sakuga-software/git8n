@@ -24,6 +24,8 @@ export interface OverviewQuery {
   q?: string;
   sort: OverviewSort;
   order: 'asc' | 'desc';
+  /** `held`: a row with no progress in the cache does not wait for GitHub (DB-679). The default waits. */
+  progress?: 'wait' | 'held';
   /**
    * The repositories the caller may read, and the languages of each (DB-637).
    * `undefined` means every repository. A language list of `undefined` means every language of that repository.
@@ -173,8 +175,11 @@ export const overview = async (query: OverviewQuery, options: { now?: Date } = {
   const start = (query.page - 1) * query.perPage;
   const slice = matched.slice(start, start + query.perPage);
 
-  // Outside an order by progress, a row does not wait for GitHub: it shows what is held, or says that the read started.
-  const heldProgress = (row: I18nRepository): ProgressRead => {
+  // Asked for, and outside an order by progress, a row does not wait for GitHub: it shows what is held, or says that
+  // the read started. A client that does not know `progressPending` keeps the default, which waits.
+  const heldProgress = (row: I18nRepository): Promise<ProgressRead> | ProgressRead => {
+    if (query.progress !== 'held') return readProgress(row, languagesOfRow(row));
+
     const held = heldProgressOf(row, options);
 
     return held
