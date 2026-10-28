@@ -1,5 +1,7 @@
 import { Button } from '@heroui/react/button';
 import { Tooltip } from '@heroui/react/tooltip';
+import { useCallback, useRef, useState } from 'react';
+import { followOf } from './follow';
 import { Lock, Plus } from './icons';
 import { shareOf, type RowState } from './rows';
 
@@ -75,6 +77,70 @@ function Legend({
         </span>
       ))}
     </div>
+  );
+}
+
+/**
+ * The bar and its tooltip. The tooltip follows the pointer along the bar (DB-676).
+ *
+ * The tooltip opens under the start of the bar, where a keyboard focus also opens it. The
+ * pointer moves it with `translate`, not with its position: a moved position is a layout shift.
+ */
+function ProgressWithLegend({
+  share,
+  counts,
+  emptyCount,
+}: {
+  share: string;
+  counts: Record<RowState, number> | null;
+  emptyCount: number;
+}) {
+  const [follow, setFollow] = useState(0);
+  const tooltip = useRef<HTMLDivElement | null>(null);
+  const pointer = useRef<{ x: number; barWidth: number } | null>(null);
+  const resizes = useRef<ResizeObserver | null>(null);
+  // A closed tooltip has no width, and its width grows while its content lays out. Each new width places it again.
+  const placeOnOpen = useCallback((node: HTMLDivElement | null) => {
+    tooltip.current = node;
+    resizes.current?.disconnect();
+    resizes.current = null;
+    if (!node) return;
+
+    resizes.current = new ResizeObserver(() => {
+      if (pointer.current) setFollow(followOf(pointer.current.x, pointer.current.barWidth, node.offsetWidth));
+    });
+    resizes.current.observe(node);
+  }, []);
+
+  return (
+    <Tooltip delay={300}>
+      <Tooltip.Trigger
+        role="img"
+        tabIndex={0}
+        aria-label={summaryOf(share, counts, emptyCount)}
+        className="max-w-[640px] cursor-default rounded-full py-1.5"
+        onPointerMove={(event: React.PointerEvent<HTMLDivElement>) => {
+          const bar = event.currentTarget.getBoundingClientRect();
+
+          pointer.current = { x: event.clientX - bar.left, barWidth: bar.width };
+          setFollow(followOf(pointer.current.x, bar.width, tooltip.current?.offsetWidth ?? 0));
+        }}
+        onPointerLeave={() => {
+          pointer.current = null;
+          setFollow(0);
+        }}
+      >
+        <Progress counts={counts} />
+      </Tooltip.Trigger>
+      <Tooltip.Content
+        ref={placeOnOpen}
+        placement="bottom start"
+        className="translate-x-(--follow)"
+        style={{ '--follow': `${follow}px` } as React.CSSProperties}
+      >
+        <Legend share={share} counts={counts} emptyCount={emptyCount} />
+      </Tooltip.Content>
+    </Tooltip>
   );
 }
 
@@ -161,23 +227,7 @@ export function LanguageHeader({
           )}
         </div>
 
-        {!compact && (
-          <>
-            <Tooltip delay={300}>
-              <Tooltip.Trigger
-                role="img"
-                tabIndex={0}
-                aria-label={summaryOf(share, counts, emptyCount)}
-                className="max-w-[640px] cursor-default rounded-full py-1.5"
-              >
-                <Progress counts={counts} />
-              </Tooltip.Trigger>
-              <Tooltip.Content placement="bottom start">
-                <Legend share={share} counts={counts} emptyCount={emptyCount} />
-              </Tooltip.Content>
-            </Tooltip>
-          </>
-        )}
+        {!compact && <ProgressWithLegend share={share} counts={counts} emptyCount={emptyCount} />}
       </div>
 
       <div className="flex flex-wrap items-center gap-2.5">
