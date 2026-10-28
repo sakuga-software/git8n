@@ -41,7 +41,7 @@ In a CI job, do not sign in. Create an access token on the page
 
 ```sh
 export GIT8N_API_URL=https://git8n.example.com
-export GIT8N_API_TOKEN=i18e_…
+export GIT8N_API_TOKEN=g8n_…
 ```
 
 ## Choose the repository and the language
