@@ -61,6 +61,12 @@ describe('placeholdersOf', () => {
     expect(placeholdersOf('Pick one {item}')).toEqual(['{item}']);
   });
 
+  it('reads the branches of an ICU select as text', () => {
+    expect(placeholdersOf('{choice, select, yes {Yes} no {No}}')).toEqual(['{choice}']);
+    expect(placeholdersOf('{choice, select, yes {Ja} no {Nein}}')).toEqual(['{choice}']);
+    expect(placeholdersOf('{n, plural, offset:1 one {{who}} other {{who} and # more}}')).toEqual(['{n}', '{who}']);
+  });
+
   it('reads a text with no placeholder as none, and a lone brace as text', () => {
     expect(placeholdersOf('3 < 4 and 50% off {')).toEqual([]);
   });

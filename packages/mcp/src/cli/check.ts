@@ -98,11 +98,58 @@ const pathsOf = (node: Record<string, unknown>, prefix = ''): Array<[string, unk
     return isObject(value) ? pathsOf(value, path) : [[path, value] as [string, unknown]];
   });
 
-/** A rule of ICU picks a branch with a word such as `one`, or `=0`. Its braces are text, not a placeholder. */
-const ICU_BRANCH = /(?:^|\s)(?:zero|one|two|few|many|other|=\d+)\s*$/;
+/** The text between a `{` at `open` and its own `}`, or null when it is not closed. */
+const groupAt = (text: string, open: number): { inner: string; end: number } | null => {
+  let depth = 0;
 
-/** A text with an ICU `plural` or `select`. Only such a text has branches. */
+  for (let at = open; at < text.length; at += 1) {
+    if (text[at] === '{') depth += 1;
+    if (text[at] === '}') depth -= 1;
+    if (depth === 0) return { inner: text.slice(open + 1, at), end: at + 1 };
+  }
+
+  return null;
+};
+
+/** A text with an ICU `plural`, `select` or `selectordinal`. */
 const ICU_CHOICE = /\{\s*[A-Za-z_][\w.]*\s*,\s*(?:plural|select|selectordinal)\s*,/;
+
+/** `name, plural, …`: an ICU argument. A choice holds its branches after the second comma. */
+const ICU_ARGUMENT = /^\s*([A-Za-z_][\w.]*)\s*(?:,\s*(plural|select|selectordinal)\s*,([\s\S]*))?(?:,[^{}]*)?$/;
+
+/**
+ * Adds the ICU arguments of a text: `{name}`, and the variable of a choice.
+ *
+ * The branches of a choice (`one {# item}`, `yes {Yes}`) are text, so only
+ * the arguments inside them count.
+ */
+const addIcuArguments = (text: string, found: Set<string>): void => {
+  for (let at = text.indexOf('{'); at !== -1; at = text.indexOf('{', at)) {
+    const group = groupAt(text, at);
+
+    if (!group) return;
+
+    const argument = ICU_ARGUMENT.exec(group.inner);
+
+    if (argument) {
+      found.add(`{${argument[1]}}`);
+
+      if (argument[2]) {
+        const branches = argument[3]!.replace(/^\s*offset:\s*\d+/, '');
+
+        for (let open = branches.indexOf('{'); open !== -1; open = branches.indexOf('{', open)) {
+          const branch = groupAt(branches, open);
+
+          if (!branch) break;
+          addIcuArguments(branch.inner, found);
+          open = branch.end;
+        }
+      }
+    }
+
+    at = group.end;
+  }
+};
 
 /**
  * The placeholders of a text, sorted, with no duplicate:
@@ -116,22 +163,21 @@ export const placeholdersOf = (text: string): string[] => {
   const found = new Set<string>();
   let rest = text;
 
-  rest = rest.replace(/\{\{\s*([^{},]+?)\s*(?:,[^{}]*)?\}\}/g, (_, name: string) => {
-    found.add(`{{${name}}}`);
+  // An ICU choice writes `one {{who}}` for a branch that holds `{who}`. Such a message is not i18next.
+  if (!ICU_CHOICE.test(rest)) {
+    rest = rest.replace(/\{\{\s*([^{},]+?)\s*(?:,[^{}]*)?\}\}/g, (_, name: string) => {
+      found.add(`{{${name}}}`);
 
-    return ' ';
-  });
+      return ' ';
+    });
+  }
   rest = rest.replace(/\$t\([^)]*\)/g, (match) => {
     found.add(match.replace(/\s+/g, ''));
 
     return ' ';
   });
 
-  const hasBranches = ICU_CHOICE.test(rest);
-
-  for (const match of rest.matchAll(/\{\s*([A-Za-z_][\w.]*)\s*[,}]/g)) {
-    if (!hasBranches || !ICU_BRANCH.test(rest.slice(0, match.index))) found.add(`{${match[1]}}`);
-  }
+  addIcuArguments(rest, found);
   for (const match of rest.matchAll(/<\/?([A-Za-z0-9][\w-]*)\s*\/?>/g)) found.add(match[0].replace(/\s+/g, ''));
   for (const match of rest.matchAll(/%(?:\d+\$)?[sdif]/g)) found.add(match[0]);
 
