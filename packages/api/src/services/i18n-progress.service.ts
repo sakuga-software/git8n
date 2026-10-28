@@ -74,7 +74,11 @@ const read = async (repository: I18nRepository, language: string): Promise<Langu
 };
 
 /**
- * How far each target language of a repository is (DB-268).
+ * How far each language of a repository is, the source first (DB-268).
+ *
+ * The source counts as a target does (DB-675): a text that waits on its branch
+ * is proposed, and an empty text is missing. The select of the editor shows it
+ * beside the others.
  *
  * The languages are read together. The catalogues are the ones the editor
  * reads next, and they are held for five minutes, so this costs GitHub no read
@@ -83,6 +87,10 @@ const read = async (repository: I18nRepository, language: string): Promise<Langu
 export const progressOf = (repository: I18nRepository, options: { now?: Date } = {}): Promise<LanguageProgress[]> =>
   progress.get(
     repository.id,
-    () => Promise.all(languagesOf(repository).targets.map((language) => read(repository, language))),
+    () => {
+      const { source, targets } = languagesOf(repository);
+
+      return Promise.all([source, ...targets].map((language) => read(repository, language)));
+    },
     (options.now ?? new Date()).getTime(),
   );

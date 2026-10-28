@@ -225,7 +225,7 @@ describe('the catalogue and the progress', () => {
       empty: true,
     });
 
-    const [english] = await progressOf(repository);
+    const english = (await progressOf(repository)).find((row) => row.language === 'en');
 
     expect(english).toMatchObject({ published: 3, missing: 0, empty: 1, total: 3 });
   });

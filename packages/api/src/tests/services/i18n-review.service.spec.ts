@@ -192,7 +192,7 @@ describe('a translation to read again', () => {
   it('counts the key apart in the progress of the language', async () => {
     await changeSource('hints.3', 'Trois !');
 
-    const [en] = await progressOf(repository);
+    const en = (await progressOf(repository)).find((row) => row.language === 'en');
 
     expect(en).toMatchObject({ language: 'en', review: 1, published: 3, missing: 1, total: 5 });
   });
