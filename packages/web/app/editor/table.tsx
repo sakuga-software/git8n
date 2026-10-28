@@ -66,8 +66,7 @@ function TickAll({
   onChange: (on: boolean) => void;
 }) {
   return (
-    <div className="flex flex-col items-center gap-1">
-      <span aria-hidden="true">{keeps ? 'Garder' : 'Publier'}</span>
+    <div className="flex items-center gap-1.5 whitespace-nowrap">
       <Tick
         label={keeps ? 'Cocher toutes les traductions affichées' : 'Cocher toutes les propositions affichées'}
         isSelected={total > 0 && ticked === total}
@@ -75,6 +74,7 @@ function TickAll({
         isDisabled={total === 0}
         onChange={onChange}
       />
+      <span aria-hidden="true">{keeps ? 'Garder' : 'Publier'}</span>
     </div>
   );
 }
@@ -192,7 +192,7 @@ export function KeyTable({
             {editsSource ? 'Nouveau texte' : 'Traduction'} · {language.name}
           </div>
           {approved && (
-            <div role="columnheader" className="w-16 flex-none text-center">
+            <div role="columnheader" className="w-[84px] flex-none">
               <TickAll
                 ticked={tickable.filter((id) => approved.has(id)).length}
                 total={tickable.length}
@@ -298,9 +298,9 @@ export function KeyTable({
                   </div>
 
                   {approved && (
-                    <div role="cell" className="w-16 flex-none">
+                    <div role="cell" className="w-[84px] flex-none">
                       {(row.proposal || row.state === 'review') && (
-                        <div className="flex justify-center px-2 pt-2 pb-3">
+                        <div className="flex pt-2 pb-3">
                           <Tick
                             label={`${row.state === 'review' ? 'Garder' : 'Publier'} ${row.key} (${row.file})`}
                             isSelected={!edited && approved.has(id)}
