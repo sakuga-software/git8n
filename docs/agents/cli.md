@@ -97,6 +97,10 @@ The CLI refuses the whole input, and sends nothing, if:
 - a key is in a file that has no version in the language;
 - a text is empty. To leave a key empty on purpose, mark it in the editor.
 
+A key to review whose text stays the same is not proposed: the file would not
+change, and the key would stay to review. `apply` lists these keys. A reviewer
+keeps them in the editor.
+
 A proposal carries the revision of the source that the texts answer
 (`readAt`). By default, `apply` sends the revision it reads. If the texts
 answer an older read, pass its `commit` with `--read-at`: a publication then

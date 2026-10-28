@@ -148,13 +148,13 @@ Exit status: 0 done, 1 refused or failed, 2 wrong command or input, 3 not signed
 Documentation: <api>/docs/reference/cli
 `;
 
-const integerOf = (name: string, value: string | undefined, fallback: number, most: number): number => {
+const integerOf = (name: string, value: string | undefined, fallback: number, least: number, most: number): number => {
   if (value === undefined) return fallback;
 
   const parsed = Number(value);
 
-  if (!Number.isInteger(parsed) || parsed < 0 || parsed > most) {
-    throw new CliError('I18NE1001', `--${name} takes a whole number from 0 to ${most}.`);
+  if (!Number.isInteger(parsed) || parsed < least || parsed > most) {
+    throw new CliError('I18NE1001', `--${name} takes a whole number from ${least} to ${most}.`);
   }
 
   return parsed;
@@ -549,8 +549,8 @@ class Session {
 
   private async keys(): Promise<number> {
     const state = stateOf(this.options, 'all');
-    const limit = integerOf('limit', this.options.limit, 100, 2000);
-    const cursor = integerOf('cursor', this.options.cursor, 0, Number.MAX_SAFE_INTEGER);
+    const limit = integerOf('limit', this.options.limit, 100, 1, 2000);
+    const cursor = integerOf('cursor', this.options.cursor, 0, 0, Number.MAX_SAFE_INTEGER);
     const { repository, read } = await this.read();
     const found = read.entries.filter(
       (entry) =>
@@ -610,8 +610,8 @@ class Session {
   }
 
   private async search(text: string): Promise<number> {
-    const limit = integerOf('limit', this.options.limit, 100, 2000);
-    const cursor = integerOf('cursor', this.options.cursor, 0, Number.MAX_SAFE_INTEGER);
+    const limit = integerOf('limit', this.options.limit, 100, 1, 2000);
+    const cursor = integerOf('cursor', this.options.cursor, 0, 0, Number.MAX_SAFE_INTEGER);
     const { repository, read } = await this.read();
     const found = read.entries.filter(
       (entry) => matchesText(entry, text) && (this.options.file === undefined || entry.file === this.options.file),
@@ -654,6 +654,7 @@ class Session {
         [
           ...plan.changes.map((change) => `${change.id}\n    ${change.from ?? '—'}\n  → ${change.to}`),
           `${plan.changes.length} to propose, ${plan.unchanged.length} unchanged, read at ${plan.readAt.slice(0, 7)}.`,
+          ...this.stillToReview(plan.stillToReview),
           plan.changes.length === 0 ? 'Nothing to propose.' : 'Dry run: nothing was sent.',
           '',
         ].join('\n'),
@@ -667,11 +668,22 @@ class Session {
       values: valuesOf(plan),
     });
 
-    return this.answer(
-      { ...base, proposed },
-      () =>
-        `Proposed ${proposed.keys} key(s) in ${read.language} as ${proposed.commit.slice(0, 7)} on ${proposed.branch}. A reviewer publishes them.\n`,
+    return this.answer({ ...base, proposed }, () =>
+      [
+        `Proposed ${proposed.keys} key(s) in ${read.language} as ${proposed.commit.slice(0, 7)} on ${proposed.branch}. A reviewer publishes them.`,
+        ...this.stillToReview(plan.stillToReview),
+        '',
+      ].join('\n'),
     );
+  }
+
+  private stillToReview(ids: string[]): string[] {
+    if (ids.length === 0) return [];
+
+    return [
+      `${ids.length} key(s) to review keep the same text: a proposal does not change their state. A reviewer keeps them in the editor.`,
+      ...ids.slice(0, 10).map((id) => `  ${id}`),
+    ];
   }
 
   private async proposals(): Promise<number> {
@@ -703,8 +715,8 @@ class Session {
       throw new CliError('I18NE1001', '--to and --lang name two languages. Pass one.');
     }
 
-    const limit = integerOf('limit', this.options.limit, 50, 500);
-    const cursor = integerOf('cursor', this.options.cursor, 0, Number.MAX_SAFE_INTEGER);
+    const limit = integerOf('limit', this.options.limit, 50, 1, 500);
+    const cursor = integerOf('cursor', this.options.cursor, 0, 0, Number.MAX_SAFE_INTEGER);
     const { repository, read } = await this.read(this.options.to);
     const found = read.entries.filter(
       (entry) => entry.state === state && (this.options.file === undefined || entry.file === this.options.file),

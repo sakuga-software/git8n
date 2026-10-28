@@ -67,7 +67,7 @@ or `{ repositories: [{ id, name, source, targets, languages, error? }] }`.
 
 Options: `--repo`, `--lang`, `--state missing|review|translated|all` (default
 `all`), `--missing` (the same as `--state missing`), `--file <name>`,
-`--values`, `--limit <n>` (default 100, at most 2000), `--cursor <n>`.
+`--values`, `--limit <n>` (default 100, from 1 to 2000), `--cursor <n>`.
 
 `data`: `{ repository, language, source, commit, filesWithNoVersion, total, cursor, nextCursor, entries: [Entry] }`
 
@@ -105,7 +105,11 @@ The input is a JSON object, in one of these forms:
 With `--file common`, the object holds the keys of that file only, nested or
 dotted. At most 2000 keys change in one proposal.
 
-`data`: `{ repository, language, readAt, changes: [{ id, file, key, from, to }], unchanged: [id], proposed }`
+`data`: `{ repository, language, readAt, changes: [{ id, file, key, from, to }], unchanged: [id], stillToReview: [id], proposed }`
+
+`stillToReview` holds the keys to review whose text the input keeps. A
+proposal of the same text changes no file, so the key stays to review: a
+reviewer keeps it in the editor.
 
 `proposed` is `{ commit, branch, readAt, keys, files }`, or null after a dry
 run or when nothing changed.
@@ -119,7 +123,7 @@ Options: `--repo`, `--lang`.
 ### `prompt translate`
 
 Options: `--to <language>` (or `--lang`), `--repo`, `--state missing|review`
-(default `missing`), `--file`, `--limit` (default 50, at most 500),
+(default `missing`), `--file`, `--limit` (default 50, from 1 to 500),
 `--cursor`.
 
 Without `--json`, the CLI writes the prompt, in Markdown.

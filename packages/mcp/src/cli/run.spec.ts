@@ -141,7 +141,7 @@ describe('the arguments', () => {
 
 describe('the repository and the language', () => {
   it('takes the repository of the GitHub remote of the folder', async () => {
-    const { cli, calls } = await signedIn();
+    const { cli, calls } = await signedIn({ 'GET /i18n/me': () => jsonResponse({ data: { ...ME, admin: true } }) });
 
     delete cli.io.env.I18N_EDITOR_REPO;
     cli.io.gitRemotes = async () => ['git@github.com:Acme/site.git'];
@@ -173,6 +173,27 @@ describe('the repository and the language', () => {
 
     expect(ran.exit).toBe(2);
     expect(ran.json().error.code).toBe('I18NE3003');
+  });
+
+  it('refuses a target language that the account cannot open, before it asks the API', async () => {
+    const { cli, calls } = await signedIn();
+
+    const ran = await cli.run('keys', '--lang', 'de', '--json');
+
+    expect(ran.exit).toBe(2);
+    expect(ran.json().error).toMatchObject({ code: 'I18NE3003', details: [expect.stringContaining(': en.')] });
+    expect(calls.some((call) => call.url.includes('/i18n/catalogue'))).toBe(false);
+  });
+
+  it('refuses a limit of 0, which would answer the same page again', async () => {
+    const { cli } = await signedIn();
+
+    for (const command of [['keys'], ['search', 'x'], ['prompt', 'translate']]) {
+      const ran = await cli.run(...command, '--limit', '0', '--json');
+
+      expect(ran.exit).toBe(2);
+      expect(ran.json().error.code).toBe('I18NE1001');
+    }
   });
 });
 
@@ -295,6 +316,23 @@ describe('apply', () => {
     expect(ranBlank.json().error.code).toBe('I18NE1003');
 
     for (const { calls } of [unknown, closed, blank]) expect(calls.some((call) => call.method === 'POST')).toBe(false);
+  });
+
+  it('says that a key to review with the same text stays to review, and proposes nothing for it', async () => {
+    const { cli, calls } = await signedIn();
+
+    cli.io.readStdin = async () => JSON.stringify({ 'menu:open': 'Open', 'common:hello.title': 'Hello' });
+
+    const ran = await cli.run('apply', '-', '--json');
+
+    expect(ran.json().data).toMatchObject({
+      changes: [],
+      unchanged: ['common:hello.title'],
+      stillToReview: ['menu:open'],
+      proposed: null,
+    });
+    expect(calls.some((call) => call.method === 'POST')).toBe(false);
+    expect((await cli.run('apply', '-')).stdout).toContain('A reviewer keeps them in the editor.');
   });
 
   it('refuses a revision that is not a full sha', async () => {

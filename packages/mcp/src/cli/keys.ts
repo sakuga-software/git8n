@@ -129,6 +129,11 @@ export interface ApplyPlan {
   readAt: string;
   changes: Array<{ id: string; file: string; key: string; from: string | null; to: string }>;
   unchanged: string[];
+  /**
+   * The keys to review whose text the input keeps. A proposal of the same text changes no file,
+   * so the key stays to review: only « Garder » in the editor marks it as up to date (DB-607).
+   */
+  stillToReview: string[];
 }
 
 /** Most keys in one proposal. The API refuses a larger batch. */
@@ -159,12 +164,14 @@ export const planOf = (read: Catalogue, texts: Map<string, string>, readAt: stri
 
   const changes: ApplyPlan['changes'] = [];
   const unchanged: string[] = [];
+  const stillToReview: string[] = [];
 
   for (const [id, to] of texts) {
     const entry = byId.get(id)!;
 
-    if (entry.value === to) unchanged.push(id);
-    else changes.push({ id, file: entry.file, key: entry.key, from: entry.value, to });
+    if (entry.value !== to) changes.push({ id, file: entry.file, key: entry.key, from: entry.value, to });
+    else if (entry.state === 'review') stillToReview.push(id);
+    else unchanged.push(id);
   }
 
   if (changes.length > MOST_KEYS) {
@@ -174,7 +181,7 @@ export const planOf = (read: Catalogue, texts: Map<string, string>, readAt: stri
     );
   }
 
-  return { readAt, changes, unchanged };
+  return { readAt, changes, unchanged, stillToReview };
 };
 
 export const valuesOf = (plan: ApplyPlan): ProposedValue[] =>

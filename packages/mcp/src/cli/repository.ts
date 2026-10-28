@@ -68,6 +68,12 @@ export const pickLanguage = (me: Me, repository: Repository, wanted: string | un
       ]);
     }
 
+    if (!open.includes(wanted)) {
+      throw new CliError('I18NE3003', `This account cannot open ${wanted} in ${nameOf(repository)}.`, [
+        `The languages this account can open there: ${open.join(', ') || 'none'}.`,
+      ]);
+    }
+
     return wanted;
   }
 
