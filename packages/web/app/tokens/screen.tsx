@@ -134,7 +134,16 @@ function NewToken({ onCreated }: { onCreated: () => void }) {
 
 /** The new token, shown this one time. The editor keeps only its hash. */
 function MadeToken({ name, token, onClose }: { name: string; token: string; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'done' | 'refused' | null>(null);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopied('done');
+    } catch {
+      setCopied('refused');
+    }
+  };
 
   return (
     <div role="status" className="border-line flex flex-col gap-3 rounded-lg border bg-white p-4">
@@ -149,20 +158,19 @@ function MadeToken({ name, token, onClose }: { name: string; token: string; onCl
         >
           {token}
         </code>
-        <Button
-          size="sm"
-          variant="ghost"
-          onPress={() => {
-            void navigator.clipboard.writeText(token).then(() => setCopied(true));
-          }}
-        >
+        <Button size="sm" variant="ghost" onPress={() => void copy()}>
           <Copy size={14} />
-          {copied ? 'Copié' : 'Copier'}
+          {copied === 'done' ? 'Copié' : 'Copier'}
         </Button>
         <Button size="sm" variant="ghost" onPress={onClose}>
           J'ai copié le jeton
         </Button>
       </div>
+      {copied === 'refused' && (
+        <p role="alert" className="text-alarm-strong text-[13px]">
+          Le navigateur a refusé la copie. Sélectionnez le jeton, puis copiez-le à la main.
+        </p>
+      )}
     </div>
   );
 }
