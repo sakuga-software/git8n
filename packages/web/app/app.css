@@ -334,8 +334,8 @@
 
   .slide-mark[data-moves] {
     transition:
-      transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
-      width 220ms cubic-bezier(0.16, 1, 0.3, 1);
+      transform var(--motion-move) var(--motion-ease-move),
+      width var(--motion-move) var(--motion-ease-move);
   }
 
   .tabs-mark {
@@ -395,9 +395,32 @@
  * takes out of the list closes, and the count of the tab that receives it
  * marks itself. Everything else is feedback that lasts 150 ms.
  */
+@layer theme {
+  :root {
+    --motion-ease-move: cubic-bezier(0.16, 1, 0.3, 1);
+    --motion-ease-panel: cubic-bezier(0.25, 1, 0.5, 1);
+    --motion-ease-fade: cubic-bezier(0.19, 1, 0.22, 1);
+    --motion-ease-leave: cubic-bezier(0.4, 0, 0.6, 1);
+
+    --motion-hover: 120ms;
+    --motion-fade: 140ms;
+    --motion-feedback: 150ms;
+    --motion-page: 160ms;
+    /* LEAVE_MS in screen.tsx must have the same value. */
+    --motion-leave: 200ms;
+    --motion-wait-in: 200ms;
+    --motion-move: 220ms;
+    --motion-panel-delay: 120ms;
+    /* A wait that ends before this delay shows nothing. */
+    --motion-wait-delay: 250ms;
+    --motion-mark: 900ms;
+    --motion-breathe: 1.6s;
+  }
+}
+
 @layer components {
   .link {
-    transition: color 120ms ease-out;
+    transition: color var(--motion-hover) ease-out;
   }
 
   .shut {
@@ -409,13 +432,13 @@
     border-bottom-width: 0;
   }
 
-  /* The duration is LEAVE_MS in screen.tsx. A way out is quicker than a way in. */
+  /* A way out is quicker than a way in. */
   .shut[data-leaving] {
     grid-template-rows: 0fr;
     opacity: 0;
     transition:
-      grid-template-rows 200ms cubic-bezier(0.4, 0, 0.6, 1),
-      opacity 140ms linear;
+      grid-template-rows var(--motion-leave) var(--motion-ease-leave),
+      opacity var(--motion-fade) linear;
   }
 
   .count {
@@ -424,25 +447,25 @@
   }
 
   .count-changed {
-    animation: mark 900ms ease-out;
+    animation: mark var(--motion-mark) ease-out;
   }
 
   .arrive {
-    animation: arrive 220ms cubic-bezier(0.16, 1, 0.3, 1);
+    animation: arrive var(--motion-move) var(--motion-ease-move);
   }
 
   .appear {
-    animation: appear 150ms ease-out;
+    animation: appear var(--motion-feedback) ease-out;
   }
 
-  /* The width of the panel moves for 220ms (shell.tsx). Its new content fades in when the width stops. */
+  /* The width of the panel moves for --motion-move (shell.tsx). Its new content fades in when the width stops. */
   .side-panel[data-swap='folded'] > * {
-    animation: side-folded 140ms ease-out 120ms both;
+    animation: side-folded var(--motion-fade) ease-out var(--motion-panel-delay) both;
   }
 
   /* A second name restarts the fade when the person folds again before it ends. */
   .side-panel[data-swap='unfolded'] > * {
-    animation: side-unfolded 140ms ease-out 120ms both;
+    animation: side-unfolded var(--motion-fade) ease-out var(--motion-panel-delay) both;
   }
 }
 
@@ -473,12 +496,12 @@
  */
 .waited,
 .skeleton {
-  animation: appear 200ms cubic-bezier(0.19, 1, 0.22, 1) 250ms both;
+  animation: appear var(--motion-wait-in) var(--motion-ease-fade) var(--motion-wait-delay) both;
 }
 
 .bone {
   background: var(--color-line-soft);
-  animation: breathe 1.6s ease-in-out infinite;
+  animation: breathe var(--motion-breathe) ease-in-out infinite;
 }
 
 @keyframes breathe {
@@ -490,8 +513,8 @@
 /* A page that opens fades over the one before it, and the header does not move: it is the same in both. */
 ::view-transition-old(root),
 ::view-transition-new(root) {
-  animation-duration: 160ms;
-  animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+  animation-duration: var(--motion-page);
+  animation-timing-function: var(--motion-ease-fade);
 }
 
 @keyframes side-folded {

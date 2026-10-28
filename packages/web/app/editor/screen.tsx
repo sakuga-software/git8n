@@ -73,7 +73,7 @@ import { forgetReads, readErrorOf, useRead, type ReadError } from '~/editor/use-
 
 const PAGE = 100;
 
-/** How long a row takes to close. `app.css` holds the same duration. */
+/** How long a row takes to close. `--motion-leave` in `app.css` holds the same duration. */
 const LEAVE_MS = 200;
 
 /** How often an open page reads GitHub again, to show a change made outside the editor (DB-651). */
@@ -365,7 +365,7 @@ function Editor({
   const [repositories, reloadRepositories] = useRead('repositories', () => readRepositories(api));
   const navigate = useNavigate();
   const openRepository = (id: string, options?: { replace?: boolean }) =>
-    navigate(`/repositories/${encodeURIComponent(id)}`, options);
+    navigate(`/repositories/${encodeURIComponent(id)}`, { ...options, viewTransition: true });
   const [language, setLanguage] = useState<string | null>(null);
   // GitHub sends the browser back to `/setup` after an installation of the App (DB-581).
   const [connecting, setConnecting] = useState(() => window.location.pathname === SETUP_PATH);
