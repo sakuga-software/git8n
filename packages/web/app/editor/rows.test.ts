@@ -18,6 +18,7 @@ import {
   matchIn,
   neighboursOf,
   newKeyProblem,
+  drawnOf,
   pageOf,
   type Row,
   rowsOf,
@@ -685,5 +686,25 @@ describe('neighboursOf', () => {
 
     expect(shown.total).toBe(12);
     expect(shown.rows).toHaveLength(8);
+  });
+});
+
+describe('drawnOf', () => {
+  it('draws one step first, and keeps what the reader scrolled to', () => {
+    expect(drawnOf(2000, { from: 0, to: 0 }, null, 100)).toEqual({ from: 0, to: 100 });
+    expect(drawnOf(2000, { from: 0, to: 300 }, 5, 100)).toEqual({ from: 0, to: 300 });
+    expect(drawnOf(150, { from: 0, to: 300 }, null, 100)).toEqual({ from: 0, to: 150 });
+    expect(drawnOf(0, { from: 0, to: 100 }, null, 100)).toEqual({ from: 0, to: 0 });
+  });
+
+  it('adds the step of an open key next to the drawn rows', () => {
+    expect(drawnOf(2000, { from: 0, to: 100 }, 100, 100)).toEqual({ from: 0, to: 200 });
+    expect(drawnOf(2000, { from: 300, to: 400 }, 299, 100)).toEqual({ from: 200, to: 400 });
+  });
+
+  it('draws only the step of an open key far from the drawn rows', () => {
+    expect(drawnOf(2000, { from: 0, to: 100 }, 1340, 100)).toEqual({ from: 1300, to: 1400 });
+    expect(drawnOf(1346, { from: 0, to: 100 }, 1340, 100)).toEqual({ from: 1300, to: 1346 });
+    expect(drawnOf(2000, { from: 1300, to: 1400 }, 3, 100)).toEqual({ from: 0, to: 100 });
   });
 });
