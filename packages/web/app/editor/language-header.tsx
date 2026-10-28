@@ -1,6 +1,6 @@
 import { Button } from '@heroui/react/button';
 import { Tooltip } from '@heroui/react/tooltip';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { followOf } from './follow';
 import { Lock, Plus } from './icons';
 import { shareOf, type RowState } from './rows';
@@ -96,7 +96,21 @@ function ProgressWithLegend({
   emptyCount: number;
 }) {
   const [follow, setFollow] = useState(0);
-  const tooltip = useRef<HTMLDivElement>(null);
+  const tooltip = useRef<HTMLDivElement | null>(null);
+  const pointer = useRef<{ x: number; barWidth: number } | null>(null);
+  const resizes = useRef<ResizeObserver | null>(null);
+  // A closed tooltip has no width, and its width grows while its content lays out. Each new width places it again.
+  const placeOnOpen = useCallback((node: HTMLDivElement | null) => {
+    tooltip.current = node;
+    resizes.current?.disconnect();
+    resizes.current = null;
+    if (!node) return;
+
+    resizes.current = new ResizeObserver(() => {
+      if (pointer.current) setFollow(followOf(pointer.current.x, pointer.current.barWidth, node.offsetWidth));
+    });
+    resizes.current.observe(node);
+  }, []);
 
   return (
     <Tooltip delay={300}>
@@ -108,14 +122,18 @@ function ProgressWithLegend({
         onPointerMove={(event: React.PointerEvent<HTMLDivElement>) => {
           const bar = event.currentTarget.getBoundingClientRect();
 
-          setFollow(followOf(event.clientX - bar.left, bar.width, tooltip.current?.offsetWidth ?? 0));
+          pointer.current = { x: event.clientX - bar.left, barWidth: bar.width };
+          setFollow(followOf(pointer.current.x, bar.width, tooltip.current?.offsetWidth ?? 0));
         }}
-        onPointerLeave={() => setFollow(0)}
+        onPointerLeave={() => {
+          pointer.current = null;
+          setFollow(0);
+        }}
       >
         <Progress counts={counts} />
       </Tooltip.Trigger>
       <Tooltip.Content
-        ref={tooltip}
+        ref={placeOnOpen}
         placement="bottom start"
         className="translate-x-(--follow)"
         style={{ '--follow': `${follow}px` } as React.CSSProperties}
