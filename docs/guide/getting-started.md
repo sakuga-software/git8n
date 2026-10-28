@@ -97,6 +97,7 @@ then « Membres », and add a person by address or by GitHub login.
 ```sh
 pnpm typecheck
 pnpm test
+pnpm -F @i18n-editor/docs demo  # the demo of the home page, built once
 pnpm -F @i18n-editor/docs dev   # this site, on port 5208
 ```
 
