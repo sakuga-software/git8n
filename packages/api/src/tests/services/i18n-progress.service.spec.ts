@@ -247,7 +247,8 @@ describe('what the progress costs', () => {
     start();
 
     expect(heldProgressOf(repository)).toBeUndefined();
-    await vi.waitFor(() => expect(heldProgressOf(repository)).toHaveLength(2));
+    // The source and the two targets, as `progressOf` answers them since DB-675.
+    await vi.waitFor(() => expect(heldProgressOf(repository)).toHaveLength(3));
   });
 
   it('holds nothing of a read that failed', async () => {

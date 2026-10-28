@@ -215,10 +215,14 @@ describe('GET /i18n/overview', () => {
   });
 
   /** The share of a repository is how far its translations are: the source is not in it (DB-675). */
-  it('leaves the source out of the progress of a row', async () => {
-    const [row] = (await pageOf('?q=repo-07')).rows;
+  it('leaves the source out of the progress of a row, held or read', async () => {
+    calls.warm.add('repo-07');
 
-    expect(row.progress?.map((entry) => entry.language)).toEqual(['en', 'de']);
+    const [held] = (await pageOf('?q=repo-07')).rows;
+    const [read] = (await pageOf('?q=repo-07&sort=progress')).rows;
+
+    expect(held.progress?.map((entry) => entry.language)).toEqual(['en', 'de']);
+    expect(read.progress?.map((entry) => entry.language)).toEqual(['en', 'de']);
   });
 
   it('answers a translator the progress of its languages only', async () => {
