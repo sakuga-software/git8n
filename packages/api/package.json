@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "catalog:",
+    "@i18n-editor/mcp": "workspace:*",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "catalog:",
     "esbuild": "^0.28.2",

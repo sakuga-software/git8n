@@ -1,7 +1,12 @@
 # `@i18n-editor/mcp`
 
-An MCP server that lets an agent read the translations and propose them, without
-a screen and without any access to GitHub (DB-211).
+The typed client of the API, and the two commands built on it:
+
+- `i18n-editor`, the CLI (DB-671): `src/cli/main.ts`. See the
+  [CLI](../../docs/agents/cli.md) and its [reference](../../docs/reference/cli.md).
+- An MCP server that lets an agent read the translations and propose them,
+  without a screen and without any access to GitHub (DB-211): `src/main.ts`,
+  or `i18n-editor mcp`.
 
 ## What it needs
 

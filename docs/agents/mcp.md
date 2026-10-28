@@ -44,7 +44,21 @@ Give the agent its own token, so that you can revoke it alone.
 
 ## Connect it to an agent
 
-Run the server from a clone of the repository, after `pnpm install`:
+With the [CLI](./cli.md), `i18n-editor mcp` starts the server with the token
+of `i18n-editor login`, or of `I18N_EDITOR_API_TOKEN`:
+
+```json
+{
+  "mcpServers": {
+    "i18n-editor": {
+      "command": "node",
+      "args": ["--experimental-strip-types", "/path/to/i18n-editor/packages/mcp/src/cli/main.ts", "mcp"]
+    }
+  }
+}
+```
+
+Without the CLI, run the server from a clone of the repository, after `pnpm install`:
 
 ```json
 {
