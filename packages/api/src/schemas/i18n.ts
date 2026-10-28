@@ -273,6 +273,11 @@ export const overviewQuerySchema = z.object({
   q: z.string().max(200).optional(),
   sort: z.enum(OVERVIEW_SORTS).default('name'),
   order: z.enum(['asc', 'desc']).default('asc'),
+  /**
+   * `wait` (the default) answers the progress of each row: a held value, even an old one, or else a read
+   * that the answer waits for. `held` waits for no read, and marks a row with no held value `progressPending` (DB-679).
+   */
+  progress: z.enum(['wait', 'held']).default('wait'),
 });
 
 const languageTag = z.string().regex(/^[A-Za-z0-9_-]+$/, 'A language is a tag such as fr or pt-BR');

@@ -13,10 +13,26 @@ import { useTestDb } from '../db/test-db';
  * name of the repository: `repo-07` has 7 keys of 10 published in English and
  * 3 of 10 in German, and `broken` makes GitHub fail.
  */
-const calls = vi.hoisted(() => ({ progress: [] as string[], pulls: 0 }));
+const calls = vi.hoisted(() => ({
+  progress: [] as string[],
+  held: [] as string[],
+  /** The repositories whose progress the cache holds. The others are read in the background. */
+  warm: new Set<string>(),
+  pulls: 0,
+}));
 
 vi.mock('@/services/i18n-progress.service', async (original) => {
   const real = await original<typeof import('@/services/i18n-progress.service')>();
+  const progressFor = (name: string) => {
+    const published = Number(name.replace(/\D/g, '')) % 11;
+
+    // The source comes first, all published, as `progressOf` answers it since DB-675.
+    return [
+      { language: 'fr', published: 10, proposed: 0, missing: 0, total: 10 },
+      { language: 'en', published, proposed: 0, missing: 10 - published, total: 10 },
+      { language: 'de', published: 3, proposed: 0, missing: 7, total: 10 },
+    ];
+  };
 
   return {
     ...real,
@@ -25,14 +41,12 @@ vi.mock('@/services/i18n-progress.service', async (original) => {
 
       if (repository.name === 'broken') throw new Error('GitHub answered 502');
 
-      const published = Number(repository.name.replace(/\D/g, '')) % 11;
+      return progressFor(repository.name);
+    },
+    heldProgressOf: (repository: { name: string }) => {
+      calls.held.push(repository.name);
 
-      // The source comes first, all published, as `progressOf` answers it since DB-675.
-      return [
-        { language: 'fr', published: 10, proposed: 0, missing: 0, total: 10 },
-        { language: 'en', published, proposed: 0, missing: 10 - published, total: 10 },
-        { language: 'de', published: 3, proposed: 0, missing: 7, total: 10 },
-      ];
+      return calls.warm.has(repository.name) ? progressFor(repository.name) : undefined;
     },
   };
 });
@@ -60,6 +74,7 @@ interface Page {
     publishMode: string;
     progress: Array<{ language: string; published: number }> | null;
     progressError?: string;
+    progressPending?: boolean;
     pullRequest: { number: number; url: string } | null;
   }>;
   page: number;
@@ -114,6 +129,8 @@ const names = (page: Page) => page.rows.map((row) => `${row.owner}/${row.name}`)
 beforeEach(async () => {
   clearOverviewCache();
   calls.progress = [];
+  calls.held = [];
+  calls.warm = new Set();
   calls.pulls = 0;
   await repositories();
 });
@@ -159,9 +176,27 @@ describe('GET /i18n/overview', () => {
   });
 
   it('reads the progress of the rows of the page only, when the order is not by progress', async () => {
-    await pageOf('?perPage=4');
+    const [first] = (await pageOf('?perPage=4')).rows;
 
     expect([...calls.progress].sort()).toEqual(['broken', 'repo-01', 'repo-02', 'repo-03']);
+    expect(first.progressPending).toBeUndefined();
+  });
+
+  it('with progress=held, asks the cache for the rows of the page only, and waits for no read (DB-679)', async () => {
+    await pageOf('?perPage=4&progress=held');
+
+    expect([...calls.held].sort()).toEqual(['broken', 'repo-01', 'repo-02', 'repo-03']);
+    expect(calls.progress).toEqual([]);
+  });
+
+  it('answers the held progress of a row, and says that the read of the others started (DB-679)', async () => {
+    calls.warm.add('repo-02');
+
+    const [first, second] = (await pageOf('?q=repo-0&perPage=2&progress=held')).rows;
+
+    expect(first).toMatchObject({ name: 'repo-01', progress: null, progressPending: true });
+    expect(second).toMatchObject({ name: 'repo-02', progress: [{ language: 'en', published: 2 }, { language: 'de' }] });
+    expect(second.progressPending).toBeUndefined();
   });
 
   it('keeps a repository that GitHub refuses, and says why', async () => {
@@ -187,10 +222,14 @@ describe('GET /i18n/overview', () => {
   });
 
   /** The share of a repository is how far its translations are: the source is not in it (DB-675). */
-  it('leaves the source out of the progress of a row', async () => {
-    const [row] = (await pageOf('?q=repo-07')).rows;
+  it('leaves the source out of the progress of a row, held or read', async () => {
+    calls.warm.add('repo-07');
 
-    expect(row.progress?.map((entry) => entry.language)).toEqual(['en', 'de']);
+    const [held] = (await pageOf('?q=repo-07&progress=held')).rows;
+    const [read] = (await pageOf('?q=repo-07&sort=progress')).rows;
+
+    expect(held.progress?.map((entry) => entry.language)).toEqual(['en', 'de']);
+    expect(read.progress?.map((entry) => entry.language)).toEqual(['en', 'de']);
   });
 
   it('answers a translator the progress of its languages only', async () => {
@@ -199,9 +238,13 @@ describe('GET /i18n/overview', () => {
 
     await grant(userId, repo.id, { languages: ['de'] });
 
-    const [row] = (await pageOf('?q=repo-07', await authHeaders(userId))).rows;
+    calls.warm.add('repo-07');
 
-    expect(row.progress).toEqual([expect.objectContaining({ language: 'de' })]);
+    const [held] = (await pageOf('?q=repo-07&progress=held', await authHeaders(userId))).rows;
+    const [read] = (await pageOf('?q=repo-07&sort=progress', await authHeaders(userId))).rows;
+
+    expect(held.progress).toEqual([expect.objectContaining({ language: 'de' })]);
+    expect(read.progress).toEqual([expect.objectContaining({ language: 'de' })]);
   });
 
   /** A member reads the repositories where it is a member, and no other (DB-637). */

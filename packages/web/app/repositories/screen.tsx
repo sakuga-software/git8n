@@ -3,7 +3,14 @@ import { SearchField } from '@heroui/react/search-field';
 import { Table } from '@heroui/react/table';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { overview, rightsOf, type LanguageProgress, type OverviewSort, type RepositoryOverview } from '@git8n/mcp/api';
+import {
+  overview,
+  progress,
+  rightsOf,
+  type LanguageProgress,
+  type OverviewSort,
+  type RepositoryOverview,
+} from '@git8n/mcp/api';
 import { api } from '~/utils/api';
 import { ChevronDown, Plus, Repository } from '~/editor/icons';
 import { PUBLISH_MODE_LABEL } from '~/editor/publication';
@@ -53,24 +60,52 @@ function LanguageBar({ row }: { row: LanguageProgress }) {
   );
 }
 
-function Progress({ row }: { row: RepositoryOverview }) {
-  if (!row.progress) {
+function Bars({ languages, error }: { languages: LanguageProgress[] | null; error?: string }) {
+  if (!languages) {
     return (
-      <span className="text-alarm-ink text-xs" title={row.progressError}>
+      <span className="text-alarm-ink text-xs" title={error}>
         Illisible pour l'instant
       </span>
     );
   }
 
-  if (row.progress.length === 0) return <span className="text-muted text-xs">Aucune langue ouverte</span>;
+  if (languages.length === 0) return <span className="text-muted text-xs">Aucune langue ouverte</span>;
 
   return (
     <span className="flex flex-col gap-1">
-      {row.progress.map((language) => (
+      {languages.map((language) => (
         <LanguageBar key={language.language} row={language} />
       ))}
     </span>
   );
+}
+
+/** A row whose progress the list did not hold (DB-679): it reads its own, and the list does not wait for it. */
+function PendingProgress({ row }: { row: RepositoryOverview }) {
+  const [read] = useRead(`progress\n${row.id}`, () => progress(api, row.id));
+
+  if (read.state === 'loading') {
+    return (
+      <span className="flex flex-col gap-1" aria-label="Progression en cours de lecture">
+        {row.targets.map((language) => (
+          <Bone key={language} className="h-4 w-44" />
+        ))}
+      </span>
+    );
+  }
+
+  // Since DB-675 the route answers the source too. The list shows the targets only, as for a held row.
+  return read.state === 'done' ? (
+    <Bars languages={read.value.filter((language) => row.targets.includes(language.language))} />
+  ) : (
+    <Bars languages={null} error={read.error.message} />
+  );
+}
+
+function Progress({ row }: { row: RepositoryOverview }) {
+  if (row.progressPending) return <PendingProgress row={row} />;
+
+  return <Bars languages={row.progress} error={row.progressError} />;
 }
 
 /** The pages of the list, drawn as the pages of the table of a repository. */
@@ -144,7 +179,7 @@ function Repositories() {
   const [me, reloadMe] = useRead('me', () => rightsOf(api));
   const key = paramsOf(state).toString();
   const [list, reloadList] = useRead(`overview\n${key}`, () =>
-    overview(api, { ...state, q: state.q || undefined, perPage: LIST_PAGE }),
+    overview(api, { ...state, q: state.q || undefined, perPage: LIST_PAGE, progress: 'held' }),
   );
 
   // The search follows the field alone. The ref gives it the state of the last render without restarting it.
