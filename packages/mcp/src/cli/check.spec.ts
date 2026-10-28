@@ -165,6 +165,25 @@ describe('checkLocales', () => {
     expect(rulesOf(report)).toEqual(['invalid-json de locales/de/common.json', 'not-a-string en common:count']);
   });
 
+  it('keeps the rest of a manifest when one file state is wrong', async () => {
+    const report = await check(
+      {
+        'locales/manifest.json': {
+          source: 'en',
+          files: { legacy: { de: 'disabled' }, common: { de: 'off' } },
+          empty: { de: { 'common:legal': { source: sourceHashOf('Legal') } } },
+        },
+        'locales/en/common.json': { legal: 'Legal' },
+        'locales/en/legacy.json': { old: 'Old' },
+        'locales/de/common.json': { legal: '' },
+      },
+      { source: 'en' },
+    );
+
+    expect(rulesOf(report)).toEqual(['invalid-manifest  locales/manifest.json']);
+    expect(report.problems[0]?.message).toContain('files.common.de is not available, partial or disabled');
+  });
+
   it('answers the error of a manifest that does not parse, even when it hides the source', async () => {
     const report = await check({ 'locales/manifest.json': '{ "source": "en", }', 'locales/en/a.json': {} });
 

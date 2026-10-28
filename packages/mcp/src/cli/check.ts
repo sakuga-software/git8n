@@ -138,13 +138,20 @@ export const placeholdersOf = (text: string): string[] => {
   return [...found].sort();
 };
 
-const parseManifest = (text: string): Manifest => {
+/**
+ * The manifest, with the reason of each entry it leaves out.
+ *
+ * A wrong entry costs only itself: the other states and marks still count.
+ * A text that does not parse, or that is not an object, throws.
+ */
+const parseManifest = (text: string): Manifest & { issues: string[] } => {
   const raw: unknown = JSON.parse(text);
 
   if (!isObject(raw)) throw new Error('it is not a JSON object');
 
   const states = new Map<string, FileState>();
   const marks = new Map<string, string>();
+  const issues: string[] = [];
 
   if (raw.source !== undefined && (typeof raw.source !== 'string' || raw.source === '')) {
     throw new Error('"source" is not a language');
@@ -153,7 +160,8 @@ const parseManifest = (text: string): Manifest => {
   for (const [file, byLanguage] of Object.entries(isObject(raw.files) ? raw.files : {})) {
     for (const [language, state] of Object.entries(isObject(byLanguage) ? byLanguage : {})) {
       if (state !== 'available' && state !== 'partial' && state !== 'disabled') {
-        throw new Error(`files.${file}.${language} is not available, partial or disabled`);
+        issues.push(`files.${file}.${language} is not available, partial or disabled`);
+        continue;
       }
       states.set(`${language}\n${file}`, state);
     }
@@ -165,7 +173,7 @@ const parseManifest = (text: string): Manifest => {
     }
   }
 
-  return { source: raw.source as string | undefined, states, marks };
+  return { source: raw.source as string | undefined, states, marks, issues };
 };
 
 const PLURAL_FORMS = ['zero', 'one', 'two', 'few', 'many', 'other'] as const;
@@ -250,16 +258,22 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
 
   if (manifestText === null && options.manifest !== null) throw new CheckSetupError(`${manifestPath} does not exist.`);
   if (manifestText !== null) {
-    try {
-      manifest = parseManifest(manifestText);
-    } catch (error) {
+    const invalid = (reason: string) =>
       report({
         rule: 'invalid-manifest',
         path: manifestPath,
         language: '',
         key: null,
-        message: `${manifestPath} is not a manifest: ${(error as Error).message}.`,
+        message: `${manifestPath} is not a manifest: ${reason}.`,
       });
+
+    try {
+      const { issues, ...read } = parseManifest(manifestText);
+
+      manifest = read;
+      issues.forEach(invalid);
+    } catch (error) {
+      invalid((error as Error).message);
     }
   }
 
