@@ -218,6 +218,12 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
   const problems: Problem[] = [];
   const report = (problem: Omit<Problem, 'severity'>) =>
     problems.push({ ...problem, severity: RULES[problem.rule].severity });
+  const summarize = (counts: Omit<CheckReport, 'errors' | 'warnings' | 'problems'>): CheckReport => ({
+    ...counts,
+    errors: problems.filter((problem) => problem.severity === 'error').length,
+    warnings: problems.filter((problem) => problem.severity === 'warning').length,
+    problems,
+  });
 
   let locales = options.locales;
   let folders: Entry[] | null = null;
@@ -259,6 +265,8 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
 
   const source = options.source ?? manifest.source;
 
+  // A manifest that does not parse can hide its source. Its own error is then the answer.
+  if (!source && problems.length > 0) return summarize({ locales, source: '', languages: [], files: 0, keys: 0 });
   if (!source) throw new CheckSetupError('No source language: pass --source, or name "source" in the manifest.');
   if (options.source && manifest.source && options.source !== manifest.source) {
     throw new CheckSetupError(`--source is ${options.source}, and the manifest names ${manifest.source}.`);
@@ -468,16 +476,7 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
     }
   }
 
-  return {
-    locales,
-    source,
-    languages,
-    files,
-    keys,
-    errors: problems.filter((problem) => problem.severity === 'error').length,
-    warnings: problems.filter((problem) => problem.severity === 'warning').length,
-    problems,
-  };
+  return summarize({ locales, source, languages, files, keys });
 };
 
 export const REPORTERS = ['pretty', 'json', 'github'] as const;

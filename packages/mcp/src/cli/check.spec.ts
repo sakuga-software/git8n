@@ -165,6 +165,13 @@ describe('checkLocales', () => {
     expect(rulesOf(report)).toEqual(['invalid-json de locales/de/common.json', 'not-a-string en common:count']);
   });
 
+  it('answers the error of a manifest that does not parse, even when it hides the source', async () => {
+    const report = await check({ 'locales/manifest.json': '{ "source": "en", }', 'locales/en/a.json': {} });
+
+    expect(rulesOf(report)).toEqual(['invalid-manifest  locales/manifest.json']);
+    expect(report.errors).toBe(1);
+  });
+
   it('finds the locales folder, and refuses a setup it cannot read', async () => {
     const files = { 'src/locales/en/common.json': { ok: 'OK' }, 'src/locales/de/common.json': { ok: 'OK' } };
 
