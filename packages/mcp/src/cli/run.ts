@@ -1,3 +1,4 @@
+import { isAbsolute, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
   ApiError,
@@ -13,6 +14,16 @@ import {
   type CatalogueEntry,
   type Repository,
 } from '../api.ts';
+import {
+  CheckSetupError,
+  checkLocales,
+  failed,
+  githubReport,
+  prettyReport,
+  REPORTERS,
+  type Entry,
+  type Reporter,
+} from './check.ts';
 import { credentialsPath, readCredentials, writeCredentials, type Credentials } from './credentials.ts';
 import { asCliError, CliError, EXIT } from './errors.ts';
 import {
@@ -39,6 +50,8 @@ export interface Io {
   stderr: (text: string) => void;
   readStdin: () => Promise<string>;
   readFile: (path: string) => Promise<string>;
+  /** The entries of a folder, or null when the path is not a folder. */
+  readDir: (path: string) => Promise<Entry[] | null>;
   fetch: typeof fetch;
   sleep: (ms: number) => Promise<void>;
   now: () => number;
@@ -69,6 +82,7 @@ const COMMANDS: Record<string, readonly string[]> = {
   proposals: ['repo', 'lang'],
   prompt: ['repo', 'lang', 'to', 'state', 'file', 'limit', 'cursor'],
   mcp: [],
+  check: ['locales', 'manifest', 'source', 'lang', 'reporter', 'max-warnings'],
 };
 
 const OPTIONS = {
@@ -88,6 +102,11 @@ const OPTIONS = {
   cursor: { type: 'string' },
   'dry-run': { type: 'boolean' },
   'read-at': { type: 'string' },
+  locales: { type: 'string' },
+  manifest: { type: 'string' },
+  source: { type: 'string' },
+  reporter: { type: 'string' },
+  'max-warnings': { type: 'string' },
 } as const;
 
 type Options = Partial<{
@@ -107,6 +126,11 @@ type Options = Partial<{
   cursor: string;
   'dry-run': boolean;
   'read-at': string;
+  locales: string;
+  manifest: string;
+  source: string;
+  reporter: string;
+  'max-warnings': string;
 }>;
 
 export const HELP = `i18n-editor — the translations of a repository, from a terminal
@@ -131,6 +155,9 @@ Write
 Agents
   prompt translate   A prompt that asks an LLM for the missing translations
   mcp                The MCP server, on stdin and stdout
+
+CI, with no server
+  check              Check the locale files of this folder (--locales, --reporter, --max-warnings)
 
 Options
   --api <url>        The address of the editor. Default: the last login
@@ -321,6 +348,9 @@ class Session {
       case 'mcp':
         expectArgs(0, 'mcp');
         return this.mcp();
+      case 'check':
+        expectArgs(0, 'check [--locales <folder>] [--reporter pretty|json|github] [--max-warnings <n>]');
+        return this.check();
       default:
         throw new CliError('I18NE1001', `${command} is not a command.`);
     }
@@ -781,6 +811,56 @@ class Session {
       },
       () => prompt,
     );
+  }
+
+  /** Reads the locale files of the working copy, and answers 1 when they fail the check. No API, no login. */
+  private async check(): Promise<number> {
+    const reporter = (this.options.reporter ?? (this.json ? 'json' : 'pretty')) as Reporter;
+
+    if (!REPORTERS.includes(reporter))
+      throw new CliError('I18NE1001', `--reporter takes one of ${REPORTERS.join(', ')}.`);
+
+    const maxWarnings =
+      this.options['max-warnings'] === undefined
+        ? null
+        : integerOf('max-warnings', this.options['max-warnings'], 0, 0, Number.MAX_SAFE_INTEGER);
+    const { cwd } = this.io;
+    const inCwd = (path: string) => (isAbsolute(path) ? path : join(cwd, path));
+    const languages = this.options.lang
+      ?.split(',')
+      .map((language) => language.trim())
+      .filter(Boolean);
+    let report;
+
+    try {
+      report = await checkLocales(
+        {
+          locales: this.options.locales ?? null,
+          manifest: this.options.manifest ?? null,
+          source: this.options.source ?? null,
+          languages: languages && languages.length > 0 ? languages : null,
+        },
+        {
+          readDir: (path) => this.io.readDir(inCwd(path)),
+          readFile: (path) => this.io.readFile(inCwd(path)).catch(() => null),
+        },
+      );
+    } catch (error) {
+      if (error instanceof CheckSetupError) throw new CliError('I18NE1005', error.message);
+
+      throw error;
+    }
+
+    const output = {
+      pretty: () => prettyReport(report),
+      github: () => githubReport(report),
+      json: () =>
+        `${JSON.stringify({ data: { ...report, maxWarnings, failed: failed(report, maxWarnings) } }, null, 2)}\n`,
+    }[reporter];
+
+    this.io.stdout(output());
+
+    return failed(report, maxWarnings) ? EXIT.failed : EXIT.ok;
   }
 
   private async mcp(): Promise<number> {

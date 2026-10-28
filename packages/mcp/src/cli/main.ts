@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFile, spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { promisify } from 'node:util';
 import { serveOverStdio } from '../server.ts';
@@ -53,6 +53,16 @@ process.exitCode = await run(process.argv.slice(2), {
   stderr: (text) => process.stderr.write(text),
   readStdin,
   readFile: (path) => readFile(path, 'utf8'),
+  readDir: async (path) => {
+    try {
+      return (await readdir(path, { withFileTypes: true })).map((entry) => ({
+        name: entry.name,
+        directory: entry.isDirectory(),
+      }));
+    } catch {
+      return null;
+    }
+  },
   fetch: (input, init) => fetch(input, init),
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now: () => Date.now(),

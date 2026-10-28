@@ -21,6 +21,7 @@ export const ERRORS = {
   I18NE1002: { exit: EXIT.usage, title: 'No address of the API: pass --api or set I18N_EDITOR_API_URL.' },
   I18NE1003: { exit: EXIT.usage, title: 'The input of apply is not valid.' },
   I18NE1004: { exit: EXIT.usage, title: 'The file of the credentials is not valid.' },
+  I18NE1005: { exit: EXIT.usage, title: 'check cannot find the locales, the manifest or the source language.' },
   I18NE2001: { exit: EXIT.signedOut, title: 'No account is signed in, or the API refused the token.' },
   I18NE2002: { exit: EXIT.failed, title: 'The device code expired before somebody approved it.' },
   I18NE2003: { exit: EXIT.failed, title: 'The person refused the device code.' },

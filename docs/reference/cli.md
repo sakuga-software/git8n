@@ -136,6 +136,53 @@ Starts the [MCP server](../agents/mcp.md) on stdin and stdout, with the token
 of `login` or of `I18N_EDITOR_API_TOKEN`. It writes nothing else on stdout.
 It takes no `--json`.
 
+### `check`
+
+Reads the locale files of the folder where it runs, with no API and no login,
+and reports what is wrong in them. [In CI](../agents/cli.md#in-ci) shows a
+workflow.
+
+| Option                | What it does                                                                                                               |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `--locales <folder>`  | The folder of the languages. Default: the first of `locales`, `src/locales`, `public/locales`, `src/i18n/locales`, `i18n`. |
+| `--manifest <file>`   | The manifest. Default: `<locales>/manifest.json`, if it exists.                                                            |
+| `--source <language>` | The source language. Default: the `source` of the manifest.                                                                |
+| `--lang <a,b>`        | The languages to check. Default: every folder of `<locales>` past the source.                                              |
+| `--reporter <name>`   | `pretty` (the default), `json` (as `--json`) or `github`: one annotation of GitHub Actions for each problem.               |
+| `--max-warnings <n>`  | Fails past `n` warnings. Default: no limit.                                                                                |
+
+It applies the rules of the editor ([A repository and its files](../guide/repositories.md)):
+the dotted keys of i18next, the files that the manifest disables, and the keys
+it marks empty on purpose.
+
+| Rule               | Level   | What it finds                                                                                     |
+| ------------------ | ------- | ------------------------------------------------------------------------------------------------- |
+| `invalid-json`     | error   | A file that does not parse, or whose top is not an object.                                        |
+| `invalid-manifest` | error   | A manifest that does not parse, or a file state that is not `available`, `partial` or `disabled`. |
+| `not-a-string`     | error   | A value that is a number, an array or `null`.                                                     |
+| `placeholders`     | error   | A translation that loses or adds a placeholder of its source.                                     |
+| `missing-key`      | warning | A key of the source that the language does not hold.                                              |
+| `empty-value`      | warning | A translation `""` that the manifest does not mark empty on purpose.                              |
+| `stale-empty`      | warning | A key marked empty on purpose, whose source text changed since the mark.                          |
+| `empty-source`     | warning | A text `""` in the source.                                                                        |
+| `extra-key`        | warning | A key of a language that the source does not hold.                                                |
+| `extra-file`       | warning | A file of a language that the source does not hold.                                               |
+| `skipped-file`     | warning | A file such as `common.v2.json`, which the editor leaves out.                                     |
+
+A placeholder is `{{name}}`, `{name}`, `$t(…)`, a tag such as `<0>` or `<br/>`,
+or `%s`. The branches of an ICU plural are text: `{count, plural, one {# item}}`
+holds `{count}` only.
+
+A plural follows i18next: `items_one` and `items_other` are the forms of
+`items`. Each language needs the forms of its own rules (`Intl.PluralRules`):
+Polish needs `_few` and `_many`, Japanese only `_other`. A form other than
+`_other` can leave out `{{count}}`: « One item ».
+
+The exit status is 1 on an error, or past `--max-warnings`, else 0. A wrong
+setup is `I18NE1005`, with the status 2.
+
+`data`: `{ locales, source, languages, files, keys, errors, warnings, maxWarnings, failed, problems: [{ rule, severity, path, language, key, message }] }`
+
 ## JSON
 
 With `--json`, stdout holds one JSON document:
@@ -160,12 +207,12 @@ Without `--json`, the answer goes to stdout and an error goes to stderr.
 
 ## Exit status
 
-| Status | Meaning                                                          |
-| ------ | ---------------------------------------------------------------- |
-| 0      | Done.                                                            |
-| 1      | The API refused, a key is unknown, or the sign-in did not end.   |
-| 2      | The command, an option, the configuration or the input is wrong. |
-| 3      | No account is signed in, or the API refused the token.           |
+| Status | Meaning                                                                        |
+| ------ | ------------------------------------------------------------------------------ |
+| 0      | Done.                                                                          |
+| 1      | The API refused, a key is unknown, the sign-in did not end, or `check` failed. |
+| 2      | The command, an option, the configuration or the input is wrong.               |
+| 3      | No account is signed in, or the API refused the token.                         |
 
 ## Error codes
 
@@ -175,6 +222,7 @@ Without `--json`, the answer goes to stdout and an error goes to stderr.
 | `I18NE1002` | 2      | No address of the API: pass `--api` or set `I18N_EDITOR_API_URL`.             |
 | `I18NE1003` | 2      | The input of `apply` is not valid.                                            |
 | `I18NE1004` | 2      | The file of the credentials is not valid. Delete it and sign in again.        |
+| `I18NE1005` | 2      | `check` cannot find the locales, the manifest or the source language.         |
 | `I18NE2001` | 3      | No account is signed in, or the API refused the token.                        |
 | `I18NE2002` | 1      | The device code expired before somebody approved it.                          |
 | `I18NE2003` | 1      | The person refused the device code.                                           |
