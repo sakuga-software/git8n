@@ -114,6 +114,7 @@ export function Shell({
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
             <Link
               to="/"
+              viewTransition
               onClick={(event) => {
                 if (!mayLeave(waiting.current)) event.preventDefault();
               }}
@@ -167,7 +168,7 @@ export function Shell({
           ref={setSide}
           aria-label="Langues et fichiers"
           data-swap={swap ?? undefined}
-          className={`side-panel border-line bg-side flex min-w-0 flex-col gap-[22px] overflow-x-hidden border-r pt-3.5 pb-5 empty:hidden md:relative md:overflow-y-auto motion-safe:md:transition-[flex-basis] motion-safe:md:duration-220 motion-safe:md:ease-[cubic-bezier(0.25,1,0.5,1)] ${
+          className={`side-panel border-line bg-side flex min-w-0 flex-col gap-[22px] overflow-x-hidden border-r pt-3.5 pb-5 empty:hidden md:relative md:overflow-y-auto motion-safe:md:transition-[flex-basis] motion-safe:md:duration-(--motion-move) motion-safe:md:ease-(--motion-ease-panel) ${
             folded ? 'flex-[0_0_60px] px-2.5' : 'flex-[1_1_264px] px-3'
           }`}
         />
