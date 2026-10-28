@@ -275,6 +275,9 @@ importers:
 
   docs:
     devDependencies:
+      '@git8n/web':
+        specifier: workspace:*
+        version: link:../packages/web
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
