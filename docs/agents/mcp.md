@@ -1,0 +1,122 @@
+# MCP server
+
+`packages/mcp` holds an MCP server. With it, an agent reads the translations
+and proposes texts, with no screen and no access to GitHub.
+
+The server translates nothing. It answers the catalogue, and the agent writes
+the words. It does not publish either: a person reviews and publishes.
+
+## How it works
+
+The server speaks MCP over stdio. Each tool calls the HTTP API of the editor,
+under `/i18n`, with the token of one account. The API checks the rights of that
+account on each call: its repositories, its languages and its role. The server
+never reaches GitHub or the database, so it has no write path that skips these
+checks.
+
+```
+agent
+  │ stdio
+  ▼
+MCP server
+  │ HTTPS, Authorization: Bearer <token>
+  ▼
+API /i18n      checks the rights of the account
+  │ GitHub App
+  ▼
+repository
+```
+
+## Configure it
+
+The server needs two variables:
+
+| Variable                | What it is                                                         |
+| ----------------------- | ------------------------------------------------------------------ |
+| `I18N_EDITOR_API_URL`   | The address of the editor, for example `https://i18n.example.com`. |
+| `I18N_EDITOR_API_TOKEN` | A token of the account that the agent acts as.                     |
+
+The server sends the token as `Authorization: Bearer <token>`.
+
+::: warning A token for an agent is coming
+The editor has no page that gives a token yet. [Access tokens](./tokens.md)
+describes the page that comes next. Until it exists, the API takes the session
+token of an account as a bearer token.
+:::
+
+## Connect it to an agent
+
+Run the server from a clone of the repository, after `pnpm install`:
+
+```json
+{
+  "mcpServers": {
+    "i18n-editor": {
+      "command": "node",
+      "args": ["--experimental-strip-types", "packages/mcp/src/main.ts"],
+      "env": {
+        "I18N_EDITOR_API_URL": "https://i18n.example.com",
+        "I18N_EDITOR_API_TOKEN": "…"
+      }
+    }
+  }
+}
+```
+
+The server writes only the protocol on stdout. It writes its errors on stderr.
+If a variable is missing, it stops with a message that names it.
+
+## The tools
+
+| Tool                | What it answers                                                                    |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| `i18n_repositories` | The repositories, with their source language and their targets.                    |
+| `i18n_me`           | What this token may do: the repositories, and in each one the role and languages.  |
+| `i18n_keys`         | The keys of a language, by state and by file, with the `commit` they were read at. |
+| `i18n_key`          | One key: the source text, the target text and its state.                           |
+| `i18n_propose`      | Writes a whole batch as **one** commit on `i18n/<language>`.                       |
+| `i18n_proposals`    | The batches that wait on a language.                                               |
+
+[MCP tools](../reference/mcp-tools.md) gives the input and the answer of each
+tool.
+
+## A typical session
+
+1. `i18n_me`: find the repositories and the languages that the account may
+   write.
+2. `i18n_keys` with `state: "missing"`: get the first page of keys to
+   translate, and its `commit`.
+3. `i18n_key` for a key that needs context: the file and the dotted path tell
+   what the text is for.
+4. `i18n_propose` with every text and the `commit` of step 2 as `readAt`.
+5. `i18n_proposals`: check that the batch waits on the language. A reviewer
+   then publishes it in the editor.
+
+## Two rules
+
+**Carry the `commit` back.** `i18n_keys` and `i18n_key` answer the revision
+that they read. `i18n_propose` takes it as `readAt`. A publication uses it to
+refuse a key whose source changed after the proposal. The tool refuses a value
+that is not a full SHA of 40 characters. Do not invent one.
+
+**One call is one commit.** Send the texts of one language in one
+`i18n_propose`, up to 2000 keys, and not one call for each key.
+
+Every page of one listing answers the revision of the first page, so a long
+catalogue does not mix two revisions in one batch. Do not mix the values of two
+listings in one call: a batch carries one `readAt`.
+
+## Errors
+
+A tool does not throw when the API refuses. It answers `isError` with the
+status and the message of the API, for example
+`403 — This account may not propose in de.` The agent reads the reason and can act on it.
+
+## What the server does not do
+
+- **Publish.** A reviewer approves a translation. That is a judgement, and the
+  API refuses a publication from an account that is not a reviewer.
+- **Add a key to the source.** A person writes the texts of the product. An
+  agent translates them.
+- **Keep a translation after its source changed.** A reviewer does it in the
+  editor.

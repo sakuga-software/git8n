@@ -151,7 +151,7 @@ export type FileState = z.infer<typeof fileStateSchema>;
 
 /**
  * The manifest of the locales (DB-225). By default it is `manifest.json`,
- * beside the directories of the languages. `docs/manifest.md` gives its format.
+ * beside the directories of the languages. `docs/guide/repositories.md` gives its format.
  *
  * A file or a language that it does not name is `available`. A repository
  * with no manifest then reads as it did before.

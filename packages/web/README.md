@@ -56,7 +56,7 @@ the published. « Proposed » comes from `GET /i18n/proposals/keys`: a key that
 the base branch already says is published, whatever its batch says.
 
 A file that the manifest disables for the language has no row, and the page
-says that it has no version (DB-225). [`docs/repositories.md`](../../docs/repositories.md)
+says that it has no version (DB-225). [`docs/guide/repositories.md`](../../docs/guide/repositories.md#the-manifest)
 gives the format of the manifest.
 
 ## Deploy it
@@ -64,7 +64,7 @@ gives the format of the manifest.
 The API serves this build on its own origin when `WEB_ROOT` names
 `build/client`, so the page needs no address of the API and no CORS. The root
 `packages/api/Dockerfile` builds the page and the API into one image: see
-[`docs/deploy.md`](../../docs/deploy.md).
+[`docs/operate/deploy.md`](../../docs/operate/deploy.md).
 
 ## Tests
 

@@ -1,6 +1,7 @@
 # The editor: the API, which also serves the built page on the same origin.
 # Build from the root of the repository: pnpm needs the workspace files to
 # resolve the `catalog:` versions, and the page imports the client of `packages/mcp`.
+# The API also serves the site of `docs` at /docs.
 #
 #   docker build -f packages/api/Dockerfile -t i18n-editor .
 
@@ -22,15 +23,18 @@ COPY --link packages/api/package.json ./packages/api/
 COPY --link packages/db/package.json ./packages/db/
 COPY --link packages/mcp/package.json ./packages/mcp/
 COPY --link packages/web/package.json ./packages/web/
+COPY --link docs/package.json ./docs/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter @i18n-editor/api... --filter @i18n-editor/web...
+    pnpm install --frozen-lockfile --filter @i18n-editor/api... --filter @i18n-editor/web... --filter @i18n-editor/docs
 COPY --link packages ./packages
+COPY --link docs ./docs
 # React Router renders the page once, through a server on `localhost`. In this
 # image `localhost` resolves to ::1 first, and the client then connects to
 # 127.0.0.1 and gets ECONNREFUSED.
 ENV NODE_OPTIONS=--dns-result-order=ipv4first
 RUN pnpm --filter @i18n-editor/api run build \
- && pnpm --filter @i18n-editor/web run build
+ && pnpm --filter @i18n-editor/web run build \
+ && pnpm --filter @i18n-editor/docs run build
 
 # Only the runtime dependencies of the API. The bundle holds `packages/db`.
 # None of them needs an install script, and the `prepare` script of the root
@@ -58,6 +62,7 @@ COPY --from=prod-deps --link /app/packages/api/node_modules ./packages/api/node_
 COPY --from=build --link /app/packages/api/package.json ./packages/api/
 COPY --from=build --link /app/packages/api/build ./packages/api/build
 COPY --from=build --link /app/packages/web/build/client ./web
+COPY --from=build --link /app/docs/.vitepress/dist ./web/docs
 USER node
 EXPOSE 8001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

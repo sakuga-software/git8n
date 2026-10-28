@@ -27,10 +27,17 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 const webRoot = env.WEB_ROOT;
 
 if (webRoot) {
+  // The site of the documentation is in `<WEB_ROOT>/docs`, with each page also as Markdown under `raw/`.
+  app.get('/docs', (c) => c.redirect('/docs/', 301));
+  app.use('/docs/*', async (c, next) => {
+    await next();
+
+    if (c.res.status === 200 && c.req.path.endsWith('.md')) c.header('Content-Type', 'text/markdown; charset=utf-8');
+  });
   app.use('/*', serveStatic({ root: webRoot }));
   // The application is a single page: every other address opens it, and the router reads the path.
   app.get('/*', async (c, next) => {
-    if (/^\/(api|i18n)(\/|$)/.test(c.req.path)) return c.notFound();
+    if (/^\/(api|i18n|docs)(\/|$)/.test(c.req.path)) return c.notFound();
 
     return serveStatic({ root: webRoot, path: 'index.html' })(c, next);
   });
