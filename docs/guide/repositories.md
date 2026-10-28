@@ -111,7 +111,7 @@ In the mode `pull_request`:
   not, and whether GitHub can merge it. The header of the editor shows it.
 
 The App needs the permission « Pull requests: write » for this mode:
-[The GitHub App](../operate/github-app.md#add-the-permission-pull-requests-to-an-app-that-exists) tells how to add it to an App that exists.
+[The GitHub App](../operate/github-app.md#add-pull-requests) tells how to add it to an App that exists.
 
 ## Change a text of the source
 

@@ -148,7 +148,7 @@ request, connect the repository in the mode `pull_request`: the form proposes
 it when a ruleset of the branch requires one. Do not add the App to the actors
 that bypass the rule: a publication would then reach the branch with no check.
 
-## Add the permission « Pull requests » to an App that exists
+## Add the permission « Pull requests » to an App that exists {#add-pull-requests}
 
 An App created before the mode `pull_request` has no permission on pull
 requests. GitHub refuses the token, and the editor answers 503 with the name of
