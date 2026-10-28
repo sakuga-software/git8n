@@ -479,7 +479,13 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
 
         if (plural) plurals.set(plural.base, (plurals.get(plural.base) ?? new Map()).set(plural.form, text));
       }
-      for (const [base, forms] of plurals) if (!forms.has('other')) plurals.delete(base);
+      // A base counts as a plural with its form `other` and one more form. A source language with one
+      // form only (`ja`) writes `_other` alone, so there `_other` alone is a plural too.
+      const sourceHasOneForm = pluralFormsOf(source, ['one', 'other']).length === 1;
+
+      for (const [base, forms] of plurals) {
+        if (!forms.has('other') || (forms.size === 1 && !sourceHasOneForm)) plurals.delete(base);
+      }
 
       const checkKey = (key: string, text: string, form: string | null) => {
         const id = `${file}:${key}`;

@@ -148,6 +148,26 @@ describe('checkLocales', () => {
     expect(rulesOf(report)).toEqual(['missing-key de common:items_one']);
   });
 
+  it('reads a key that ends with _other as a plain key, unless the source has one plural form only', async () => {
+    const plain = await check(
+      {
+        'locales/en/common.json': { contact_other: 'Other contact' },
+        'locales/de/common.json': { contact_other: 'Andere' },
+      },
+      { source: 'en' },
+    );
+    const japanese = await check(
+      {
+        'locales/ja/common.json': { items_other: '{{count}} 個' },
+        'locales/de/common.json': { items_other: '{{count}} Artikel' },
+      },
+      { source: 'ja' },
+    );
+
+    expect(rulesOf(plain)).toEqual([]);
+    expect(rulesOf(japanese)).toEqual(['missing-key de common:items_one']);
+  });
+
   it('leaves out a file that the manifest disables, and a file name that the editor refuses', async () => {
     const report = await check({
       'locales/manifest.json': { source: 'en', files: { legacy: { de: 'disabled' } } },
