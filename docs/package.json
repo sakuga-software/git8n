@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "demo": "pnpm --filter @i18n-editor/web build:demo && node scripts/copy-demo.mjs",
     "dev": "vitepress dev --port 5208",
-    "build": "vitepress build",
+    "build": "pnpm run demo && vitepress build",
     "preview": "vitepress preview"
   },
   "devDependencies": {
