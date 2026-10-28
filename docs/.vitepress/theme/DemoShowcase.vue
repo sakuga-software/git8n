@@ -7,6 +7,8 @@ const DEMO_MESSAGE = 'i18n-editor-demo';
 
 const TYPE_MS = 28;
 const PAUSE_MS = 500;
+const PING_MS = 500;
+const ANSWER_MS = 5000;
 
 interface Line {
   kind: 'command' | 'output' | 'note';
@@ -22,6 +24,7 @@ const running = ref(false);
 const lines = ref<Line[]>([]);
 
 let answers: ((data: Record<string, unknown>) => void) | null = null;
+let ping: ReturnType<typeof setInterval> | undefined;
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, reducedMotion() ? 0 : ms));
@@ -30,15 +33,36 @@ const onMessage = (event: MessageEvent) => {
   const data = event.data as Record<string, unknown> | null;
 
   if (event.origin !== window.location.origin || data?.type !== DEMO_MESSAGE) return;
-  if (data.event === 'ready') ready.value = true;
-  else answers?.(data);
+  if (data.event === 'ready') {
+    ready.value = true;
+    clearInterval(ping);
+  } else answers?.(data);
 };
 
-/** Sends an action to the demo, and waits for its answer. */
+const send = (action: string) =>
+  frame.value?.contentWindow?.postMessage({ type: DEMO_MESSAGE, action }, window.location.origin);
+
+/**
+ * Asks the demo until it says it is ready.
+ *
+ * The server renders the frame, so the demo can load before this page listens. Its first `ready` is then lost.
+ */
+const waitForDemo = () => {
+  clearInterval(ping);
+  send('ping');
+  ping = setInterval(() => send('ping'), PING_MS);
+};
+
+/** Sends an action to the demo, and waits for its answer. A demo that does not answer rejects after `ANSWER_MS`. */
 const ask = (action: string) =>
-  new Promise<Record<string, unknown>>((resolve) => {
-    answers = resolve;
-    frame.value?.contentWindow?.postMessage({ type: DEMO_MESSAGE, action }, window.location.origin);
+  new Promise<Record<string, unknown>>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('The demo did not answer.')), ANSWER_MS);
+
+    answers = (data) => {
+      clearTimeout(timer);
+      resolve(data);
+    };
+    send(action);
   });
 
 const print = async (line: Line) => {
@@ -66,6 +90,16 @@ async function runAgent() {
   running.value = true;
   lines.value = [];
 
+  try {
+    await playAgent();
+  } catch {
+    await print({ kind: 'note', text: 'The demo did not answer. Reload the page to start again.' });
+  } finally {
+    running.value = false;
+  }
+}
+
+async function playAgent() {
   await type('i18n-editor keys --missing --lang de');
   await wait(PAUSE_MS);
 
@@ -91,12 +125,16 @@ async function runAgent() {
         : 'Nothing to propose.',
     });
   }
-
-  running.value = false;
 }
 
-onMounted(() => window.addEventListener('message', onMessage));
-onBeforeUnmount(() => window.removeEventListener('message', onMessage));
+onMounted(() => {
+  window.addEventListener('message', onMessage);
+  waitForDemo();
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('message', onMessage);
+  clearInterval(ping);
+});
 </script>
 
 <template>
@@ -117,7 +155,7 @@ onBeforeUnmount(() => window.removeEventListener('message', onMessage));
         :src="demoUrl"
         title="Demo of the editor"
         loading="lazy"
-        @load="ready = true"
+        @load="waitForDemo"
       />
 
       <div class="agent">

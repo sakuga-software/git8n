@@ -59,6 +59,8 @@ export function installDemo(): void {
 
     const reply = (body: object) => (event.source as Window).postMessage({ type: DEMO_MESSAGE, ...body }, parentOrigin);
 
+    if (message.action === 'ping') reply({ event: 'ready' });
+
     if (message.action === 'missing') {
       reply({ event: 'missing', keys: store.missingGerman().map(({ file, key, source }) => ({ file, key, source })) });
     }
