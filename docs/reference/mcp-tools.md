@@ -29,7 +29,8 @@ other account reads the repositories where it is a member.
 
 ## `i18n_me`
 
-What this token may do.
+What the account of the token may do. A token gives the rights of its account, and
+no more ([Access tokens](../agents/tokens.md)).
 
 **Input:** none.
 
