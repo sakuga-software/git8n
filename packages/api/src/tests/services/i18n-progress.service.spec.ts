@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { I18nRepository } from '@git8n/db';
 import { clearI18nCatalogueCache, getCatalogue } from '@/services/i18n-catalogue.service';
 import { propose, proposedKeys } from '@/services/i18n-git.service';
-import { clearI18nProgressCache, forgetProgress, progressOf } from '@/services/i18n-progress.service';
+import { clearI18nProgressCache, forgetProgress, heldProgressOf, progressOf } from '@/services/i18n-progress.service';
 import { fakeRepo, type FakeRepo } from './fake-github-repo';
 
 vi.mock('@/services/github-app.service', async (original) => ({
@@ -222,6 +222,32 @@ describe('what the progress costs', () => {
 
     expect(of(before, 'en')!.proposed).toBe(0);
     expect(of(after, 'en')!.proposed).toBe(1);
+  });
+
+  /** A cold read of GitHub takes seconds (DB-679). The page shows the numbers it has, and they follow. */
+  it('answers the old numbers at once after a minute, and reads the new ones behind them', async () => {
+    start();
+
+    const at = (seconds: number) => ({ now: new Date(Date.parse('2026-10-08T10:00:00Z') + seconds * 1000) });
+    const before = await progressOf(repository, at(0));
+
+    await propose(
+      repository,
+      'en',
+      [{ file: 'common', key: 'back', value: 'Back' }],
+      translator,
+      repo.refs.get('main')!,
+    );
+
+    expect(await progressOf(repository, at(61))).toBe(before);
+    await vi.waitFor(async () => expect(of(await progressOf(repository, at(62)), 'en')!.proposed).toBe(1));
+  });
+
+  it('answers nothing held at once, starts the read, and has its answer for the next ask', async () => {
+    start();
+
+    expect(heldProgressOf(repository)).toBeUndefined();
+    await vi.waitFor(() => expect(heldProgressOf(repository)).toHaveLength(2));
   });
 
   it('holds nothing of a read that failed', async () => {

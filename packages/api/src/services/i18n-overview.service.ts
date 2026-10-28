@@ -2,7 +2,7 @@ import type { I18nRepository, PublishMode } from '@git8n/db';
 import type { OVERVIEW_SORTS } from '@/schemas/i18n';
 import { createCache } from '@/utils/cache';
 import { describeError } from '@/utils/describe-error';
-import { type LanguageProgress, progressOf } from '@/services/i18n-progress.service';
+import { heldProgressOf, type LanguageProgress, progressOf } from '@/services/i18n-progress.service';
 import { openPullOf, publishToken } from '@/services/i18n-pull-request.service';
 import { languagesOf, listRepositories } from '@/services/i18n-repositories.service';
 
@@ -44,6 +44,11 @@ export interface RepositoryOverview {
   progress: LanguageProgress[] | null;
   /** Why `progress` is null, in one line. */
   progressError?: string;
+  /**
+   * `progress` is not read yet (DB-679). The read started: the page asks
+   * `GET /i18n/progress` for this repository, and does not wait for the list.
+   */
+  progressPending?: boolean;
   /** The open pull request of the publications, for a repository that publishes by pull request. */
   pullRequest: { number: number; url: string } | null;
 }
@@ -97,15 +102,22 @@ export const shareOf = (progress: readonly LanguageProgress[] | null): number =>
   return total === 0 ? 1 : progress.reduce((sum, row) => sum + row.published, 0) / total;
 };
 
-type ProgressRead = Pick<RepositoryOverview, 'progress' | 'progressError'>;
+type ProgressRead = Pick<RepositoryOverview, 'progress' | 'progressError' | 'progressPending'>;
+
+/**
+ * The rows of the progress that a list shows: the targets, and of them the languages the caller may read.
+ *
+ * The share of a repository is how far its translations are. The source would add its own texts as done.
+ */
+const onlyLanguages = (row: I18nRepository, all: LanguageProgress[], languages?: readonly string[]) => {
+  const { targets } = languagesOf(row);
+
+  return all.filter((entry) => targets.includes(entry.language) && (!languages || languages.includes(entry.language)));
+};
 
 const readProgress = async (row: I18nRepository, languages?: readonly string[]): Promise<ProgressRead> => {
   try {
-    // The share of a repository is how far its translations are. The source would add its own texts as done.
-    const { targets } = languagesOf(row);
-    const all = (await progressOf(row)).filter((entry) => targets.includes(entry.language));
-
-    return { progress: languages ? all.filter((entry) => languages.includes(entry.language)) : all };
+    return { progress: onlyLanguages(row, await progressOf(row), languages) };
   } catch (error) {
     // One repository that GitHub refuses must not hide the others.
     return { progress: null, progressError: describeError(error) };
@@ -161,9 +173,18 @@ export const overview = async (query: OverviewQuery, options: { now?: Date } = {
   const start = (query.page - 1) * query.perPage;
   const slice = matched.slice(start, start + query.perPage);
 
+  // Outside an order by progress, a row does not wait for GitHub: it shows what is held, or says that the read started.
+  const heldProgress = (row: I18nRepository): ProgressRead => {
+    const held = heldProgressOf(row, options);
+
+    return held
+      ? { progress: onlyLanguages(row, held, languagesOfRow(row)) }
+      : { progress: null, progressPending: true };
+  };
+
   const rows = await mapLimited(slice, PARALLEL_READS, async (row): Promise<RepositoryOverview> => {
     const [progress, pullRequest] = await Promise.all([
-      progressById.get(row.id) ?? readProgress(row, languagesOfRow(row)),
+      progressById.get(row.id) ?? heldProgress(row),
       readPull(row, now),
     ]);
     const { source, targets } = languagesOf(row);

@@ -73,6 +73,17 @@ const read = async (repository: I18nRepository, language: string): Promise<Langu
   return { language, ...counts, total: catalogue.entries.length };
 };
 
+const readAll = (repository: I18nRepository, now: number): Promise<LanguageProgress[]> =>
+  progress.get(
+    repository.id,
+    () => {
+      const { source, targets } = languagesOf(repository);
+
+      return Promise.all([source, ...targets].map((language) => read(repository, language)));
+    },
+    now,
+  );
+
 /**
  * How far each language of a repository is, the source first (DB-268).
  *
@@ -83,14 +94,42 @@ const read = async (repository: I18nRepository, language: string): Promise<Langu
  * The languages are read together. The catalogues are the ones the editor
  * reads next, and they are held for five minutes, so this costs GitHub no read
  * that opening a language would not have cost.
+ *
+ * An answer older than `HELD_MS` is answered at once, and a new read starts
+ * behind it (DB-679): a cold read of GitHub takes several seconds. A write
+ * forgets the answer, so the person who wrote waits for the new numbers.
  */
-export const progressOf = (repository: I18nRepository, options: { now?: Date } = {}): Promise<LanguageProgress[]> =>
-  progress.get(
-    repository.id,
-    () => {
-      const { source, targets } = languagesOf(repository);
+export const progressOf = (repository: I18nRepository, options: { now?: Date } = {}): Promise<LanguageProgress[]> => {
+  const now = (options.now ?? new Date()).getTime();
+  const held = progress.peek(repository.id, now);
+  const reading = readAll(repository, now);
 
-      return Promise.all([source, ...targets].map((language) => read(repository, language)));
-    },
-    (options.now ?? new Date()).getTime(),
-  );
+  if (!held || held.fresh) return reading;
+
+  // The page has its answer. A failed read in the background leaves the old one held.
+  reading.catch(() => undefined);
+
+  return Promise.resolve(held.value);
+};
+
+/**
+ * The progress held for a repository, fresh or not, with no wait. With nothing
+ * held, it answers `undefined` and starts the read, so the next ask finds it.
+ */
+export const heldProgressOf = (
+  repository: I18nRepository,
+  options: { now?: Date } = {},
+): LanguageProgress[] | undefined => {
+  const now = (options.now ?? new Date()).getTime();
+  const held = progress.peek(repository.id, now);
+
+  if (!held) {
+    readAll(repository, now).catch(() => undefined);
+
+    return undefined;
+  }
+
+  progressOf(repository, options).catch(() => undefined);
+
+  return held.value;
+};

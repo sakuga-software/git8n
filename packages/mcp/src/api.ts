@@ -591,6 +591,8 @@ export interface RepositoryOverview {
   progress: LanguageProgress[] | null;
   /** Why `progress` is null. */
   progressError?: string;
+  /** `progress` is not read yet: ask `progress()` for this repository. */
+  progressPending?: boolean;
   /** The open pull request of the publications, for a repository that publishes by pull request. */
   pullRequest: { number: number; url: string } | null;
 }
