@@ -8,6 +8,8 @@ const DEMO_MESSAGE = 'i18n-editor-demo';
 const TYPE_MS = 28;
 const PAUSE_MS = 500;
 const PING_MS = 500;
+/** How long the page asks the demo. The `load` event of the frame starts it again. */
+const PING_FOR_MS = 30_000;
 const ANSWER_MS = 5000;
 
 interface Line {
@@ -50,7 +52,10 @@ const send = (action: string) =>
 const waitForDemo = () => {
   clearInterval(ping);
   send('ping');
-  ping = setInterval(() => send('ping'), PING_MS);
+
+  const until = Date.now() + PING_FOR_MS;
+
+  ping = setInterval(() => (Date.now() > until ? clearInterval(ping) : send('ping')), PING_MS);
 };
 
 /** Sends an action to the demo, and waits for its answer. A demo that does not answer rejects after `ANSWER_MS`. */
