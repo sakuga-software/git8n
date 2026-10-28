@@ -101,7 +101,9 @@ type ProgressRead = Pick<RepositoryOverview, 'progress' | 'progressError'>;
 
 const readProgress = async (row: I18nRepository, languages?: readonly string[]): Promise<ProgressRead> => {
   try {
-    const all = await progressOf(row);
+    // The share of a repository is how far its translations are. The source would add its own texts as done.
+    const { targets } = languagesOf(row);
+    const all = (await progressOf(row)).filter((entry) => targets.includes(entry.language));
 
     return { progress: languages ? all.filter((entry) => languages.includes(entry.language)) : all };
   } catch (error) {

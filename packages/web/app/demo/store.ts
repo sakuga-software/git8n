@@ -135,8 +135,8 @@ export class DemoStore {
   readonly waiting = (language: string): WaitingBatch[] => [...(this.batches.get(language) ?? [])];
 
   readonly progress = (): LanguageProgress[] =>
-    TARGETS.map((language) => {
-      const proposed = new Set(this.branches.get(language)!.keys());
+    [SOURCE, ...TARGETS].map((language) => {
+      const proposed = new Set(this.branches.get(language)?.keys() ?? []);
       const counts = { published: 0, proposed: 0, missing: 0, review: 0, empty: 0 };
       const entries = this.catalogue(language).entries;
 
@@ -161,7 +161,7 @@ export class DemoStore {
     source: SOURCE,
     targets: [...TARGETS],
     createdAt: this.createdAt,
-    progress: this.progress(),
+    progress: this.progress().filter((row) => row.language !== SOURCE),
     pullRequest: null,
   });
 

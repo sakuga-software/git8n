@@ -74,10 +74,22 @@ afterEach(() => {
 });
 
 describe('the progress of each language', () => {
-  it('answers every target, and not the source', async () => {
+  it('answers the source first, then every target', async () => {
     start();
 
-    expect((await progressOf(repository)).map((row) => row.language)).toEqual(['en', 'de']);
+    expect((await progressOf(repository)).map((row) => row.language)).toEqual(['fr', 'en', 'de']);
+  });
+
+  /** The select of the editor shows the source beside the targets (DB-675). Its texts are published. */
+  it('counts the texts of the source as published', async () => {
+    start();
+
+    expect((await progressOf(repository)).find((row) => row.language === 'fr')).toMatchObject({
+      published: 5,
+      proposed: 0,
+      missing: 0,
+      total: 5,
+    });
   });
 
   it('puts every key of the source in one of the four counts', async () => {
@@ -219,6 +231,6 @@ describe('what the progress costs', () => {
     vi.stubGlobal('fetch', repo.fetch);
     clearI18nCatalogueCache();
 
-    expect(await progressOf(repository)).toHaveLength(2);
+    expect(await progressOf(repository)).toHaveLength(3);
   });
 });

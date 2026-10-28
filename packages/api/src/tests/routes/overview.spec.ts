@@ -27,7 +27,9 @@ vi.mock('@/services/i18n-progress.service', async (original) => {
 
       const published = Number(repository.name.replace(/\D/g, '')) % 11;
 
+      // The source comes first, all published, as `progressOf` answers it since DB-675.
       return [
+        { language: 'fr', published: 10, proposed: 0, missing: 0, total: 10 },
         { language: 'en', published, proposed: 0, missing: 10 - published, total: 10 },
         { language: 'de', published: 3, proposed: 0, missing: 7, total: 10 },
       ];
@@ -182,6 +184,13 @@ describe('GET /i18n/overview', () => {
     await pageOf('?q=repo-0&perPage=3');
 
     expect(calls.pulls).toBe(2);
+  });
+
+  /** The share of a repository is how far its translations are: the source is not in it (DB-675). */
+  it('leaves the source out of the progress of a row', async () => {
+    const [row] = (await pageOf('?q=repo-07')).rows;
+
+    expect(row.progress?.map((entry) => entry.language)).toEqual(['en', 'de']);
   });
 
   it('answers a translator the progress of its languages only', async () => {

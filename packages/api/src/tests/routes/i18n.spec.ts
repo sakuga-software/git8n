@@ -1200,19 +1200,23 @@ describe('the write path', () => {
 
       expect(res.status).toBe(200);
       expect(await res.json()).toMatchObject({
-        data: [{ language: 'en', published: 1, proposed: 0, missing: 0, total: 1 }],
+        data: [
+          { language: 'fr', published: 1, proposed: 0, missing: 0, total: 1 },
+          { language: 'en', published: 1, proposed: 0, missing: 0, total: 1 },
+        ],
       });
     });
 
-    /** A language the account cannot open is not offered, so its numbers are not sent. */
-    it('answers no language to a translator of another one', async () => {
+    /** A target the account cannot open is not offered, so its numbers are not sent. Every account reads the source. */
+    it('answers the source alone to a translator of another language', async () => {
       const repoRow = await repository();
 
       withRepo();
 
       const { headers } = await translator(['de']);
+      const { data } = (await (await read(repoRow.id, headers)).json()) as { data: Array<{ language: string }> };
 
-      expect(await (await read(repoRow.id, headers)).json()).toMatchObject({ data: [] });
+      expect(data.map((row) => row.language)).toEqual(['fr']);
     });
 
     it('answers every language to an admin and to an account that writes the source', async () => {
@@ -1224,7 +1228,9 @@ describe('the write path', () => {
       const writer = await translator([], 'translator', { writesSource: true });
 
       for (const headers of [admin.headers, writer.headers]) {
-        expect(await (await read(repoRow.id, headers)).json()).toMatchObject({ data: [{ language: 'en' }] });
+        expect(await (await read(repoRow.id, headers)).json()).toMatchObject({
+          data: [{ language: 'fr' }, { language: 'en' }],
+        });
       }
     });
 
@@ -1237,7 +1243,7 @@ describe('the write path', () => {
       await post('/i18n/proposals', headers, proposalBody(repoRow.id, repo.refs.get('main')!));
 
       expect(await (await read(repoRow.id, headers)).json()).toMatchObject({
-        data: [{ language: 'en', published: 0, proposed: 1 }],
+        data: [{ language: 'fr' }, { language: 'en', published: 0, proposed: 1 }],
       });
     });
 
@@ -1265,7 +1271,7 @@ describe('the write path', () => {
       const { data } = (await proposal.json()) as { data: { commit: string } };
 
       expect(await (await read(repoRow.id, headers)).json()).toMatchObject({
-        data: [{ language: 'en', published: 1, proposed: 1, missing: 0 }],
+        data: [{ language: 'fr' }, { language: 'en', published: 1, proposed: 1, missing: 0 }],
       });
 
       await post('/i18n/publications', headers, {
@@ -1275,7 +1281,7 @@ describe('the write path', () => {
       });
 
       expect(await (await read(repoRow.id, headers)).json()).toMatchObject({
-        data: [{ language: 'en', published: 2, proposed: 0, missing: 0, total: 2 }],
+        data: [{ language: 'fr' }, { language: 'en', published: 2, proposed: 0, missing: 0, total: 2 }],
       });
     });
 
@@ -1288,7 +1294,7 @@ describe('the write path', () => {
       const { headers } = await translator([], 'translator', { writesSource: true });
 
       expect(await (await read(repoRow.id, headers)).json()).toMatchObject({
-        data: [{ language: 'en', missing: 0, total: 1 }],
+        data: [{ language: 'fr' }, { language: 'en', missing: 0, total: 1 }],
       });
 
       await post('/i18n/keys', headers, {
@@ -1297,7 +1303,7 @@ describe('the write path', () => {
       });
 
       expect(await (await read(repoRow.id, headers)).json()).toMatchObject({
-        data: [{ language: 'en', published: 1, missing: 1, total: 2 }],
+        data: [{ language: 'fr' }, { language: 'en', published: 1, missing: 1, total: 2 }],
       });
     });
 

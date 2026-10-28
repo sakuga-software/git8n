@@ -435,9 +435,9 @@ router.get('/catalogue/stream', signedIn, async (c) => {
 /**
  * How far each language of a repository is: published, proposed, missing (DB-268).
  *
- * An account reads the languages it can open and no other: every target for an
- * admin and for an account that writes the source, the languages of its row
- * for a translator. That is the list the editor offers it. A member of
+ * An account reads the languages it can open and no other: the source for
+ * every account, every target for an admin and for an account that writes the
+ * source, the languages of its row for a translator. That is the list the editor offers it. A member of
  * another repository reads nothing of this one.
  */
 router.get('/progress', signedIn, async (c) => {
@@ -447,10 +447,14 @@ router.get('/progress', signedIn, async (c) => {
   const rights = await rightsOf(user.id, repository.id);
   const all = await answer(() => progressOf(repository));
   const everyLanguage = user.admin === true || rights?.writesSource === true;
+  // Every account that opens the repository reads its source (DB-675).
+  const { source } = languagesOf(repository);
 
   return c.json({
     success: true,
-    data: everyLanguage ? all : all.filter((row) => rights?.languages.includes(row.language)),
+    data: everyLanguage
+      ? all
+      : all.filter((row) => row.language === source || rights?.languages.includes(row.language)),
   });
 });
 
