@@ -60,8 +60,6 @@ const type = async (command: string) => {
   }
 };
 
-const pad = (text: string, width: number) => text.padEnd(width);
-
 async function runAgent() {
   if (running.value || !ready.value) return;
 
@@ -71,28 +69,27 @@ async function runAgent() {
   await type('i18n-editor keys --missing --lang de');
   await wait(PAUSE_MS);
 
-  const missing = ((await ask('missing')).keys ?? []) as Array<{ file: string; key: string; source: string }>;
-  const width = Math.max(0, ...missing.map((row) => `${row.file}:${row.key}`.length)) + 2;
+  // The lines that `i18n-editor` prints (packages/mcp/src/cli/run.ts).
+  const missing = ((await ask('missing')).keys ?? []) as Array<{ file: string; key: string }>;
+  const ids = missing.map((row) => `${row.file}:${row.key}`);
+  const width = Math.max(0, ...ids.map((id) => id.length));
 
-  for (const row of missing)
-    await print({ kind: 'output', text: `${pad(`${row.file}:${row.key}`, width)}${row.source}` });
-  await print({ kind: 'note', text: `${missing.length} keys missing in de` });
+  for (const id of ids) await print({ kind: 'output', text: `${id.padEnd(width)}  missing` });
+  await print({ kind: 'note', text: `${ids.length === 0 ? 0 : 1}–${ids.length} of ${ids.length}` });
 
   if (missing.length > 0) {
     await wait(PAUSE_MS * 2);
     await type('i18n-editor apply --lang de batch.json');
     await wait(PAUSE_MS);
 
-    const proposal = (await ask('apply')).proposal as { keys: number; commit: string } | null;
+    const proposal = (await ask('apply')).proposal as { keys: number; commit: string; branch: string } | null;
 
-    await print(
-      proposal
-        ? {
-            kind: 'note',
-            text: `Proposed ${proposal.keys} keys in de: one commit on i18n/de (${proposal.commit.slice(0, 7)}). A reviewer publishes them.`,
-          }
-        : { kind: 'note', text: 'Nothing to propose.' },
-    );
+    await print({
+      kind: 'note',
+      text: proposal
+        ? `Proposed ${proposal.keys} key(s) in de as ${proposal.commit.slice(0, 7)} on ${proposal.branch}. A reviewer publishes them.`
+        : 'Nothing to propose.',
+    });
   }
 
   running.value = false;
