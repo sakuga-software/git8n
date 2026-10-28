@@ -3,8 +3,8 @@
 An editor for the translations of a product. Its source of truth is the JSON
 locale files in a GitHub repository. Translators propose texts, reviewers
 publish them, and each publication is a commit on the repository, made by a
-GitHub App. Agents read and propose translations through an MCP server, with
-the rights of an account.
+GitHub App. Agents and scripts read and propose translations through a CLI or
+an MCP server, with the rights of an account.
 
 **Documentation: <https://i18n.sakuga.dev/docs/>**. The sources are in
 [`docs/`](docs/). Every page is also plain Markdown for an agent:
@@ -16,6 +16,7 @@ the rights of an account.
 - [Accounts and rights](docs/guide/accounts.md)
 - [A repository and its files](docs/guide/repositories.md)
 - [Deploy](docs/operate/deploy.md) and [the GitHub App](docs/operate/github-app.md)
+- [CLI](docs/agents/cli.md) and [its reference](docs/reference/cli.md)
 - [MCP server](docs/agents/mcp.md) and [its tools](docs/reference/mcp-tools.md)
 
 ## Checks

@@ -1,4 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { ApiError, type ApiConfig } from './api.ts';
 import {
   createCatalogues,
@@ -108,3 +109,7 @@ export const buildServer = (config: ApiConfig): McpServer => {
 
   return server;
 };
+
+/** Answers the protocol on stdin and stdout. Nothing else may write to stdout after this. */
+export const serveOverStdio = (config: ApiConfig): Promise<void> =>
+  buildServer(config).connect(new StdioServerTransport());

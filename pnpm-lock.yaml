@@ -318,6 +318,9 @@ importers:
       '@electric-sql/pglite':
         specifier: 'catalog:'
         version: 0.5.8
+      '@i18n-editor/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@types/jsonwebtoken':
         specifier: ^9.0.10
         version: 9.0.10

@@ -45,6 +45,8 @@ export interface ApiConfig {
    * out, and every call carries the session cookie of the API.
    */
   token?: string;
+  /** Replaces the global `fetch`. A test sends the requests to the API in its own process. */
+  fetch?: typeof fetch;
 }
 
 export const configOf = (env: Record<string, string | undefined>): ApiConfig => {
@@ -223,7 +225,7 @@ export interface WaitingBatch {
 }
 
 const ask = async <T>(config: ApiConfig, path: string, body?: unknown, method?: 'PATCH' | 'DELETE'): Promise<T> => {
-  const response = await fetch(`${config.url}${path}`, {
+  const response = await (config.fetch ?? fetch)(`${config.url}${path}`, {
     method: method ?? (body === undefined ? 'GET' : 'POST'),
     signal: AbortSignal.timeout(60 * 1000),
     ...(config.token === undefined ? { credentials: 'include' as const } : {}),
@@ -385,7 +387,7 @@ export const catalogueStream = async (
   onProgress: (progress: CatalogueProgress) => void,
 ): Promise<Catalogue> => {
   const path = `/i18n/catalogue/stream?repository=${encodeURIComponent(repository)}&language=${encodeURIComponent(language)}`;
-  const response = await fetch(`${config.url}${path}`, {
+  const response = await (config.fetch ?? fetch)(`${config.url}${path}`, {
     signal: AbortSignal.timeout(60 * 1000),
     ...(config.token === undefined ? { credentials: 'include' as const } : {}),
     headers: {

@@ -3,17 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "bin": {
+    "i18n-editor": "./src/cli/main.ts",
     "i18n-editor-mcp": "./src/main.ts"
   },
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./api": "./src/api.ts"
+    "./api": "./src/api.ts",
+    "./cli": "./src/cli/run.ts",
+    "./cli/testing": "./src/cli/testing.ts"
   },
   "scripts": {
     "start": "node --experimental-strip-types src/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "cli": "node --experimental-strip-types src/cli/main.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1",

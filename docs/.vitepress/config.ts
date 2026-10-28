@@ -74,7 +74,10 @@ export default defineConfig({
       },
       {
         text: 'Reference',
-        items: [{ text: 'MCP tools', link: '/reference/mcp-tools' }],
+        items: [
+          { text: 'CLI', link: '/reference/cli' },
+          { text: 'MCP tools', link: '/reference/mcp-tools' },
+        ],
       },
     ],
     socialLinks: [{ icon: 'github', link: repository }],

@@ -17,7 +17,7 @@ The editor keeps no text of its own. Its database holds three things:
 | -------------- | ------------------------------------------------------------------------------------------------------ |
 | `packages/web` | The page: React Router as a single-page application, Tailwind v4 and HeroUI v3.                        |
 | `packages/api` | The API: Hono on Node. It holds the routes `/i18n/*`, the catalogue, the proposals and the GitHub App. |
-| `packages/mcp` | The typed client of the API, which the page also uses, and an MCP server for agents.                   |
+| `packages/mcp` | The typed client of the API, which the page also uses, the CLI, and an MCP server for agents.          |
 | `packages/db`  | The Drizzle schema of the tables, and their migrations.                                                |
 | `docs`         | This site.                                                                                             |
 
