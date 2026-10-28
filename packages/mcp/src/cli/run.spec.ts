@@ -1,7 +1,8 @@
-import { readFile, stat } from 'node:fs/promises';
+import { mkdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Catalogue, Me, Repository } from '../api.ts';
+import { writeCredentials } from './credentials.ts';
 import { fakeIo, jsonResponse } from './testing.ts';
 
 const API = 'https://i18n.test';
@@ -126,6 +127,21 @@ describe('the arguments', () => {
     expect(ran.json().error.code).toBe('I18NE2001');
   });
 
+  it('says how to get a token that works when the API refuses one', async () => {
+    const refused = { 'GET /i18n/me': () => jsonResponse({ message: 'Unauthorized' }, 401) };
+    const fromEnv = await signedIn(refused);
+    const fromLogin = await signedIn(refused);
+
+    delete fromLogin.cli.io.env.I18N_EDITOR_API_TOKEN;
+    await writeCredentials(join(fromLogin.cli.configHome, 'i18n-editor', 'credentials.json'), {
+      default: API,
+      servers: { [API]: { token: 'session-token' } },
+    });
+
+    expect((await fromEnv.cli.run('keys', '--json')).json().error.message).toContain('Jetons');
+    expect((await fromLogin.cli.run('keys', '--json')).json().error.message).toContain('Run i18n-editor login');
+  });
+
   it('turns a 401 of the API into exit 3, and a 403 into exit 1', async () => {
     const refused = await signedIn({ 'GET /i18n/me': () => jsonResponse({ message: 'Unauthorized' }, 401) });
     const forbidden = await signedIn({ 'GET /i18n/me': () => jsonResponse({ message: 'Not a member' }, 403) });
@@ -148,6 +164,22 @@ describe('the repository and the language', () => {
 
     expect((await cli.run('keys', '--lang', 'en', '--json')).exit).toBe(0);
     expect(calls.find((call) => call.url.includes('/i18n/catalogue'))!.url).toContain('repository=repo-2');
+  });
+
+  it('refuses the only repository of the account in a folder of another repository', async () => {
+    const { cli } = await signedIn({ 'GET /i18n/repositories': () => jsonResponse({ data: [REPOSITORY] }) });
+
+    delete cli.io.env.I18N_EDITOR_REPO;
+    cli.io.gitRemotes = async () => ['https://github.com/acme/other.git'];
+
+    const ran = await cli.run('keys', '--json');
+
+    expect(ran.exit).toBe(2);
+    expect(ran.json().error).toMatchObject({ code: 'I18NE3001', details: expect.arrayContaining(['  acme/app']) });
+
+    cli.io.gitRemotes = async () => [];
+
+    expect((await cli.run('keys', '--json')).exit).toBe(0);
   });
 
   it('lists the repositories when none is clear', async () => {
@@ -426,6 +458,19 @@ describe('login and logout', () => {
     expect(api.calls.find((call) => call.url.endsWith('/sign-out'))!.auth).toBe('Bearer session-token');
     expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ servers: {} });
     expect((await cli.run('keys', '--api', API, '--json')).exit).toBe(3);
+  });
+
+  it('stops, and keeps the file, when the file of the credentials cannot be read', async () => {
+    const api = fakeApi(deviceRoutes([{ status: 200, body: { access_token: 'session-token' } }]));
+    const cli = await fakeIo(api.fetcher);
+
+    await mkdir(join(cli.configHome, 'i18n-editor', 'credentials.json'), { recursive: true });
+
+    const ran = await cli.run('login', '--api', API, '--no-open', '--json');
+
+    expect(ran.exit).toBe(2);
+    expect(ran.json().error.code).toBe('I18NE1004');
+    expect(api.calls).toEqual([]);
   });
 
   it('stops when the code expires, and when the person refuses it', async () => {

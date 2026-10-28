@@ -24,7 +24,8 @@ const listOf = (repositories: Repository[]): string[] =>
  * The repository that a command works on.
  *
  * In this order: the one that `--repo` names, by `owner/name` or by id; the one
- * that a GitHub remote of the folder names; the only repository of the account.
+ * that a GitHub remote of the folder names; the only repository of the account,
+ * when the folder has no GitHub remote.
  */
 export const pickRepository = (repositories: Repository[], wanted: string | undefined, slugs: string[]): Repository => {
   if (wanted) {
@@ -41,7 +42,16 @@ export const pickRepository = (repositories: Repository[], wanted: string | unde
 
   if (fromGit.length === 1) return fromGit[0]!;
 
-  if (fromGit.length === 0 && repositories.length === 1) return repositories[0]!;
+  // A folder of another repository must not send its work to the only repository of the account.
+  if (fromGit.length === 0 && slugs.length > 0) {
+    throw new CliError(
+      'I18NE3001',
+      `This account opens no repository of this folder (${slugs.join(', ')}). Pass --repo <owner/name>.`,
+      listOf(repositories),
+    );
+  }
+
+  if (repositories.length === 1) return repositories[0]!;
 
   if (repositories.length === 0) throw new CliError('I18NE3001', 'This account opens no repository.');
 

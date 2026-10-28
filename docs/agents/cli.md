@@ -50,7 +50,9 @@ A command that reads keys works on one repository and one language:
 
 - **The repository** is the one of `--repo <owner/name>`, else of
   `I18N_EDITOR_REPO`, else the one that a GitHub remote of the current folder
-  names. If the account opens one repository only, the CLI takes it.
+  names. If the folder has no GitHub remote and the account opens one
+  repository only, the CLI takes it. A folder of a repository that the account
+  does not open stops the command.
 - **The language** is the one of `--lang`, else the only target language that
   the account can open in this repository.
 

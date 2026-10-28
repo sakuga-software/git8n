@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util';
 import {
+  ApiError,
   catalogue,
   overview,
   progress,
@@ -240,6 +241,7 @@ class Session {
   private readonly json: boolean;
   private readonly path: string;
   private credentialsRead?: Promise<Credentials>;
+  private tokenUsed?: string;
 
   // No parameter properties: Node runs this file with type stripping, which refuses them.
   constructor(io: Io, options: Options, json: boolean) {
@@ -250,6 +252,35 @@ class Session {
   }
 
   async run(command: string, positionals: string[]): Promise<number> {
+    try {
+      return await this.dispatch(command, positionals);
+    } catch (error) {
+      throw this.refusedToken(error);
+    }
+  }
+
+  /** A 401 says how to get a token that works: a new access token, or a new login. */
+  private refusedToken(error: unknown): unknown {
+    if (!(error instanceof ApiError) || error.status !== 401 || this.tokenUsed === undefined) return error;
+
+    if (this.io.env.I18N_EDITOR_API_TOKEN) {
+      return new CliError(
+        'I18NE2001',
+        'The API refused the token of I18N_EDITOR_API_TOKEN: it expired, or somebody revoked it. Make a new one on the page « Jetons d’accès ».',
+      );
+    }
+
+    if (this.tokenUsed.startsWith(ACCESS_TOKEN_PREFIX)) {
+      return new CliError(
+        'I18NE2001',
+        'The API refused the access token of this computer: it expired, or somebody revoked it. Make a new one on the page « Jetons d’accès ».',
+      );
+    }
+
+    return new CliError('I18NE2001', 'The session of this computer ended. Run i18n-editor login.');
+  }
+
+  private async dispatch(command: string, positionals: string[]): Promise<number> {
     const expectArgs = (count: number, usage: string) => {
       if (positionals.length !== count) throw new CliError('I18NE1001', `Usage: i18n-editor ${usage}`);
     };
@@ -321,6 +352,8 @@ class Session {
 
     if (!token) throw new CliError('I18NE2001', `No account is signed in to ${url}. Run i18n-editor login.`);
 
+    this.tokenUsed = token;
+
     return { url, token, fetch: this.io.fetch };
   }
 
@@ -385,6 +418,8 @@ class Session {
 
   private async login(): Promise<number> {
     const api = await this.api();
+    // Read before the code: a file that cannot be read stops the command before anybody approves.
+    const credentials = await this.credentials();
     const code = await askDeviceCode(this.io, api);
     const address = code.verification_uri_complete ?? `${code.verification_uri}?user_code=${code.user_code}`;
 
@@ -398,7 +433,6 @@ class Session {
 
     const token = await waitForApproval(this.io, api, code);
     const person = await personOf(this.io, api, token);
-    const credentials = await this.credentials();
 
     await writeCredentials(this.path, {
       default: api,

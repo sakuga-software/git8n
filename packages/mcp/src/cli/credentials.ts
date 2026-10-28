@@ -21,8 +21,12 @@ export const readCredentials = async (path: string): Promise<Credentials> => {
 
   try {
     text = await readFile(path, 'utf8');
-  } catch {
-    return { servers: {} };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { servers: {} };
+
+    // A file that exists and cannot be read must stop the command. Else `login` writes it again,
+    // and the tokens of the other addresses are lost.
+    throw new CliError('I18NE1004', `${path} cannot be read: ${(error as Error).message}`);
   }
 
   try {
