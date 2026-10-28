@@ -29,7 +29,7 @@ The files of one language are in one directory, under a path that you choose:
 ## Add a repository
 
 An admin adds a repository with `POST /i18n/repositories`. Install the GitHub
-App on the repository first: [github-app.md](github-app.md) tells how.
+App on the repository first: [The GitHub App](../operate/github-app.md) tells how.
 
 | Field            | Required | What it is                                                                                      |
 | ---------------- | -------- | ----------------------------------------------------------------------------------------------- |
@@ -111,7 +111,7 @@ In the mode `pull_request`:
   not, and whether GitHub can merge it. The header of the editor shows it.
 
 The App needs the permission « Pull requests: write » for this mode:
-[github-app.md](github-app.md) tells how to add it to an App that exists.
+[The GitHub App](../operate/github-app.md#add-the-permission-pull-requests-to-an-app-that-exists) tells how to add it to an App that exists.
 
 ## Change a text of the source
 
@@ -218,11 +218,11 @@ in each language.
 }
 ```
 
-| State       | What the application does                             | What the editor does                                              |
-| ----------- | ----------------------------------------------------- | ----------------------------------------------------------------- |
-| `available` | It loads the file.                                    | It lists the keys, and a translator writes them.                  |
-| `partial`   | It does not load the file yet. Users read the source. | It lists the keys, and a remark says that the file is not loaded. |
-| `disabled`  | The file has no version in this language.             | It lists no key, and it refuses a write to the file.              |
+| State       | What the application does                             | What the editor does                                 |
+| ----------- | ----------------------------------------------------- | ---------------------------------------------------- |
+| `available` | It loads the file.                                    | It lists the keys, and a translator writes them.     |
+| `partial`   | It does not load the file yet. Users read the source. | It lists the keys, as for `available`.               |
+| `disabled`  | The file has no version in this language.             | It lists no key, and it refuses a write to the file. |
 
 - A file or a language that the manifest does not name is `available`.
 - The source language is always `available`. The manifest cannot change it.

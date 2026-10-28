@@ -3,10 +3,10 @@
 A deployment has two images. Build both from the root of the repository: pnpm
 needs the workspace files.
 
-| Image      | Dockerfile                | What it runs                                                                                          |
-| ---------- | ------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `app`      | `packages/api/Dockerfile` | The API on `PORT`. It also serves the built page, so the page and the API have one origin.            |
-| `migrator` | `packages/db/Dockerfile`  | `dist/migrate.mjs` on `DATABASE_URL`. It applies the migrations that are not applied yet, then stops. |
+| Image      | Dockerfile                | What it runs                                                                                                      |
+| ---------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `app`      | `packages/api/Dockerfile` | The API on `PORT`. It also serves the built page, and this site at `/docs`. The page and the API have one origin. |
+| `migrator` | `packages/db/Dockerfile`  | `dist/migrate.mjs` on `DATABASE_URL`. It applies the migrations that are not applied yet, then stops.             |
 
 ```sh
 docker build -f packages/api/Dockerfile -t i18n-editor .
@@ -78,7 +78,7 @@ address from that header. Without the header, all the clients share one limit.
 waits and no mail leaves. Scaleway TEM also listens on 2465 and 2587, so write
 `smtps://<project id>:<secret key>@smtp.tem.scaleway.com:2465`.
 
-[`github-app.md`](github-app.md) says how to create the App and get its four
+[The GitHub App](./github-app.md) says how to create the App and get its four
 values. The callback URL of the App must be `BETTER_AUTH_URL` followed by
 `/api/auth/callback/github`.
 
@@ -92,5 +92,6 @@ values. The callback URL of the App must be `BETTER_AUTH_URL` followed by
 
 - `GET /health` answers `200` and `{"status":"ok"}`.
 - `GET /` answers the page.
+- `GET /docs/` answers this site, and `GET /docs/llms.txt` lists its pages as Markdown.
 - `GET /i18n/me` answers `401` without a session.
 - « Se connecter avec GitHub » opens GitHub, then comes back to the editor.

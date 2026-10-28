@@ -24,7 +24,7 @@ names the address of that deployment.
 The App asks for nothing more. A proposal is a commit on the branch
 `i18n/<language>`. A publication is a commit on the base branch, or, for a
 repository in the mode `pull_request`, a commit on `i18n/publish` and one pull
-request to the base branch. [repositories.md](repositories.md) tells the two
+request to the base branch. [A repository and its files](../guide/repositories.md#how-a-publication-reaches-the-base-branch) tells the two
 modes apart.
 
 A token asks for `pull_requests: write` only for a repository in the mode
@@ -41,9 +41,9 @@ after five minutes.
 
 ## Create it
 
-[`github-app.json`](github-app.json) is a manifest for the
+[`github-app.json`](/github-app.json) is a manifest for the
 [manifest flow](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest)
-of GitHub. The flow creates the App with the repository permissions and the
+of GitHub. The repository holds it at `docs/public/github-app.json`. The flow creates the App with the repository permissions and the
 callback URL of the sign-in, and gives back its ID, its private key, its client
 ID and its client secret in one step.
 
@@ -83,7 +83,7 @@ not included in the list »). Add it by hand after the creation, at step 5.
      | jq '{id, slug, client_id, client_secret, pem}'
    ```
 
-4. Give the four values to the API. [`deploy.md`](deploy.md) lists every
+4. Give the four values to the API. [Deploy](./deploy.md) lists every
    variable of a deployment.
 
    | Variable                  | Value                          |
@@ -137,7 +137,7 @@ An admin does it from the page:
    folders that hold one folder per language, and the manifest beside them.
    The form starts from that answer, and every field stays editable.
 4. « Brancher ce dépôt » sends `POST /i18n/repositories`, then the table of the
-   repository opens. `docs/repositories.md` gives the fields.
+   repository opens. [A repository and its files](../guide/repositories.md#add-a-repository) gives the fields.
 
 The routes stay open to a script: `GET /i18n/installations`, then
 `POST /i18n/repositories`. Sent twice, the POST answers the row that is there

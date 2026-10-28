@@ -10,4 +10,5 @@
 .idea
 .env*
 *.pem
-docs
+docs/.vitepress/cache
+docs/.vitepress/dist
