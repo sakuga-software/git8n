@@ -1,7 +1,7 @@
 import { Button } from '@heroui/react/button';
 import { Input } from '@heroui/react/input';
 import { TextArea } from '@heroui/react/textarea';
-import { DEFAULT_TEMPLATES, type TemplateKind } from '@i18n-editor/db/messages';
+import { DEFAULT_TEMPLATES, type TemplateKind } from '@git8n/db/messages';
 import {
   issuesOf,
   repositories as readRepositories,
@@ -9,7 +9,7 @@ import {
   rightsOf,
   updateRepository,
   type Repository,
-} from '@i18n-editor/mcp/api';
+} from '@git8n/mcp/api';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useBlocker, useParams, useSearchParams } from 'react-router';
 import { api } from '~/utils/api';

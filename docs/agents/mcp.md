@@ -31,10 +31,10 @@ repository
 
 The server needs two variables:
 
-| Variable                | What it is                                                         |
-| ----------------------- | ------------------------------------------------------------------ |
-| `I18N_EDITOR_API_URL`   | The address of the editor, for example `https://i18n.example.com`. |
-| `I18N_EDITOR_API_TOKEN` | An access token of the account that the agent acts as.             |
+| Variable          | What it is                                                          |
+| ----------------- | ------------------------------------------------------------------- |
+| `GIT8N_API_URL`   | The address of the editor, for example `https://git8n.example.com`. |
+| `GIT8N_API_TOKEN` | An access token of the account that the agent acts as.              |
 
 The server sends the token as `Authorization: Bearer <token>`.
 
@@ -44,15 +44,15 @@ Give the agent its own token, so that you can revoke it alone.
 
 ## Connect it to an agent
 
-With the [CLI](./cli.md), `i18n-editor mcp` starts the server with the token
-of `i18n-editor login`, or of `I18N_EDITOR_API_TOKEN`:
+With the [CLI](./cli.md), `git8n mcp` starts the server with the token
+of `git8n login`, or of `GIT8N_API_TOKEN`:
 
 ```json
 {
   "mcpServers": {
-    "i18n-editor": {
+    "git8n": {
       "command": "node",
-      "args": ["--experimental-strip-types", "/path/to/i18n-editor/packages/mcp/src/cli/main.ts", "mcp"]
+      "args": ["--experimental-strip-types", "/path/to/git8n/packages/mcp/src/cli/main.ts", "mcp"]
     }
   }
 }
@@ -63,12 +63,12 @@ Without the CLI, run the server from a clone of the repository, after `pnpm inst
 ```json
 {
   "mcpServers": {
-    "i18n-editor": {
+    "git8n": {
       "command": "node",
       "args": ["--experimental-strip-types", "packages/mcp/src/main.ts"],
       "env": {
-        "I18N_EDITOR_API_URL": "https://i18n.example.com",
-        "I18N_EDITOR_API_TOKEN": "…"
+        "GIT8N_API_URL": "https://git8n.example.com",
+        "GIT8N_API_TOKEN": "…"
       }
     }
   }

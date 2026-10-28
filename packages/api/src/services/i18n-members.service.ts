@@ -11,7 +11,7 @@ import {
   pendingMembers,
   pgCodeOf,
   users,
-} from '@i18n-editor/db';
+} from '@git8n/db';
 import { APIError } from 'better-auth/api';
 import { auth } from '@/auth';
 import { env } from '@/config/env';

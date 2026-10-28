@@ -18,7 +18,7 @@ pnpm test
 Both must pass. A change of behaviour comes with a test that fails without it.
 
 If you change `packages/db/src/schema.ts`, generate the migration with
-`pnpm -F @i18n-editor/db db:generate`. Never edit a migration that is already
+`pnpm -F @git8n/db db:generate`. Never edit a migration that is already
 on `main`.
 
 ## Pull requests

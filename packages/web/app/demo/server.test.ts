@@ -10,7 +10,7 @@ import {
   rightsOf,
   waiting,
   type ApiConfig,
-} from '@i18n-editor/mcp/api';
+} from '@git8n/mcp/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { proposalSchema, publicationSchema, reviewSchema } from '../../../api/src/schemas/i18n';
 import { answer } from './server';

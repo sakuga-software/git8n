@@ -13,7 +13,7 @@ import {
   type Member,
   type MemberRights,
   type Repository,
-} from '@i18n-editor/mcp/api';
+} from '@git8n/mcp/api';
 import { useState } from 'react';
 import { api } from '~/utils/api';
 import { MembersSkeleton } from '~/editor/skeleton';

@@ -1,7 +1,7 @@
 import '../setup-env';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { authAccounts, i18nRepositories, members, newId, pendingMembers } from '@i18n-editor/db';
+import { authAccounts, i18nRepositories, members, newId, pendingMembers } from '@git8n/db';
 import app from '../../app';
 import { auth } from '@/auth';
 import { sentInDevelopment } from '@/services/mail.service';

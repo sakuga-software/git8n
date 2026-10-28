@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rightsIn, type Catalogue, type ProposedKey } from '@i18n-editor/mcp/api';
+import { rightsIn, type Catalogue, type ProposedKey } from '@git8n/mcp/api';
 import {
   accessOf,
   afterProposal,

@@ -1,16 +1,16 @@
 {
-  "name": "i18n-editor",
-  "url": "https://github.com/sakuga-software/i18n-editor",
+  "name": "git8n",
+  "url": "https://github.com/sakuga-software/git8n",
   "description": "Reads the locale files of a repository and commits the translations that a reviewer publishes.",
   "public": true,
   "hook_attributes": {
-    "url": "https://i18n.sakuga.dev/api/github/webhook",
+    "url": "https://git8n.sakuga.dev/api/github/webhook",
     "active": true
   },
   "redirect_url": "https://example.invalid/after-creation",
-  "callback_urls": ["https://i18n.sakuga.dev/api/auth/callback/github"],
+  "callback_urls": ["https://git8n.sakuga.dev/api/auth/callback/github"],
   "request_oauth_on_install": false,
-  "setup_url": "https://i18n.sakuga.dev/setup",
+  "setup_url": "https://git8n.sakuga.dev/setup",
   "setup_on_update": true,
   "default_permissions": {
     "contents": "write",

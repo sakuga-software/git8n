@@ -9,7 +9,7 @@ import {
   newId,
   pendingMembers,
   users,
-} from '@i18n-editor/db';
+} from '@git8n/db';
 import app from '@/app';
 import type { GithubProfile } from 'better-auth/social-providers';
 import { createAuth, isAdmin, sendMagicLinkTo, useAuth } from '@/auth';

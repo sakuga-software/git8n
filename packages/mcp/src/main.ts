@@ -3,7 +3,7 @@ import { configOf, NotConfiguredError } from './api.ts';
 import { serveOverStdio } from './server.ts';
 
 /**
- * The server an agent spawns (DB-211). `i18n-editor mcp` starts the same server (DB-671).
+ * The server an agent spawns (DB-211). `git8n mcp` starts the same server (DB-671).
  *
  * It speaks over stdio, so **nothing may be written to stdout** but the
  * protocol: a stray `console.log` corrupts the stream and the agent reads a

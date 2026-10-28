@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 const MAIN = fileURLToPath(new URL('./main.ts', import.meta.url));
 const cli = (...args: string[]) =>
   promisify(execFile)(process.execPath, ['--experimental-strip-types', MAIN, ...args], {
-    env: { ...process.env, I18N_EDITOR_API_URL: '', I18N_EDITOR_API_TOKEN: '' },
+    env: { ...process.env, GIT8N_API_URL: '', GIT8N_API_TOKEN: '' },
   });
 
 describe('the command a person runs', () => {
@@ -36,7 +36,7 @@ describe('the command a person runs', () => {
       new StdioClientTransport({
         command: process.execPath,
         args: ['--experimental-strip-types', MAIN, 'mcp'],
-        env: { ...process.env, I18N_EDITOR_API_URL: 'https://api.test', I18N_EDITOR_API_TOKEN: 'unused' },
+        env: { ...process.env, GIT8N_API_URL: 'https://api.test', GIT8N_API_TOKEN: 'unused' },
         stderr: 'pipe',
       }),
     );

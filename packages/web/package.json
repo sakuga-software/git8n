@@ -1,22 +1,22 @@
 {
-  "name": "@i18n-editor/web",
+  "name": "@git8n/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "react-router build && node scripts/check-no-demo.mjs",
-    "build:demo": "I18N_EDITOR_DEMO=1 react-router build",
+    "build:demo": "GIT8N_DEMO=1 react-router build",
     "dev": "react-router dev",
-    "dev:demo": "I18N_EDITOR_DEMO=1 react-router dev --port 5209",
+    "dev:demo": "GIT8N_DEMO=1 react-router dev --port 5209",
     "start": "react-router-serve ./build/server/index.js",
     "typecheck": "react-router typegen && tsc",
     "test": "vitest run"
   },
   "dependencies": {
+    "@git8n/db": "workspace:*",
+    "@git8n/mcp": "workspace:*",
     "@heroui/react": "3.2.6",
     "@heroui/styles": "3.2.6",
-    "@i18n-editor/db": "workspace:*",
-    "@i18n-editor/mcp": "workspace:*",
     "@react-router/node": "catalog:",
     "@react-router/serve": "catalog:",
     "@tanstack/react-query": "catalog:",

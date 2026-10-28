@@ -10,7 +10,7 @@ import {
   pendingMemberLanguages,
   pendingMembers,
   users,
-} from '@i18n-editor/db';
+} from '@git8n/db';
 import { auth } from '@/auth';
 import { db } from '@/db';
 

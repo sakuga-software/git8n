@@ -25,7 +25,7 @@ export const promptKeysOf = (read: Catalogue, entries: CatalogueEntry[]): Prompt
 
 const quoted = (text: string | null | undefined) => (text ? `« ${text} »` : '(none)');
 
-/** A prompt that an LLM or an agent can answer, and that `i18n-editor apply` reads back. */
+/** A prompt that an LLM or an agent can answer, and that `git8n apply` reads back. */
 export const translatePrompt = (args: {
   repository: string;
   read: Catalogue;
@@ -76,7 +76,7 @@ export const translatePrompt = (args: {
     JSON.stringify(Object.fromEntries(keys.slice(0, 2).map((key) => [key.id, '…'])), null, 2),
     '```',
     '',
-    `Then send it with: i18n-editor apply - --repo ${repository} --lang ${read.language} --read-at ${read.commit}`,
+    `Then send it with: git8n apply - --repo ${repository} --lang ${read.language} --read-at ${read.commit}`,
   );
 
   if (args.nextCursor !== null) lines.push('', `More keys wait: add --cursor ${args.nextCursor} for the next ones.`);

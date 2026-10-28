@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { CliError } from './errors.ts';
 
 /**
- * The tokens of `i18n-editor login`, one for each address of the API.
+ * The tokens of `git8n login`, one for each address of the API.
  *
  * It is a file of this computer, readable by its owner only, and never a row of the database.
  */
@@ -14,7 +14,7 @@ export interface Credentials {
 }
 
 export const credentialsPath = (env: Record<string, string | undefined>, home: string): string =>
-  join(env.XDG_CONFIG_HOME || join(home, '.config'), 'i18n-editor', 'credentials.json');
+  join(env.XDG_CONFIG_HOME || join(home, '.config'), 'git8n', 'credentials.json');
 
 export const readCredentials = async (path: string): Promise<Credentials> => {
   let text: string;
@@ -26,7 +26,7 @@ export const readCredentials = async (path: string): Promise<Credentials> => {
 
     // A file that exists and cannot be read must stop the command. Else `login` writes it again,
     // and the tokens of the other addresses are lost.
-    throw new CliError('I18NE1004', `${path} cannot be read: ${(error as Error).message}`);
+    throw new CliError('G8N1004', `${path} cannot be read: ${(error as Error).message}`);
   }
 
   try {
@@ -36,7 +36,7 @@ export const readCredentials = async (path: string): Promise<Credentials> => {
 
     return parsed;
   } catch {
-    throw new CliError('I18NE1004', `${path} is not valid. Delete it, then run i18n-editor login again.`);
+    throw new CliError('G8N1004', `${path} is not valid. Delete it, then run git8n login again.`);
   }
 };
 

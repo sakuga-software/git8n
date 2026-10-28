@@ -2,8 +2,8 @@ import '../setup-env';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authDeviceCodes, i18nRepositories, newId } from '@i18n-editor/db';
-import { fakeIo } from '@i18n-editor/mcp/cli/testing';
+import { authDeviceCodes, i18nRepositories, newId } from '@git8n/db';
+import { fakeIo } from '@git8n/mcp/cli/testing';
 import app from '../../app';
 import { env } from '@/config/env';
 import { clearI18nCatalogueCache } from '@/services/i18n-catalogue.service';
@@ -55,7 +55,7 @@ afterEach(() => {
 
 const sendToApp = (url: string, init?: RequestInit) => app.request(url, init) as Promise<Response>;
 
-describe('i18n-editor against the API', () => {
+describe('git8n against the API', () => {
   it('signs in with a device code, reads the missing keys, proposes them, and signs out', async () => {
     const repositoryId = newId();
 
@@ -119,7 +119,7 @@ describe('i18n-editor against the API', () => {
     expect(login.exit, login.stdout + login.stderr).toBe(0);
     expect(sleeps).toBe(2);
 
-    const credentials = JSON.parse(await readFile(join(cli.configHome, 'i18n-editor', 'credentials.json'), 'utf8')) as {
+    const credentials = JSON.parse(await readFile(join(cli.configHome, 'git8n', 'credentials.json'), 'utf8')) as {
       servers: Record<string, { token: string }>;
     };
     const sessionToken = credentials.servers[EDITOR]!.token;
@@ -164,7 +164,7 @@ describe('i18n-editor against the API', () => {
       (await app.request(`${EDITOR}/i18n/me`, { headers: { authorization: `Bearer ${sessionToken}` } })).status,
     ).toBe(401);
 
-    cli.io.env.I18N_EDITOR_API_URL = EDITOR;
+    cli.io.env.GIT8N_API_URL = EDITOR;
 
     expect((await cli.run('whoami', '--json')).exit).toBe(3);
   });
@@ -179,11 +179,11 @@ describe('i18n-editor against the API', () => {
     const { token } = ((await made.json()) as { data: { token: string } }).data;
     const cli = await fakeIo(sendToApp);
 
-    Object.assign(cli.io.env, { I18N_EDITOR_API_URL: EDITOR, I18N_EDITOR_API_TOKEN: token });
+    Object.assign(cli.io.env, { GIT8N_API_URL: EDITOR, GIT8N_API_TOKEN: token });
 
     const whoami = await cli.run('whoami', '--json');
 
     expect(whoami.exit, whoami.stdout).toBe(0);
-    expect(whoami.json().data).toMatchObject({ via: 'I18N_EDITOR_API_TOKEN', account: null, memberships: [] });
+    expect(whoami.json().data).toMatchObject({ via: 'GIT8N_API_TOKEN', account: null, memberships: [] });
   });
 });

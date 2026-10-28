@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { i18nRepositories, newId, organizations, type I18nRepository, type PublishMode } from '@i18n-editor/db';
+import { i18nRepositories, newId, organizations, type I18nRepository, type PublishMode } from '@git8n/db';
 import { auth } from '@/auth';
 import { db } from '@/db';
 import { withoutTrailingSlashes } from '@/utils/trailing-slashes';

@@ -1,7 +1,7 @@
 import { CliError } from './errors.ts';
 
 /** The `client_id` that the API accepts for a device code (`CLI_CLIENT_ID` of the API). */
-export const CLIENT_ID = 'i18n-editor-cli';
+export const CLIENT_ID = 'git8n-cli';
 
 const GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
 
@@ -33,7 +33,7 @@ export const askDeviceCode = async (io: LoginIo, api: string): Promise<DeviceCod
 
   if (!response.ok) {
     throw new CliError(
-      response.status < 500 ? 'I18NE4001' : 'I18NE4002',
+      response.status < 500 ? 'G8N4001' : 'G8N4002',
       `${response.status} — the API gave no device code: ${await response.text().catch(() => '')}`,
     );
   }
@@ -51,7 +51,7 @@ export const waitForApproval = async (io: LoginIo, api: string, code: DeviceCode
   let interval = Math.max(code.interval, 1) * 1000;
 
   for (;;) {
-    if (io.now() >= deadline) throw new CliError('I18NE2002', 'The code expired. Run i18n-editor login again.');
+    if (io.now() >= deadline) throw new CliError('G8N2002', 'The code expired. Run git8n login again.');
 
     await io.sleep(interval);
 
@@ -71,12 +71,12 @@ export const waitForApproval = async (io: LoginIo, api: string, code: DeviceCode
         interval += 5000;
         continue;
       case 'expired_token':
-        throw new CliError('I18NE2002', 'The code expired. Run i18n-editor login again.');
+        throw new CliError('G8N2002', 'The code expired. Run git8n login again.');
       case 'access_denied':
-        throw new CliError('I18NE2003', 'The code was refused in the editor.');
+        throw new CliError('G8N2003', 'The code was refused in the editor.');
       default:
         throw new CliError(
-          response.status < 500 ? 'I18NE4001' : 'I18NE4002',
+          response.status < 500 ? 'G8N4001' : 'G8N4002',
           `${response.status} — the API refused the device code: ${answered.error ?? 'no reason'}`,
         );
     }

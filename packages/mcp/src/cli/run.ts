@@ -65,7 +65,7 @@ export interface Io {
 }
 
 /** An access token of the « Jetons » page starts with this. A session token of `login` does not. */
-const ACCESS_TOKEN_PREFIX = 'i18e_';
+const ACCESS_TOKEN_PREFIX = 'g8n_';
 
 const GLOBAL = ['api', 'json', 'help', 'version'] as const;
 
@@ -133,9 +133,9 @@ type Options = Partial<{
   'max-warnings': string;
 }>;
 
-export const HELP = `i18n-editor — the translations of a repository, from a terminal
+export const HELP = `git8n — the translations of a repository, from a terminal
 
-Usage: i18n-editor <command> [options]
+Usage: git8n <command> [options]
 
 Account
   login              Sign in with a code that you approve in the editor
@@ -168,9 +168,9 @@ Options
   -v, --version      The version
 
 Environment
-  I18N_EDITOR_API_URL     The address of the editor
-  I18N_EDITOR_API_TOKEN   An access token of the page « Jetons », in place of login
-  I18N_EDITOR_REPO        The repository, in place of --repo
+  GIT8N_API_URL     The address of the editor
+  GIT8N_API_TOKEN   An access token of the page « Jetons », in place of login
+  GIT8N_REPO        The repository, in place of --repo
 
 Exit status: 0 done, 1 refused or failed, 2 wrong command or input, 3 not signed in.
 Documentation: <api>/docs/reference/cli
@@ -182,7 +182,7 @@ const integerOf = (name: string, value: string | undefined, fallback: number, le
   const parsed = Number(value);
 
   if (!Number.isInteger(parsed) || parsed < least || parsed > most) {
-    throw new CliError('I18NE1001', `--${name} takes a whole number from ${least} to ${most}.`);
+    throw new CliError('G8N1001', `--${name} takes a whole number from ${least} to ${most}.`);
   }
 
   return parsed;
@@ -196,7 +196,7 @@ const stateOf = (options: Options, fallback: (typeof STATES)[number]): (typeof S
   const state = options.state ?? fallback;
 
   if (!(STATES as readonly string[]).includes(state)) {
-    throw new CliError('I18NE1001', `--state takes one of ${STATES.join(', ')}.`);
+    throw new CliError('G8N1001', `--state takes one of ${STATES.join(', ')}.`);
   }
 
   return state as (typeof STATES)[number];
@@ -212,7 +212,7 @@ export async function run(argv: string[], io: Io): Promise<number> {
     try {
       parsed = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: true });
     } catch (error) {
-      throw new CliError('I18NE1001', `${(error as Error).message}. Run i18n-editor --help.`);
+      throw new CliError('G8N1001', `${(error as Error).message}. Run git8n --help.`);
     }
 
     const options = parsed.values as Options;
@@ -234,14 +234,14 @@ export async function run(argv: string[], io: Io): Promise<number> {
 
     const allowed = COMMANDS[command];
 
-    if (!allowed) throw new CliError('I18NE1001', `${command} is not a command. Run i18n-editor --help.`);
+    if (!allowed) throw new CliError('G8N1001', `${command} is not a command. Run git8n --help.`);
 
     const extra = Object.keys(options).filter(
       (name) => !(GLOBAL as readonly string[]).includes(name) && !allowed.includes(name),
     );
 
     if (extra.length > 0) {
-      throw new CliError('I18NE1001', `${command} takes no ${extra.map((name) => `--${name}`).join(', ')}.`);
+      throw new CliError('G8N1001', `${command} takes no ${extra.map((name) => `--${name}`).join(', ')}.`);
     }
 
     return await new Session(io, options, json).run(command, rest);
@@ -290,26 +290,26 @@ class Session {
   private refusedToken(error: unknown): unknown {
     if (!(error instanceof ApiError) || error.status !== 401 || this.tokenUsed === undefined) return error;
 
-    if (this.io.env.I18N_EDITOR_API_TOKEN) {
+    if (this.io.env.GIT8N_API_TOKEN) {
       return new CliError(
-        'I18NE2001',
-        'The API refused the token of I18N_EDITOR_API_TOKEN: it expired, or somebody revoked it. Make a new one on the page « Jetons d’accès ».',
+        'G8N2001',
+        'The API refused the token of GIT8N_API_TOKEN: it expired, or somebody revoked it. Make a new one on the page « Jetons d’accès ».',
       );
     }
 
     if (this.tokenUsed.startsWith(ACCESS_TOKEN_PREFIX)) {
       return new CliError(
-        'I18NE2001',
+        'G8N2001',
         'The API refused the access token of this computer: it expired, or somebody revoked it. Make a new one on the page « Jetons d’accès ».',
       );
     }
 
-    return new CliError('I18NE2001', 'The session of this computer ended. Run i18n-editor login.');
+    return new CliError('G8N2001', 'The session of this computer ended. Run git8n login.');
   }
 
   private async dispatch(command: string, positionals: string[]): Promise<number> {
     const expectArgs = (count: number, usage: string) => {
-      if (positionals.length !== count) throw new CliError('I18NE1001', `Usage: i18n-editor ${usage}`);
+      if (positionals.length !== count) throw new CliError('G8N1001', `Usage: git8n ${usage}`);
     };
 
     switch (command) {
@@ -342,7 +342,7 @@ class Session {
         return this.proposals();
       case 'prompt':
         if (positionals[0] !== 'translate' || positionals.length !== 1) {
-          throw new CliError('I18NE1001', 'Usage: i18n-editor prompt translate --to <language>');
+          throw new CliError('G8N1001', 'Usage: git8n prompt translate --to <language>');
         }
         return this.promptTranslate();
       case 'mcp':
@@ -352,7 +352,7 @@ class Session {
         expectArgs(0, 'check [--locales <folder>] [--reporter pretty|json|github] [--max-warnings <n>]');
         return this.check();
       default:
-        throw new CliError('I18NE1001', `${command} is not a command.`);
+        throw new CliError('G8N1001', `${command} is not a command.`);
     }
   }
 
@@ -369,18 +369,18 @@ class Session {
   }
 
   private async api(): Promise<string> {
-    const named = this.options.api ?? this.io.env.I18N_EDITOR_API_URL ?? (await this.credentials()).default;
+    const named = this.options.api ?? this.io.env.GIT8N_API_URL ?? (await this.credentials()).default;
 
-    if (!named) throw new CliError('I18NE1002', 'Pass --api <url>, for example --api https://i18n.example.com.');
+    if (!named) throw new CliError('G8N1002', 'Pass --api <url>, for example --api https://git8n.example.com.');
 
     return named.replace(/\/+$/, '');
   }
 
   private async config(): Promise<ApiConfig> {
     const url = await this.api();
-    const token = this.io.env.I18N_EDITOR_API_TOKEN || (await this.credentials()).servers[url]?.token;
+    const token = this.io.env.GIT8N_API_TOKEN || (await this.credentials()).servers[url]?.token;
 
-    if (!token) throw new CliError('I18NE2001', `No account is signed in to ${url}. Run i18n-editor login.`);
+    if (!token) throw new CliError('G8N2001', `No account is signed in to ${url}. Run git8n login.`);
 
     this.tokenUsed = token;
 
@@ -388,7 +388,7 @@ class Session {
   }
 
   private async repository(config: ApiConfig): Promise<Repository> {
-    const wanted = this.options.repo ?? this.io.env.I18N_EDITOR_REPO;
+    const wanted = this.options.repo ?? this.io.env.GIT8N_REPO;
 
     return pickRepository(await repositories(config), wanted, githubSlugsOf(await this.io.gitRemotes(this.io.cwd)));
   }
@@ -469,8 +469,8 @@ class Session {
       servers: { ...credentials.servers, [api]: { token, ...(person ?? {}) } },
     });
 
-    if (this.io.env.I18N_EDITOR_API_TOKEN) {
-      this.io.stderr('I18N_EDITOR_API_TOKEN is set: the commands use it, not this sign-in.\n');
+    if (this.io.env.GIT8N_API_TOKEN) {
+      this.io.stderr('GIT8N_API_TOKEN is set: the commands use it, not this sign-in.\n');
     }
 
     return this.answer(
@@ -523,7 +523,7 @@ class Session {
       languages: membership.languages,
       writesSource: membership.writesSource,
     }));
-    const via = this.io.env.I18N_EDITOR_API_TOKEN ? 'I18N_EDITOR_API_TOKEN' : 'login';
+    const via = this.io.env.GIT8N_API_TOKEN ? 'GIT8N_API_TOKEN' : 'login';
 
     return this.answer({ api: config.url, account: person, via, admin: me.admin, memberships }, () =>
       [
@@ -541,7 +541,7 @@ class Session {
 
   private async status(): Promise<number> {
     const config = await this.config();
-    const wanted = this.options.repo ?? this.io.env.I18N_EDITOR_REPO;
+    const wanted = this.options.repo ?? this.io.env.GIT8N_REPO;
     const all = await repositories(config);
     const slugs = githubSlugsOf(await this.io.gitRemotes(this.io.cwd));
     const named = wanted !== undefined || all.some((repository) => slugs.includes(nameOf(repository).toLowerCase()));
@@ -647,12 +647,12 @@ class Session {
     const { repository, read } = await this.read();
 
     if (disabledFilesOf(read).includes(wanted.file)) {
-      throw new CliError('I18NE3004', `${wanted.file} has no ${read.language} version.`);
+      throw new CliError('G8N3004', `${wanted.file} has no ${read.language} version.`);
     }
 
     const entry = read.entries.find((held) => held.file === wanted.file && held.key === wanted.key);
 
-    if (!entry) throw new CliError('I18NE3004', `${id} is not a key of the source (${read.source}).`);
+    if (!entry) throw new CliError('G8N3004', `${id} is not a key of the source (${read.source}).`);
 
     const neighbours = neighboursOf(read, entry);
 
@@ -702,12 +702,12 @@ class Session {
     const readAt = this.options['read-at'];
 
     if (readAt !== undefined && !/^[0-9a-f]{40}$/.test(readAt)) {
-      throw new CliError('I18NE1001', '--read-at takes the full sha of a commit, as keys --json answers it.');
+      throw new CliError('G8N1001', '--read-at takes the full sha of a commit, as keys --json answers it.');
     }
 
     const texts = textsOf(input === '-' ? await this.io.readStdin() : await this.io.readFile(input), this.options.file);
 
-    if (texts.size === 0) throw new CliError('I18NE1003', 'The input holds no key.');
+    if (texts.size === 0) throw new CliError('G8N1003', 'The input holds no key.');
 
     const { config, repository, read } = await this.read();
     const plan = planOf(read, texts, readAt ?? read.commit);
@@ -772,11 +772,11 @@ class Session {
     const state = stateOf(this.options, 'missing');
 
     if (state === 'translated' || state === 'all') {
-      throw new CliError('I18NE1001', 'prompt translate takes --state missing or --state review.');
+      throw new CliError('G8N1001', 'prompt translate takes --state missing or --state review.');
     }
 
     if (this.options.to && this.options.lang && this.options.to !== this.options.lang) {
-      throw new CliError('I18NE1001', '--to and --lang name two languages. Pass one.');
+      throw new CliError('G8N1001', '--to and --lang name two languages. Pass one.');
     }
 
     const limit = integerOf('limit', this.options.limit, 50, 1, 500);
@@ -818,7 +818,7 @@ class Session {
     const reporter = (this.options.reporter ?? (this.json ? 'json' : 'pretty')) as Reporter;
 
     if (!REPORTERS.includes(reporter))
-      throw new CliError('I18NE1001', `--reporter takes one of ${REPORTERS.join(', ')}.`);
+      throw new CliError('G8N1001', `--reporter takes one of ${REPORTERS.join(', ')}.`);
 
     const maxWarnings =
       this.options['max-warnings'] === undefined
@@ -846,7 +846,7 @@ class Session {
         },
       );
     } catch (error) {
-      if (error instanceof CheckSetupError) throw new CliError('I18NE1005', error.message);
+      if (error instanceof CheckSetupError) throw new CliError('G8N1005', error.message);
 
       throw error;
     }
@@ -864,7 +864,7 @@ class Session {
   }
 
   private async mcp(): Promise<number> {
-    if (this.json) throw new CliError('I18NE1001', 'mcp speaks the MCP protocol, and takes no --json.');
+    if (this.json) throw new CliError('G8N1001', 'mcp speaks the MCP protocol, and takes no --json.');
 
     await this.io.serveMcp(await this.config());
 

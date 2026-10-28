@@ -91,9 +91,9 @@ const signedIn = async (answers?: Parameters<typeof fakeApi>[0]) => {
   const api = fakeApi(answers);
   const cli = await fakeIo(api.fetcher);
 
-  cli.io.env.I18N_EDITOR_API_URL = API;
-  cli.io.env.I18N_EDITOR_API_TOKEN = 'i18e_test';
-  cli.io.env.I18N_EDITOR_REPO = 'acme/app';
+  cli.io.env.GIT8N_API_URL = API;
+  cli.io.env.GIT8N_API_TOKEN = 'g8n_test';
+  cli.io.env.GIT8N_REPO = 'acme/app';
 
   return { ...api, cli };
 };
@@ -106,7 +106,7 @@ describe('the arguments', () => {
     const foreign = await cli.run('keys', '--dry-run', '--json');
 
     expect(unknown.exit).toBe(2);
-    expect(unknown.json().error.code).toBe('I18NE1001');
+    expect(unknown.json().error.code).toBe('G8N1001');
     expect(foreign.exit).toBe(2);
     expect(foreign.json().error.message).toContain('--dry-run');
   });
@@ -124,7 +124,7 @@ describe('the arguments', () => {
     const ran = await cli.run('keys', '--api', API, '--json');
 
     expect(ran.exit).toBe(3);
-    expect(ran.json().error.code).toBe('I18NE2001');
+    expect(ran.json().error.code).toBe('G8N2001');
   });
 
   it('says how to get a token that works when the API refuses one', async () => {
@@ -132,14 +132,14 @@ describe('the arguments', () => {
     const fromEnv = await signedIn(refused);
     const fromLogin = await signedIn(refused);
 
-    delete fromLogin.cli.io.env.I18N_EDITOR_API_TOKEN;
-    await writeCredentials(join(fromLogin.cli.configHome, 'i18n-editor', 'credentials.json'), {
+    delete fromLogin.cli.io.env.GIT8N_API_TOKEN;
+    await writeCredentials(join(fromLogin.cli.configHome, 'git8n', 'credentials.json'), {
       default: API,
       servers: { [API]: { token: 'session-token' } },
     });
 
     expect((await fromEnv.cli.run('keys', '--json')).json().error.message).toContain('Jetons');
-    expect((await fromLogin.cli.run('keys', '--json')).json().error.message).toContain('Run i18n-editor login');
+    expect((await fromLogin.cli.run('keys', '--json')).json().error.message).toContain('Run git8n login');
   });
 
   it('turns a 401 of the API into exit 3, and a 403 into exit 1', async () => {
@@ -151,7 +151,7 @@ describe('the arguments', () => {
 
     expect(unauthorized.exit).toBe(3);
     expect(denied.exit).toBe(1);
-    expect(denied.json().error).toMatchObject({ code: 'I18NE4001', message: '403 — Not a member' });
+    expect(denied.json().error).toMatchObject({ code: 'G8N4001', message: '403 — Not a member' });
   });
 });
 
@@ -159,7 +159,7 @@ describe('the repository and the language', () => {
   it('takes the repository of the GitHub remote of the folder', async () => {
     const { cli, calls } = await signedIn({ 'GET /i18n/me': () => jsonResponse({ data: { ...ME, admin: true } }) });
 
-    delete cli.io.env.I18N_EDITOR_REPO;
+    delete cli.io.env.GIT8N_REPO;
     cli.io.gitRemotes = async () => ['git@github.com:Acme/site.git'];
 
     expect((await cli.run('keys', '--lang', 'en', '--json')).exit).toBe(0);
@@ -169,13 +169,13 @@ describe('the repository and the language', () => {
   it('refuses the only repository of the account in a folder of another repository', async () => {
     const { cli } = await signedIn({ 'GET /i18n/repositories': () => jsonResponse({ data: [REPOSITORY] }) });
 
-    delete cli.io.env.I18N_EDITOR_REPO;
+    delete cli.io.env.GIT8N_REPO;
     cli.io.gitRemotes = async () => ['https://github.com/acme/other.git'];
 
     const ran = await cli.run('keys', '--json');
 
     expect(ran.exit).toBe(2);
-    expect(ran.json().error).toMatchObject({ code: 'I18NE3001', details: expect.arrayContaining(['  acme/app']) });
+    expect(ran.json().error).toMatchObject({ code: 'G8N3001', details: expect.arrayContaining(['  acme/app']) });
 
     cli.io.gitRemotes = async () => [];
 
@@ -185,12 +185,12 @@ describe('the repository and the language', () => {
   it('lists the repositories when none is clear', async () => {
     const { cli } = await signedIn();
 
-    delete cli.io.env.I18N_EDITOR_REPO;
+    delete cli.io.env.GIT8N_REPO;
 
     const ran = await cli.run('keys');
 
     expect(ran.exit).toBe(2);
-    expect(ran.stderr).toContain('I18NE3002');
+    expect(ran.stderr).toContain('G8N3002');
     expect(ran.stderr).toContain('acme/app');
     expect(ran.stderr).toContain('acme/site');
   });
@@ -204,7 +204,7 @@ describe('the repository and the language', () => {
     const ran = await cli.run('keys', '--lang', 'it', '--json');
 
     expect(ran.exit).toBe(2);
-    expect(ran.json().error.code).toBe('I18NE3003');
+    expect(ran.json().error.code).toBe('G8N3003');
   });
 
   it('refuses a target language that the account cannot open, before it asks the API', async () => {
@@ -213,7 +213,7 @@ describe('the repository and the language', () => {
     const ran = await cli.run('keys', '--lang', 'de', '--json');
 
     expect(ran.exit).toBe(2);
-    expect(ran.json().error).toMatchObject({ code: 'I18NE3003', details: [expect.stringContaining(': en.')] });
+    expect(ran.json().error).toMatchObject({ code: 'G8N3003', details: [expect.stringContaining(': en.')] });
     expect(calls.some((call) => call.url.includes('/i18n/catalogue'))).toBe(false);
   });
 
@@ -224,7 +224,7 @@ describe('the repository and the language', () => {
       const ran = await cli.run(...command, '--limit', '0', '--json');
 
       expect(ran.exit).toBe(2);
-      expect(ran.json().error.code).toBe('I18NE1001');
+      expect(ran.json().error.code).toBe('G8N1001');
     }
   });
 });
@@ -266,7 +266,7 @@ describe('keys, get and search', () => {
     const ran = await cli.run('get', 'common:nope', '--json');
 
     expect(ran.exit).toBe(1);
-    expect(ran.json().error.code).toBe('I18NE3004');
+    expect(ran.json().error.code).toBe('G8N3004');
   });
 
   it('finds a key by its source or its translation', async () => {
@@ -316,7 +316,7 @@ describe('apply', () => {
         { file: 'common', key: 'bye', value: 'Goodbye' },
       ],
     });
-    expect(sent[0]!.auth).toBe('Bearer i18e_test');
+    expect(sent[0]!.auth).toBe('Bearer g8n_test');
   });
 
   it('sends the revision of --read-at, the one the texts answer', async () => {
@@ -342,10 +342,10 @@ describe('apply', () => {
     const ranClosed = await closed.cli.run('apply', '-', '--json');
     const ranBlank = await blank.cli.run('apply', '-', '--json');
 
-    expect(ranUnknown.json().error).toMatchObject({ code: 'I18NE3004', details: ['common:nope'] });
-    expect(ranClosed.json().error).toMatchObject({ code: 'I18NE3004', details: ['legacy:old'] });
+    expect(ranUnknown.json().error).toMatchObject({ code: 'G8N3004', details: ['common:nope'] });
+    expect(ranClosed.json().error).toMatchObject({ code: 'G8N3004', details: ['legacy:old'] });
     expect(ranBlank.exit).toBe(2);
-    expect(ranBlank.json().error.code).toBe('I18NE1003');
+    expect(ranBlank.json().error.code).toBe('G8N1003');
 
     for (const { calls } of [unknown, closed, blank]) expect(calls.some((call) => call.method === 'POST')).toBe(false);
   });
@@ -384,7 +384,7 @@ describe('prompt translate', () => {
     expect(data.keys.map((key: { id: string }) => key.id)).toEqual(['common:hello.subtitle', 'common:bye']);
     expect(data.keys[0].neighbours).toEqual([{ id: 'common:hello.title', source: 'Bonjour', value: 'Hello' }]);
     expect(data.prompt).toContain('Source: « Bienvenue »');
-    expect(data.prompt).toContain(`i18n-editor apply - --repo acme/app --lang en --read-at ${COMMIT}`);
+    expect(data.prompt).toContain(`git8n apply - --repo acme/app --lang en --read-at ${COMMIT}`);
   });
 
   it('asks for the keys to review with the old source', async () => {
@@ -431,7 +431,7 @@ describe('login and logout', () => {
     const cli = await fakeIo(api.fetcher);
 
     const ran = await cli.run('login', '--api', `${API}/`, '--json');
-    const file = join(cli.configHome, 'i18n-editor', 'credentials.json');
+    const file = join(cli.configHome, 'git8n', 'credentials.json');
 
     expect(ran.exit).toBe(0);
     expect(ran.stderr).toContain('ABCD1234');
@@ -447,7 +447,7 @@ describe('login and logout', () => {
     const polls = api.calls.filter((call) => call.url.endsWith('/device/token'));
 
     expect(polls).toHaveLength(3);
-    expect(polls[0]!.body).toMatchObject({ device_code: 'device-1', client_id: 'i18n-editor-cli' });
+    expect(polls[0]!.body).toMatchObject({ device_code: 'device-1', client_id: 'git8n-cli' });
 
     expect((await cli.run('keys', '--repo', 'acme/app', '--json')).exit).toBe(0);
     expect(api.calls.at(-1)!.auth).toBe('Bearer session-token');
@@ -464,12 +464,12 @@ describe('login and logout', () => {
     const api = fakeApi(deviceRoutes([{ status: 200, body: { access_token: 'session-token' } }]));
     const cli = await fakeIo(api.fetcher);
 
-    await mkdir(join(cli.configHome, 'i18n-editor', 'credentials.json'), { recursive: true });
+    await mkdir(join(cli.configHome, 'git8n', 'credentials.json'), { recursive: true });
 
     const ran = await cli.run('login', '--api', API, '--no-open', '--json');
 
     expect(ran.exit).toBe(2);
-    expect(ran.json().error.code).toBe('I18NE1004');
+    expect(ran.json().error.code).toBe('G8N1004');
     expect(api.calls).toEqual([]);
   });
 
@@ -481,8 +481,8 @@ describe('login and logout', () => {
     const ranDenied = await denied.run('login', '--api', API, '--no-open', '--json');
 
     expect(ranExpired.exit).toBe(1);
-    expect(ranExpired.json().error.code).toBe('I18NE2002');
-    expect(ranDenied.json().error.code).toBe('I18NE2003');
+    expect(ranExpired.json().error.code).toBe('G8N2002');
+    expect(ranDenied.json().error.code).toBe('G8N2003');
     expect(expired.opened).toEqual([]);
   });
 
@@ -493,7 +493,7 @@ describe('login and logout', () => {
 
     const ran = await cli.run('login', '--api', API, '--no-open', '--json');
 
-    expect(ran.json().error.code).toBe('I18NE2002');
+    expect(ran.json().error.code).toBe('G8N2002');
     expect(api.calls.filter((call) => call.url.endsWith('/device/token')).length).toBe(120);
   });
 });
@@ -506,7 +506,7 @@ describe('mcp', () => {
 
     expect(ran.exit).toBe(0);
     expect(ran.stdout).toBe('');
-    expect(cli.served).toEqual([expect.objectContaining({ url: API, token: 'i18e_test' })]);
+    expect(cli.served).toEqual([expect.objectContaining({ url: API, token: 'g8n_test' })]);
   });
 
   it('writes a refusal on stderr, never on stdout', async () => {
@@ -516,6 +516,6 @@ describe('mcp', () => {
 
     expect(ran.exit).toBe(3);
     expect(ran.stdout).toBe('');
-    expect(ran.stderr).toContain('I18NE2001');
+    expect(ran.stderr).toContain('G8N2001');
   });
 });

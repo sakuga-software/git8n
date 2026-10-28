@@ -3,7 +3,7 @@ import { withBase } from 'vitepress';
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 
 /** The `type` of every message between this page and the demo. `packages/web/app/demo/install.ts` holds the same value. */
-const DEMO_MESSAGE = 'i18n-editor-demo';
+const DEMO_MESSAGE = 'git8n-demo';
 
 const TYPE_MS = 28;
 const PAUSE_MS = 500;

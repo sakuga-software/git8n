@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { accessTokens, authDeviceCodes, i18nRepositories, newId } from '@i18n-editor/db';
+import { accessTokens, authDeviceCodes, i18nRepositories, newId } from '@git8n/db';
 import app from '@/app';
 import { CLI_CLIENT_ID } from '@/auth';
 import { authHeaders, cookieHeaders, grant, insertAccount, insertOrganization } from '../db/fixtures';
@@ -52,7 +52,7 @@ describe('the access tokens', () => {
     const created = await dataOf<{ id: string; token: string; start: string }>(made);
 
     expect(made.status).toBe(201);
-    expect(created.token).toMatch(/^i18e_[\w-]{43}$/);
+    expect(created.token).toMatch(/^g8n_[\w-]{43}$/);
     expect(created.token.startsWith(created.start)).toBe(true);
 
     const [row] = await db().select().from(accessTokens).where(eq(accessTokens.id, created.id));
@@ -95,7 +95,7 @@ describe('the access tokens', () => {
       .where(eq(accessTokens.id, expiring.id));
     expect((await send(`/i18n/tokens/${revoked.id}`, { method: 'DELETE', headers })).status).toBe(200);
 
-    for (const token of [expiring.token, revoked.token, 'i18e_unknown']) {
+    for (const token of [expiring.token, revoked.token, 'g8n_unknown']) {
       expect((await send('/i18n/me', { headers: { authorization: `Bearer ${token}` } })).status).toBe(401);
     }
   });

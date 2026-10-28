@@ -102,4 +102,4 @@ export const AGENT_GERMAN: Record<string, string> = {
 
 export const ACCOUNT = { id: 'demo-account', name: 'Camille Laurent', email: 'camille@example.com' } as const;
 
-export const AGENT_AUTHOR = 'Agent (i18n-editor CLI)';
+export const AGENT_AUTHOR = 'Agent (git8n CLI)';

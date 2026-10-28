@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { useParams } from 'react-router';
 import { Loading } from '~/editor/states';
 
-export const meta = () => [{ title: 'Traductions' }];
+export const meta = () => [{ title: 'git8n' }];
 
 const Screen = lazy(() => import('~/editor/screen'));
 

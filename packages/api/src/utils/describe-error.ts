@@ -1,4 +1,4 @@
-import { pgCodeOf } from '@i18n-editor/db';
+import { pgCodeOf } from '@git8n/db';
 
 /** Separates the message of the wrapper from the diagnostic that follows it. */
 const JOIN = ' — ';

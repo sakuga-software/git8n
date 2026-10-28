@@ -1,20 +1,20 @@
-# `@i18n-editor/mcp`
+# `@git8n/mcp`
 
 The typed client of the API, and the two commands built on it:
 
-- `i18n-editor`, the CLI (DB-671): `src/cli/main.ts`. See the
+- `git8n`, the CLI (DB-671): `src/cli/main.ts`. See the
   [CLI](../../docs/agents/cli.md) and its [reference](../../docs/reference/cli.md).
 - An MCP server that lets an agent read the translations and propose them,
   without a screen and without any access to GitHub (DB-211): `src/main.ts`,
-  or `i18n-editor mcp`.
+  or `git8n mcp`.
 
 ## What it needs
 
 Two variables, and no password:
 
 ```
-I18N_EDITOR_API_URL=https://i18n.example.com
-I18N_EDITOR_API_TOKEN=…
+GIT8N_API_URL=https://git8n.example.com
+GIT8N_API_TOKEN=…
 ```
 
 The token is an **access token** of an account. Make it in the editor: open
@@ -34,12 +34,12 @@ a token: only the session of the browser does that.
 ```json
 {
   "mcpServers": {
-    "i18n-editor": {
+    "git8n": {
       "command": "node",
       "args": ["--experimental-strip-types", "packages/mcp/src/main.ts"],
       "env": {
-        "I18N_EDITOR_API_URL": "https://i18n.example.com",
-        "I18N_EDITOR_API_TOKEN": "…"
+        "GIT8N_API_URL": "https://git8n.example.com",
+        "GIT8N_API_TOKEN": "…"
       }
     }
   }

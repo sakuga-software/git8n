@@ -1,5 +1,5 @@
 import { createAccessControl } from 'better-auth/plugins/access';
-import type { MemberRole } from '@i18n-editor/db';
+import type { MemberRole } from '@git8n/db';
 
 /**
  * What each role of a repository may do (DB-637). The better-auth organization

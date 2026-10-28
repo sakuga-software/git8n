@@ -1,4 +1,4 @@
-import type { I18nRepository } from '@i18n-editor/db';
+import type { I18nRepository } from '@git8n/db';
 import { ask, GithubError, insideRepository, installationToken } from '@/services/github-app.service';
 import {
   contentOf,

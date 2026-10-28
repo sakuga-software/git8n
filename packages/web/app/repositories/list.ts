@@ -1,4 +1,4 @@
-import type { LanguageProgress, OverviewSort } from '@i18n-editor/mcp/api';
+import type { LanguageProgress, OverviewSort } from '@git8n/mcp/api';
 
 /**
  * The state of the page of every repository (DB-610), read from the address

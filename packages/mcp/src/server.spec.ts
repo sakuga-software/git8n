@@ -444,13 +444,11 @@ describe('a language is a tag, on every tool that takes one', () => {
 
 describe('what it needs to start', () => {
   it('names both variables rather than failing on an empty header', () => {
-    expect(() => configOf({})).toThrow(/I18N_EDITOR_API_URL and I18N_EDITOR_API_TOKEN/);
-    expect(() => configOf({ I18N_EDITOR_API_URL: 'https://api.test' })).toThrow(/I18N_EDITOR_API_TOKEN/);
+    expect(() => configOf({})).toThrow(/GIT8N_API_URL and GIT8N_API_TOKEN/);
+    expect(() => configOf({ GIT8N_API_URL: 'https://api.test' })).toThrow(/GIT8N_API_TOKEN/);
   });
 
   it('takes the trailing slash off the url, which would double in a path', () => {
-    expect(configOf({ I18N_EDITOR_API_URL: 'https://api.test/', I18N_EDITOR_API_TOKEN: 't' }).url).toBe(
-      'https://api.test',
-    );
+    expect(configOf({ GIT8N_API_URL: 'https://api.test/', GIT8N_API_TOKEN: 't' }).url).toBe('https://api.test');
   });
 });

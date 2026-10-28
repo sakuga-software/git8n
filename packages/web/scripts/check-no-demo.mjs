@@ -2,7 +2,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const MARKS = ['i18n-editor-demo', "rien n'est envoyé à GitHub", 'demo-acme-shop'];
+const MARKS = ['git8n-demo', "rien n'est envoyé à GitHub", 'demo-acme-shop'];
 const root = new URL('../build/client/', import.meta.url).pathname;
 
 const filesOf = async (dir) =>

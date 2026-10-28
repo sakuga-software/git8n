@@ -5,7 +5,7 @@ import {
   createAccessToken,
   revokeAccessToken,
   type AccessToken,
-} from '@i18n-editor/mcp/api';
+} from '@git8n/mcp/api';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { api } from '~/utils/api';

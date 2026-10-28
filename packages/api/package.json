@@ -1,18 +1,18 @@
 {
-  "name": "@i18n-editor/api",
+  "name": "@git8n/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --packages=external --alias:@i18n-editor/db=../db/src --outdir=build --sourcemap",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --packages=external --alias:@git8n/db=../db/src --outdir=build --sourcemap",
     "start": "node --enable-source-maps build/index.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@git8n/db": "workspace:*",
     "@hono/node-server": "^2.1.1",
-    "@i18n-editor/db": "workspace:*",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
     "hono": "^4.13.8",
@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "catalog:",
-    "@i18n-editor/mcp": "workspace:*",
+    "@git8n/mcp": "workspace:*",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "catalog:",
     "esbuild": "^0.28.2",

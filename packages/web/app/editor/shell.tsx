@@ -125,9 +125,9 @@ export function Shell({
                 aria-hidden="true"
                 className="bg-ink inline-flex size-7 items-center justify-center rounded-[7px] font-mono text-[10px] font-medium text-white"
               >
-                i18n
+                g8n
               </span>
-              <span className="text-base font-semibold tracking-[-0.01em]">Traductions</span>
+              <span className="text-base font-semibold tracking-[-0.01em]">git8n</span>
             </Link>
             <span aria-hidden="true" className="bg-line h-5 w-px" />
             <div ref={setProject} className="flex flex-wrap items-center gap-x-4 gap-y-2 empty:hidden" />

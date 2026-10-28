@@ -36,7 +36,7 @@ export class NotConfiguredError extends Error {
 }
 
 export interface ApiConfig {
-  /** Where the API answers, for example `https://i18n.example.com`. */
+  /** Where the API answers, for example `https://git8n.example.com`. */
   url: string;
   /**
    * A bearer token of the account this server acts as.
@@ -50,12 +50,12 @@ export interface ApiConfig {
 }
 
 export const configOf = (env: Record<string, string | undefined>): ApiConfig => {
-  const url = env.I18N_EDITOR_API_URL?.replace(/\/+$/, '');
-  const token = env.I18N_EDITOR_API_TOKEN;
+  const url = env.GIT8N_API_URL?.replace(/\/+$/, '');
+  const token = env.GIT8N_API_TOKEN;
 
   if (!url || !token) {
     throw new NotConfiguredError(
-      'Set I18N_EDITOR_API_URL and I18N_EDITOR_API_TOKEN. Make the token in the editor: account menu, then « Jetons d’accès ».',
+      'Set GIT8N_API_URL and GIT8N_API_TOKEN. Make the token in the editor: account menu, then « Jetons d’accès ».',
     );
   }
 

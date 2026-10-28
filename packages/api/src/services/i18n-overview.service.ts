@@ -1,4 +1,4 @@
-import type { I18nRepository, PublishMode } from '@i18n-editor/db';
+import type { I18nRepository, PublishMode } from '@git8n/db';
 import type { OVERVIEW_SORTS } from '@/schemas/i18n';
 import { createCache } from '@/utils/cache';
 import { describeError } from '@/utils/describe-error';

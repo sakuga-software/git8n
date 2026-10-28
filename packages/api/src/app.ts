@@ -12,6 +12,17 @@ const app = new Hono<HonoEnv>();
 
 app.onError(errorHandler);
 
+// The editor moved to the host of BETTER_AUTH_URL (DB-674). Its old links keep working.
+app.use('*', async (c, next) => {
+  const host = c.req.header('host')?.toLowerCase();
+
+  if (!host || !env.REDIRECT_HOSTS.includes(host)) return next();
+
+  const url = new URL(c.req.url);
+
+  return c.redirect(new URL(url.pathname + url.search, env.BETTER_AUTH_URL).toString(), 301);
+});
+
 // The organization plugin opens routes to every signed-in account: a member
 // could change their own role. The routes of `/i18n` do these changes, with their own checks.
 app.all('/api/auth/organization/*', (c) => c.notFound());

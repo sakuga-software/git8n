@@ -9,8 +9,8 @@ needs the workspace files.
 | `migrator` | `packages/db/Dockerfile`  | `dist/migrate.mjs` on `DATABASE_URL`. It applies the migrations that are not applied yet, then stops.             |
 
 ```sh
-docker build -f packages/api/Dockerfile -t i18n-editor .
-docker build -f packages/db/Dockerfile -t i18n-editor-migrator .
+docker build -f packages/api/Dockerfile -t git8n .
+docker build -f packages/db/Dockerfile -t git8n-migrator .
 ```
 
 - The `app` image runs as the user `node`, listens on port 8001, and has a
@@ -59,7 +59,7 @@ address from that header. Without the header, all the clients share one limit.
 | ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
 | `DATABASE_URL`            | yes      | The PostgreSQL server.                                                                                                                                  | `postgresql://i18n:secret@i18n-postgres:5432/i18n` |
 | `DATABASE_TLS`            | no       | `true` to connect with TLS when the URL does not say so. The default is `false`.                                                                        | `true`                                             |
-| `BETTER_AUTH_URL`         | yes      | The address of the editor, as the browser reads it. GitHub sends the browser back to it after the sign-in.                                              | `https://i18n.sakuga.dev`                          |
+| `BETTER_AUTH_URL`         | yes      | The address of the editor, as the browser reads it. GitHub sends the browser back to it after the sign-in.                                              | `https://git8n.sakuga.dev`                         |
 | `BETTER_AUTH_SECRET`      | yes      | At least 32 characters. It signs the sessions and encrypts the GitHub tokens. The app refuses to start without it.                                      | the output of `openssl rand -hex 32`               |
 | `GITHUB_CLIENT_ID`        | yes      | The client ID of the GitHub App, for the sign-in.                                                                                                       | `Iv23li…`                                          |
 | `GITHUB_CLIENT_SECRET`    | yes      | The client secret of the GitHub App.                                                                                                                    | a secret from the App settings                     |
@@ -68,8 +68,9 @@ address from that header. Without the header, all the clients share one limit.
 | `ADMIN_EMAILS`            | yes      | The addresses of the admins, separated by commas. GitHub must say that each address is verified.                                                        | `alice@example.com,bob@example.com`                |
 | `COMMIT_EMAIL_DOMAIN`     | no       | The domain of the address a commit gives its author. The default is `users.noreply.invalid`.                                                            | `users.noreply.example.com`                        |
 | `SMTP_URL`                | no       | The SMTP server that sends the magic links to invited people (DB-645). Without it, no mail leaves, and an invited person without GitHub cannot sign in. | `smtps://user:password@smtp.example.com:465`       |
-| `MAIL_FROM`               | no       | The sender of the mails. The default is `Traductions <no-reply@<host of BETTER_AUTH_URL>>`.                                                             | `Traductions <no-reply@example.com>`               |
-| `GITHUB_APP_SLUG`         | no       | The name of the GitHub App in its address, `github.com/apps/<slug>`. The page links to its installation page.                                           | `i18n-editor`                                      |
+| `MAIL_FROM`               | no       | The sender of the mails. The default is `git8n <no-reply@<host of BETTER_AUTH_URL>>`.                                                                   | `git8n <no-reply@example.com>`                     |
+| `REDIRECT_HOSTS`          | no       | The old hosts of the editor, separated by commas. A request to one of them answers 301 to the same path on `BETTER_AUTH_URL`.                           | `i18n.example.com`                                 |
+| `GITHUB_APP_SLUG`         | no       | The name of the GitHub App in its address, `github.com/apps/<slug>`. The page links to its installation page.                                           | `git8n`                                            |
 | `GITHUB_WEBHOOK_SECRET`   | no       | The secret of the webhook of the GitHub App (DB-651). Without it, the API takes no event, and a change made on GitHub shows after five minutes.         | 32 random bytes in hex                             |
 | `PORT`                    | no       | The port of the API. The image sets 8001.                                                                                                               | `8001`                                             |
 | `WEB_ROOT`                | no       | The folder of the built page. The image sets `/app/web`.                                                                                                | `/app/web`                                         |

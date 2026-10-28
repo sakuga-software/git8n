@@ -13,7 +13,7 @@ import type {
   RepositoryOverview,
   Reviewed,
   WaitingBatch,
-} from '@i18n-editor/mcp/api';
+} from '@git8n/mcp/api';
 import {
   ACCOUNT,
   AGENT_AUTHOR,
@@ -228,7 +228,7 @@ export class DemoStore {
     };
   };
 
-  /** The German keys that are missing and not proposed: what `i18n-editor keys --missing --lang de` lists. */
+  /** The German keys that are missing and not proposed: what `git8n keys --missing --lang de` lists. */
   readonly missingGerman = (): CatalogueEntry[] => {
     const proposed = this.branches.get('de')!;
 

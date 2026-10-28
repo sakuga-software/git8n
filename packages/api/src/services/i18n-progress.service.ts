@@ -1,4 +1,4 @@
-import type { I18nRepository } from '@i18n-editor/db';
+import type { I18nRepository } from '@git8n/db';
 import { getCatalogue } from '@/services/i18n-catalogue.service';
 import { proposedKeys } from '@/services/i18n-git.service';
 import { languagesOf } from '@/services/i18n-repositories.service';

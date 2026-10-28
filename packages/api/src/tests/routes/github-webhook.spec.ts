@@ -1,7 +1,7 @@
 import '../setup-env';
 import { createHmac } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { i18nRepositories, newId } from '@i18n-editor/db';
+import { i18nRepositories, newId } from '@git8n/db';
 import app from '../../app';
 import { env } from '@/config/env';
 import { clearI18nCatalogueCache } from '@/services/i18n-catalogue.service';

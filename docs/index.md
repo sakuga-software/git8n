@@ -1,9 +1,9 @@
 ---
 layout: home
-title: i18n-editor
+title: git8n
 
 hero:
-  name: i18n-editor
+  name: git8n
   text: Translate the locale files of a GitHub repository
   tagline: Translators propose, reviewers publish, and each publication is a commit. Agents work through an MCP server, with the same rights as a person.
   actions:

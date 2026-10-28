@@ -1,6 +1,6 @@
 # Getting started
 
-i18n-editor is an editor for the translations of a product. Its source of truth
+git8n is an editor for the translations of a product. Its source of truth
 is the JSON locale files in a GitHub repository. Translators propose texts,
 reviewers publish them, and each publication is a commit on the repository,
 made by a GitHub App.
@@ -37,7 +37,7 @@ You need:
 pnpm install
 
 # Create the tables.
-DATABASE_URL=postgres://user:password@localhost:5432/i18n pnpm -F @i18n-editor/db migrate
+DATABASE_URL=postgres://user:password@localhost:5432/i18n pnpm -F @git8n/db migrate
 
 # Start the API on port 8001.
 DATABASE_URL=postgres://user:password@localhost:5432/i18n \
@@ -46,10 +46,10 @@ GITHUB_CLIENT_SECRET=<client secret of the GitHub App> \
 ADMIN_EMAILS=you@example.com \
 I18N_GITHUB_APP_ID=<id of the GitHub App> \
 I18N_GITHUB_PRIVATE_KEY="$(cat app.private-key.pem)" \
-pnpm -F @i18n-editor/api dev
+pnpm -F @git8n/api dev
 
 # Start the page on port 5173. Vite passes /api and /i18n to the API.
-pnpm -F @i18n-editor/web dev
+pnpm -F @git8n/web dev
 ```
 
 Open `http://localhost:5173`, the address of `BETTER_AUTH_URL`, and not the
@@ -97,8 +97,8 @@ then « Membres », and add a person by address or by GitHub login.
 ```sh
 pnpm typecheck
 pnpm test
-pnpm -F @i18n-editor/docs demo  # the demo of the home page, built once
-pnpm -F @i18n-editor/docs dev   # this site, on port 5208
+pnpm -F @git8n/docs demo  # the demo of the home page, built once
+pnpm -F @git8n/docs dev   # this site, on port 5208
 ```
 
 The tests of the API run on PGlite, a PostgreSQL in memory. They need no server.

@@ -4,7 +4,7 @@ import { daysOf, detailOf } from './rules';
 const token = {
   id: 't',
   name: 'CI',
-  start: 'i18e_abcd',
+  start: 'g8n_abcd',
   createdAt: '2026-10-28T10:00:00.000Z',
   expiresAt: '2026-11-27T10:00:00.000Z' as string | null,
   lastUsedAt: null as string | null,

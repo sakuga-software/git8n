@@ -1,6 +1,6 @@
 import '../setup-env';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { I18nRepository } from '@i18n-editor/db';
+import type { I18nRepository } from '@git8n/db';
 import { clearI18nCatalogueCache, forgetCatalogues, getCatalogue } from '@/services/i18n-catalogue.service';
 import { fakeRepo, type FakeRepo } from './fake-github-repo';
 

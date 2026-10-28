@@ -7,8 +7,8 @@ import {
   type TemplateKind,
   type TemplateProblem,
   type TemplateValues,
-} from '@i18n-editor/db/messages';
-import type { PublishMode, Repository, RepositoryChange } from '@i18n-editor/mcp/api';
+} from '@git8n/db/messages';
+import type { PublishMode, Repository, RepositoryChange } from '@git8n/mcp/api';
 import { languagesOf, problemsOf as placeProblemsOf } from '../editor/connect-flow';
 
 /**

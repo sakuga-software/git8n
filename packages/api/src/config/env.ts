@@ -35,14 +35,27 @@ const schema = z.object({
   /** The name of the GitHub App in its address, `github.com/apps/<slug>`. The page links to its installation. */
   GITHUB_APP_SLUG: z
     .string()
-    .regex(/^[a-z0-9-]+$/, 'A slug is the name of the App in its address, such as i18n-editor')
-    .default('i18n-editor'),
+    .regex(/^[a-z0-9-]+$/, 'A slug is the name of the App in its address, such as git8n')
+    .default('git8n'),
   /**
    * The SMTP server that sends the magic links (DB-645), as a URL:
    * `smtps://user:password@smtp.example.com:465`. Without it, the API sends no
    * mail. Outside production, it writes the link in its log.
    */
   SMTP_URL: z.string().optional(),
+  /**
+   * The old hosts of the editor, separated by commas, such as `i18n.example.com`.
+   * A request to one of them answers 301 to the same path on `BETTER_AUTH_URL`.
+   */
+  REDIRECT_HOSTS: z
+    .string()
+    .optional()
+    .transform((hosts) =>
+      (hosts ?? '')
+        .split(',')
+        .map((host) => host.trim().toLowerCase())
+        .filter(Boolean),
+    ),
   /** The sender of the mails. The default uses the host of `BETTER_AUTH_URL`. */
   MAIL_FROM: z.string().optional(),
   /**
@@ -93,5 +106,5 @@ export const env = {
   GITHUB: githubSignIn(parsed),
   DEV: parsed.NODE_ENV !== 'production',
   I18N_APP: i18nAppConfig(parsed),
-  MAIL_FROM: parsed.MAIL_FROM ?? `Traductions <no-reply@${new URL(parsed.BETTER_AUTH_URL).hostname}>`,
+  MAIL_FROM: parsed.MAIL_FROM ?? `git8n <no-reply@${new URL(parsed.BETTER_AUTH_URL).hostname}>`,
 };
