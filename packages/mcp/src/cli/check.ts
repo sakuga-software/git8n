@@ -99,7 +99,10 @@ const pathsOf = (node: Record<string, unknown>, prefix = ''): Array<[string, unk
   });
 
 /** A rule of ICU picks a branch with a word such as `one`, or `=0`. Its braces are text, not a placeholder. */
-const ICU_BRANCH = /(?:zero|one|two|few|many|other|=\d+)\s*$/;
+const ICU_BRANCH = /(?:^|\s)(?:zero|one|two|few|many|other|=\d+)\s*$/;
+
+/** A text with an ICU `plural` or `select`. Only such a text has branches. */
+const ICU_CHOICE = /\{\s*[A-Za-z_][\w.]*\s*,\s*(?:plural|select|selectordinal)\s*,/;
 
 /**
  * The placeholders of a text, sorted, with no duplicate:
@@ -124,8 +127,10 @@ export const placeholdersOf = (text: string): string[] => {
     return ' ';
   });
 
+  const hasBranches = ICU_CHOICE.test(rest);
+
   for (const match of rest.matchAll(/\{\s*([A-Za-z_][\w.]*)\s*[,}]/g)) {
-    if (!ICU_BRANCH.test(rest.slice(0, match.index))) found.add(`{${match[1]}}`);
+    if (!hasBranches || !ICU_BRANCH.test(rest.slice(0, match.index))) found.add(`{${match[1]}}`);
   }
   for (const match of rest.matchAll(/<\/?([A-Za-z0-9][\w-]*)\s*\/?>/g)) found.add(match[0].replace(/\s+/g, ''));
   for (const match of rest.matchAll(/%(?:\d+\$)?[sdif]/g)) found.add(match[0]);

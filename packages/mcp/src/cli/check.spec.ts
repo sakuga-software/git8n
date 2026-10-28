@@ -56,6 +56,11 @@ describe('placeholdersOf', () => {
     expect(placeholdersOf('{count, plural, =0 {nothing} other {things}}')).toEqual(['{count}']);
   });
 
+  it('reads a placeholder after a word that ends as a branch, or after a branch word outside ICU', () => {
+    expect(placeholdersOf('Thanks to someone {owner}')).toEqual(['{owner}']);
+    expect(placeholdersOf('Pick one {item}')).toEqual(['{item}']);
+  });
+
   it('reads a text with no placeholder as none, and a lone brace as text', () => {
     expect(placeholdersOf('3 < 4 and 50% off {')).toEqual([]);
   });
