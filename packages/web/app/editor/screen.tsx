@@ -40,7 +40,8 @@ import { KeySearch } from '~/editor/search';
 import { Languages } from '~/editor/languages';
 import { treeOf, under } from '~/editor/tree';
 import { CatalogueLoading } from '~/editor/catalogue-progress';
-import { Blocked, Failure, Loading } from '~/editor/states';
+import { Bone, EditorSkeleton, KeyRowsSkeleton, LanguagesSkeleton } from '~/editor/skeleton';
+import { Blocked, Failure } from '~/editor/states';
 import { Sliding, useSwap } from '~/editor/motion';
 import { KeyTable } from '~/editor/table';
 import {
@@ -565,7 +566,22 @@ function Editor({
   if (me.state === 'failed') return <AccountFailure error={me.error} onRetry={reloadMe} />;
   if (repositories.state === 'failed')
     return <AccountFailure error={repositories.error} onRetry={reloadRepositories} />;
-  if (me.state === 'loading' || repositories.state === 'loading') return <Loading>Lecture du compte…</Loading>;
+  // Draw the frame of the editor before the account arrives, so that the page does not move.
+  if (me.state === 'loading' || repositories.state === 'loading') {
+    return (
+      <>
+        {slots.project &&
+          createPortal(
+            <span aria-hidden="true" className="skeleton">
+              <Bone className="h-9 w-[170px] rounded-lg" />
+            </span>,
+            slots.project,
+          )}
+        {slots.side && createPortal(<LanguagesSkeleton folded={slots.folded} />, slots.side)}
+        <EditorSkeleton />
+      </>
+    );
+  }
 
   const installUrl = me.value.admin ? me.value.installUrl : null;
 
@@ -1199,8 +1215,9 @@ function Editor({
         <Failure title="Les propositions n'ont pas pu être lues." error={proposed.error} onRetry={reloadProposed} />
       )}
       {!read && !failed && (
-        <div className="border-line rounded-[10px] border">
+        <div className="flex flex-col gap-3">
           <CatalogueLoading progress={catalogueProgress?.key === readKey ? catalogueProgress : null} />
+          {view === 'table' && <KeyRowsSkeleton />}
         </div>
       )}
       {catalogue.state === 'done' && catalogue.stale && (

@@ -95,3 +95,81 @@ export function MembersSkeleton() {
     </Skeleton>
   );
 }
+
+/** The rows of the table of the editor, in its frame, before the first read of the catalogue. */
+export function KeyRowsSkeleton({ rows = 8 }: { rows?: number }) {
+  return (
+    <div aria-hidden="true" className="skeleton border-line overflow-hidden rounded-[10px] border">
+      <div className="border-line bg-panel flex items-center gap-6 border-b px-4 py-[11px]">
+        {['w-12', 'w-24', 'w-28'].map((width) => (
+          <span key={width} className="min-w-0 flex-1 basis-0">
+            <Bone className={`h-3 ${width}`} />
+          </span>
+        ))}
+      </div>
+      {Array.from({ length: rows }, (_, index) => (
+        <div key={index} className="border-line-soft flex items-start gap-6 border-b px-4 py-3.5 last:border-b-0">
+          <span className="flex min-w-0 flex-1 basis-0 flex-col gap-2 pt-1">
+            <Bone className="h-3.5 w-3/4" />
+            <Bone className="h-3 w-16" />
+          </span>
+          <span className="min-w-0 flex-1 basis-0 pt-[11px]">
+            <Bone className="h-3.5 w-2/3" />
+          </span>
+          <Bone className="h-[38px] min-w-0 flex-1 basis-0 rounded-lg" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The side panel of the editor before the account is read: a rail of codes, or the select of the languages. */
+export function LanguagesSkeleton({ folded }: { folded: boolean }) {
+  if (folded) {
+    return (
+      <div aria-hidden="true" className="skeleton flex flex-col items-center gap-2">
+        <Bone className="size-10 rounded-md" />
+        <span className="bg-line h-px w-6" />
+        <Bone className="size-10 rounded-lg" />
+        <Bone className="size-10 rounded-lg" />
+      </div>
+    );
+  }
+
+  return (
+    <div aria-hidden="true" className="skeleton flex flex-col gap-1">
+      <div className="mb-1 flex h-8 items-center justify-between pl-2">
+        <Bone className="h-3 w-20" />
+        <Bone className="size-8 rounded-md" />
+      </div>
+      <Bone className="h-[62px] rounded-xl" />
+    </div>
+  );
+}
+
+/** The editor of a language before the account is read: the header, the tabs and the table. */
+export function EditorSkeleton() {
+  return (
+    <Skeleton label="Lecture du compte…" className="flex flex-col gap-6">
+      <div className="flex items-end justify-between gap-8">
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <Bone className="my-[3px] h-7 w-56" />
+          <Bone className="my-1.5 h-2 w-full max-w-[640px] rounded-full" />
+        </div>
+        <Bone className="h-9 w-[132px] rounded-lg" />
+      </div>
+      <div className="border-line flex items-end justify-between gap-6 border-b">
+        <span className="flex gap-6 pb-3.5">
+          {Array.from({ length: 4 }, (_, index) => (
+            <Bone key={index} className="h-4 w-24" />
+          ))}
+        </span>
+        <span className="my-[5px] flex gap-2.5">
+          <Bone className="h-9 w-[280px] rounded-lg" />
+          <Bone className="h-9 w-[72px] rounded-lg" />
+        </span>
+      </div>
+      <KeyRowsSkeleton />
+    </Skeleton>
+  );
+}

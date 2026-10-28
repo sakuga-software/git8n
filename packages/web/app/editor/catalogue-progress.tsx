@@ -13,7 +13,7 @@ export function CatalogueLoading({ progress }: { progress: CatalogueProgress | n
   const known = progress !== null && progress.total > 0;
 
   return (
-    <div className="text-sub flex flex-col items-center justify-center gap-3 px-4 py-16 text-sm">
+    <div className="text-sub flex flex-col items-center justify-center gap-3 px-4 py-2 text-sm">
       <div role="status" className="flex items-center gap-2.5">
         <Spinner size="sm" color="current" />
         Lecture des traductions…

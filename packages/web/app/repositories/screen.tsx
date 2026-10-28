@@ -212,21 +212,20 @@ function Repositories() {
             <Bone className="my-[3px] h-3.5 w-20" />
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <SearchField aria-label="Chercher un dépôt" value={typed} onChange={setTyped} className="w-[280px]">
-            <SearchField.Group>
-              <SearchField.SearchIcon />
-              <SearchField.Input placeholder="Chercher owner/nom" />
-              <SearchField.ClearButton />
-            </SearchField.Group>
-          </SearchField>
-          {admin && (
-            <Link to="/setup" viewTransition className="button button--primary button--sm md:h-9">
-              <Plus size={14} />
-              Brancher un dépôt
-            </Link>
-          )}
-        </div>
+        {/* The account brings the button. Outside the box of the search, the button moves nothing on the page. */}
+        {admin && (
+          <Link to="/setup" viewTransition className="button button--primary button--sm ml-auto md:h-9">
+            <Plus size={14} />
+            Brancher un dépôt
+          </Link>
+        )}
+        <SearchField aria-label="Chercher un dépôt" value={typed} onChange={setTyped} className="w-[280px]">
+          <SearchField.Group>
+            <SearchField.SearchIcon />
+            <SearchField.Input placeholder="Chercher owner/nom" />
+            <SearchField.ClearButton />
+          </SearchField.Group>
+        </SearchField>
       </div>
 
       {rows.state === 'failed' ? (
@@ -246,22 +245,24 @@ function Repositories() {
               className="min-w-[760px]"
             >
               <Table.Header>
-                <Table.Column id="name" isRowHeader allowsSorting>
+                <Table.Column id="name" isRowHeader allowsSorting className="w-[31%]">
                   {({ sortDirection }) => (
                     <Table.SortableColumnHeader sortDirection={sortDirection}>
                       {COLUMN_LABEL.name}
                     </Table.SortableColumnHeader>
                   )}
                 </Table.Column>
-                <Table.Column id="progress" allowsSorting>
+                <Table.Column id="progress" allowsSorting className="w-[29%]">
                   {({ sortDirection }) => (
                     <Table.SortableColumnHeader sortDirection={sortDirection}>
                       {COLUMN_LABEL.progress}
                     </Table.SortableColumnHeader>
                   )}
                 </Table.Column>
-                <Table.Column id="publication">Publication</Table.Column>
-                <Table.Column id="created" allowsSorting>
+                <Table.Column id="publication" className="w-[18%]">
+                  Publication
+                </Table.Column>
+                <Table.Column id="created" allowsSorting className="w-[15%]">
                   {({ sortDirection }) => (
                     <Table.SortableColumnHeader sortDirection={sortDirection}>
                       {COLUMN_LABEL.created}
