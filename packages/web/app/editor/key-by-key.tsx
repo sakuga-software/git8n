@@ -3,9 +3,9 @@ import { SearchField } from '@heroui/react/search-field';
 import { TextArea } from '@heroui/react/textarea';
 import { ToggleButton } from '@heroui/react/toggle-button';
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowRight, ChevronDown, Copy, External, StateMark, Undo } from './icons';
-import { idOf, isEdited, ROW_STATES, type Neighbours, type Page, type Row, type RowState } from './rows';
+import { drawnOf, idOf, isEdited, ROW_STATES, type Neighbours, type Row, type RowState } from './rows';
 import { dayOf, OUTSIDE } from './table';
 import { SameSection } from './neighbours';
 import { WasSource } from './was-source';
@@ -42,6 +42,9 @@ const COUNT_STYLE: Record<RowState, string> = {
 
 const countOf = (value: number): string => value.toLocaleString('fr-FR');
 
+/** The rows the list draws at first, and adds each time the reader reaches its end (DB-678). */
+const STEP = 100;
+
 /** « 61 caractères ». A letter with an accent or an emoji counts for one. */
 const lengthOf = (text: string): string => {
   const length = [...text].length;
@@ -61,9 +64,10 @@ function KeyName({ name, className }: { name: string; className?: string }) {
 }
 
 interface Props {
-  /** The page of the list that holds the open key. */
-  page: Page<Row>;
-  onPage: (page: number) => void;
+  /** Every key of the filtered list. The list draws them by steps of `STEP`. */
+  rows: readonly Row[];
+  /** Names the list: the language, the state, the search and the file. A new name draws the first step again. */
+  listKey: string;
   /** The open key, and its place in the whole list, from 1. `null` when the list holds nothing. */
   open: { row: Row; place: number } | null;
   onOpen: (id: string) => void;
@@ -121,8 +125,8 @@ interface Props {
 export function KeyByKey({
   states = ROW_STATES,
   editsSource = false,
-  page,
-  onPage,
+  rows,
+  listKey,
   open,
   onOpen,
   onPlace,
@@ -156,6 +160,56 @@ export function KeyByKey({
   const field = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const rail = useRef<HTMLDivElement>(null);
+  const end = useRef<HTMLLIElement>(null);
+  const [asked, setAsked] = useState({ listKey, from: 0, to: STEP });
+
+  // Another list starts at its first step. A refresh of the same list keeps what the reader scrolled to.
+  if (asked.listKey !== listKey) setAsked({ listKey, from: 0, to: STEP });
+
+  const total = rows.length;
+  const drawn = drawnOf(total, asked, open ? open.place - 1 : null, STEP);
+  const next = () => setAsked({ listKey, from: drawn.from, to: drawn.to + STEP });
+  const nextRef = useRef(next);
+  // The height of the list before a step goes in above, to keep the rows in sight where they were.
+  // The list keeps them itself: the scroll anchoring of the browser is off, and Safari has none.
+  const heightBefore = useRef<number | null>(null);
+
+  const previous = () => {
+    heightBefore.current = list.current?.scrollHeight ?? null;
+    setAsked({ listKey, from: Math.max(0, drawn.from - STEP), to: drawn.to });
+  };
+
+  useEffect(() => {
+    nextRef.current = next;
+  });
+
+  useLayoutEffect(() => {
+    const box = list.current;
+
+    if (!box || heightBefore.current === null) return;
+
+    box.scrollTop += box.scrollHeight - heightBefore.current;
+    heightBefore.current = null;
+  }, [drawn.from]);
+
+  // The next step comes before the reader reaches the end, so that the scroll does not stop.
+  useEffect(() => {
+    const box = list.current;
+    const target = end.current;
+
+    if (!box || !target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) nextRef.current();
+      },
+      { root: box, rootMargin: '0px 0px 320px 0px' },
+    );
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, [drawn.from, drawn.to, total]);
 
   useSwap(list, filter);
 
@@ -178,9 +232,12 @@ export function KeyByKey({
   const [copied, setCopied] = useState<'done' | 'refused' | null>(null);
   const openId = open ? idOf(open.row) : null;
 
-  // The open entry stays in sight when the arrows walk past the edge of the list.
+  // The open entry stays in sight when the arrows walk past the edge of the list, and in a new list.
   useEffect(() => {
     list.current?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [openId, listKey]);
+
+  useEffect(() => {
     setCopied(null);
   }, [openId]);
 
@@ -288,9 +345,16 @@ export function KeyByKey({
         <ul
           ref={list}
           aria-label="Clés"
-          className="flex max-h-[520px] min-h-40 flex-1 flex-col overflow-y-auto p-1.5 md:max-h-none md:basis-0"
+          className="flex max-h-[520px] min-h-40 flex-1 flex-col overflow-y-auto p-1.5 [overflow-anchor:none] md:max-h-none md:basis-0"
         >
-          {page.rows.map((entry) => {
+          {drawn.from > 0 && (
+            <li className="flex justify-center py-2">
+              <Button variant="ghost" size="sm" onPress={previous} className="text-sub">
+                Afficher les clés précédentes
+              </Button>
+            </li>
+          )}
+          {rows.slice(drawn.from, drawn.to).map((entry) => {
             const entryId = idOf(entry);
             const current = entryId === openId;
 
@@ -320,38 +384,24 @@ export function KeyByKey({
               </li>
             );
           })}
-          {page.rows.length === 0 && <li className="text-muted px-3 py-10 text-center text-sm">{empty}</li>}
+          {drawn.to < total && (
+            <li ref={end} className="flex justify-center py-2">
+              <Button variant="ghost" size="sm" onPress={next} className="text-sub">
+                Afficher les clés suivantes
+              </Button>
+            </li>
+          )}
+          {total === 0 && <li className="text-muted px-3 py-10 text-center text-sm">{empty}</li>}
         </ul>
 
         <div className="border-line text-muted flex min-h-11 items-center justify-between gap-3 border-t px-3.5 py-1.5 text-xs">
-          <span>
-            {page.total === 0
+          <span className="tabular-nums">
+            {total === 0
               ? 'Aucune clé'
-              : `Clés ${countOf(page.from)} à ${countOf(page.to)} sur ${countOf(page.total)}`}
-            {page.rows.length > 8 && ' · la liste défile'}
+              : drawn.to - drawn.from < total
+                ? `Clés ${countOf(drawn.from + 1)} à ${countOf(drawn.to)} sur ${countOf(total)}`
+                : `${countOf(total)} ${total > 1 ? 'clés' : 'clé'}`}
           </span>
-          {page.pages > 1 && (
-            <span className="flex gap-1">
-              <Button
-                variant="ghost"
-                aria-label="Cent clés précédentes"
-                isDisabled={page.page === 1}
-                onPress={() => onPage(page.page - 1)}
-                className="size-8 min-w-8 p-0"
-              >
-                <ChevronDown size={15} className="rotate-90" />
-              </Button>
-              <Button
-                variant="ghost"
-                aria-label="Cent clés suivantes"
-                isDisabled={page.page === page.pages}
-                onPress={() => onPage(page.page + 1)}
-                className="size-8 min-w-8 p-0"
-              >
-                <ChevronDown size={15} className="-rotate-90" />
-              </Button>
-            </span>
-          )}
         </div>
       </div>
 
@@ -389,7 +439,7 @@ export function KeyByKey({
               </div>
               <div className="flex flex-none items-center gap-2">
                 <span className="text-muted mr-1 text-[13px]">
-                  {countOf(open.place)} sur {countOf(page.total)}
+                  {countOf(open.place)} sur {countOf(total)}
                 </span>
                 <Button
                   variant="outline"
@@ -403,7 +453,7 @@ export function KeyByKey({
                 <Button
                   variant="outline"
                   aria-label="Clé suivante"
-                  isDisabled={open.place === page.total}
+                  isDisabled={open.place === total}
                   onPress={() => onStep(1)}
                   className="size-[34px] min-w-[34px] p-0"
                 >
@@ -512,7 +562,7 @@ export function KeyByKey({
                 </span>
                 <Button
                   variant="outline"
-                  isDisabled={open.place === page.total}
+                  isDisabled={open.place === total}
                   onPress={() => {
                     // It moves on and sends nothing: the floating bar sends, so that a batch stays a batch.
                     if (onStep(1)) field.current?.focus();

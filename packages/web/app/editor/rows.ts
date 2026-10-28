@@ -445,6 +445,36 @@ export const pageOf = <T>(rows: readonly T[], asked: number, size: number): Page
   };
 };
 
+/** The rows of a list that the view of one key draws: from `from`, up to `to` excluded. */
+export interface Drawn {
+  from: number;
+  to: number;
+}
+
+/**
+ * The rows of a list that the view of one key draws (DB-678).
+ *
+ * The list draws steps of `size` rows, and grows as the reader scrolls. It
+ * always holds the open key:
+ *
+ * - a key next to the drawn rows, as the arrows reach, adds its step;
+ * - a key further away, as a search that is cleared or a link gives, draws
+ *   its own step only, so that the list never draws every row before it.
+ */
+export const drawnOf = (total: number, asked: Drawn, openIndex: number | null, size: number): Drawn => {
+  const from = Math.max(0, Math.min(asked.from, total));
+  const to = Math.min(total, Math.max(asked.to, from + size));
+
+  if (openIndex === null || (openIndex >= from && openIndex < to)) return { from, to };
+
+  const step = Math.floor(openIndex / size) * size;
+  const own = { from: step, to: Math.min(total, step + size) };
+
+  if (openIndex < from - size || openIndex >= to + size) return own;
+
+  return { from: Math.min(from, own.from), to: Math.max(to, own.to) };
+};
+
 const UNSAFE = new Set(['__proto__', 'constructor', 'prototype']);
 
 /**

@@ -693,8 +693,8 @@ function Editor({
     repository.publishMode === 'pull_request' && filter === 'proposed' ? (
       <PullBand read={publication} branch={repository.branch} onRetry={reloadPublication} />
     ) : null;
-  // In the view of one key, the page of the list is the page of the open key.
-  const paged = pageOf(visible, view === 'key' && open ? Math.floor(open.index / PAGE) + 1 : page, PAGE);
+  // The table shows a page. The view of one key draws its list by steps, and needs no page.
+  const paged = pageOf(visible, page, PAGE);
   // What waits and is not on the screen. The table shows a page; the view of one key walks the whole list.
   const onScreen = new Set((view === 'key' ? visible : paged.rows).map(idOf));
   const changedElsewhere = changed.filter(([id]) => !onScreen.has(id)).length;
@@ -1325,8 +1325,8 @@ function Editor({
           </div>
           {view === 'key' ? (
             <KeyByKey
-              page={paged}
-              onPage={(next) => setOpenId(idOf(visible[(next - 1) * PAGE]))}
+              rows={visible}
+              listKey={[opened, filter, query, scope?.file ?? '', scope?.path ?? ''].join('\n')}
               open={open && { row: open.row, place: open.index + 1 }}
               onOpen={setOpenId}
               onPlace={(index) => {
