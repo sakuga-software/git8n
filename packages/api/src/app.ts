@@ -49,7 +49,10 @@ if (webRoot) {
   });
   app.use('/*', serveStatic({ root: webRoot }));
   // The demo of the home page of the documentation is the editor as a single page too (DB-673).
-  app.get('/docs/demo/*', (c, next) => serveStatic({ root: webRoot, path: 'docs/demo/index.html' })(c, next));
+  // A path with an extension names a file: a file that is not there answers 404, not the page.
+  app.get('/docs/demo/*', (c, next) =>
+    /\.[^/]+$/.test(c.req.path) ? c.notFound() : serveStatic({ root: webRoot, path: 'docs/demo/index.html' })(c, next),
+  );
   // The application is a single page: every other address opens it, and the router reads the path.
   app.get('/*', async (c, next) => {
     if (/^\/(api|i18n|docs)(\/|$)/.test(c.req.path)) return c.notFound();
