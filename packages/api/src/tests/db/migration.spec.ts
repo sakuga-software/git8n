@@ -6,7 +6,7 @@ import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, describe, expect, it } from 'vitest';
-import { MIGRATIONS_FOLDER } from '@i18n-editor/db/migrations';
+import { MIGRATIONS_FOLDER } from '@git8n/db/migrations';
 
 /** The migrations up to `tag`, in a folder of their own. */
 function migrationsUpTo(tag: string): string {

@@ -1,6 +1,6 @@
 import { ToggleButton } from '@heroui/react/toggle-button';
 import { ToggleButtonGroup } from '@heroui/react/toggle-button-group';
-import type { PublishMode, PublicationState } from '@i18n-editor/mcp/api';
+import type { PublishMode, PublicationState } from '@git8n/mcp/api';
 import { External, Retry } from './icons';
 import { PUBLISH_MODE_LABEL, pullLabelOf, pullNextOf, type PullTone } from './publication';
 import type { Read } from './use-read';

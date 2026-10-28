@@ -1,9 +1,9 @@
 {
-  "name": "i18n-editor",
+  "name": "git8n",
   "private": true,
   "license": "AGPL-3.0-only",
   "scripts": {
-    "dev": "pnpm -r --parallel --filter @i18n-editor/api --filter @i18n-editor/web dev",
+    "dev": "pnpm -r --parallel --filter @git8n/api --filter @git8n/web dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",

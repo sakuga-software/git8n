@@ -1,4 +1,4 @@
-import type { AccessToken } from '@i18n-editor/mcp/api';
+import type { AccessToken } from '@git8n/mcp/api';
 
 /** The lives that the form offers, in days. `none` makes a token that does not expire. */
 export const LIFE_ITEMS = [

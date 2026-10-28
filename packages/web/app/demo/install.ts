@@ -4,10 +4,10 @@ import { answer, type Latency } from './server';
 import { DemoStore } from './store';
 
 /** The `type` of every message between the demo and the page that holds it. */
-export const DEMO_MESSAGE = 'i18n-editor-demo';
+export const DEMO_MESSAGE = 'git8n-demo';
 
 /** The event that the banner of the demo listens to, to show a note. */
-export const DEMO_NOTE = 'i18n-editor-demo:note';
+export const DEMO_NOTE = 'git8n-demo:note';
 
 const LATENCY: Latency = { answer: 180, file: 260 };
 

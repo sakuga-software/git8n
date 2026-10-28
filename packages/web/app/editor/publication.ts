@@ -1,4 +1,4 @@
-import type { PublishMode, PublishPull } from '@i18n-editor/mcp/api';
+import type { PublishMode, PublishPull } from '@git8n/mcp/api';
 
 /**
  * How the page names the publication of a repository (DB-606), with no React,

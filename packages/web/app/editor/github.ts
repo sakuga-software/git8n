@@ -1,4 +1,4 @@
-import type { Repository } from '@i18n-editor/mcp/api';
+import type { Repository } from '@git8n/mcp/api';
 
 /**
  * The pages of GitHub that show what the editor reads (DB-242).

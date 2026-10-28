@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
-import { i18nRepositories } from '@i18n-editor/db';
+import { i18nRepositories } from '@git8n/db';
 import { env } from '@/config/env';
 import { db } from '@/db';
 import type { HonoEnv } from '@/types/hono';

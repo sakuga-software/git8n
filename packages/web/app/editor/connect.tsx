@@ -7,7 +7,7 @@ import {
   type Detection,
   type PublishMode,
   type Repository,
-} from '@i18n-editor/mcp/api';
+} from '@git8n/mcp/api';
 import { api } from '~/utils/api';
 import { Branch, Github, Info, Plus, Wrench } from './icons';
 import { bodyOf, problemsOf, type ConnectField, type ConnectForm, type RepositoryChoice } from './connect-flow';

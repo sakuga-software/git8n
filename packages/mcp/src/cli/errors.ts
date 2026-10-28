@@ -17,23 +17,23 @@ export const EXIT = {
  * A script reads the code, never the message: the message can change.
  */
 export const ERRORS = {
-  I18NE1001: { exit: EXIT.usage, title: 'The command or an option is wrong.' },
-  I18NE1002: { exit: EXIT.usage, title: 'No address of the API: pass --api or set I18N_EDITOR_API_URL.' },
-  I18NE1003: { exit: EXIT.usage, title: 'The input of apply is not valid.' },
-  I18NE1004: { exit: EXIT.usage, title: 'The file of the credentials is not valid.' },
-  I18NE1005: { exit: EXIT.usage, title: 'check cannot find the locales, the manifest or the source language.' },
-  I18NE2001: { exit: EXIT.signedOut, title: 'No account is signed in, or the API refused the token.' },
-  I18NE2002: { exit: EXIT.failed, title: 'The device code expired before somebody approved it.' },
-  I18NE2003: { exit: EXIT.failed, title: 'The person refused the device code.' },
-  I18NE3001: { exit: EXIT.usage, title: 'No repository matches.' },
-  I18NE3002: { exit: EXIT.usage, title: 'The repository is not clear: pass --repo.' },
-  I18NE3003: { exit: EXIT.usage, title: 'The language is not clear, or the account cannot open it: pass --lang.' },
-  I18NE3004: {
+  G8N1001: { exit: EXIT.usage, title: 'The command or an option is wrong.' },
+  G8N1002: { exit: EXIT.usage, title: 'No address of the API: pass --api or set GIT8N_API_URL.' },
+  G8N1003: { exit: EXIT.usage, title: 'The input of apply is not valid.' },
+  G8N1004: { exit: EXIT.usage, title: 'The file of the credentials is not valid.' },
+  G8N1005: { exit: EXIT.usage, title: 'check cannot find the locales, the manifest or the source language.' },
+  G8N2001: { exit: EXIT.signedOut, title: 'No account is signed in, or the API refused the token.' },
+  G8N2002: { exit: EXIT.failed, title: 'The device code expired before somebody approved it.' },
+  G8N2003: { exit: EXIT.failed, title: 'The person refused the device code.' },
+  G8N3001: { exit: EXIT.usage, title: 'No repository matches.' },
+  G8N3002: { exit: EXIT.usage, title: 'The repository is not clear: pass --repo.' },
+  G8N3003: { exit: EXIT.usage, title: 'The language is not clear, or the account cannot open it: pass --lang.' },
+  G8N3004: {
     exit: EXIT.failed,
     title: 'A key is not a key of the source, or its file has no version in the language.',
   },
-  I18NE4001: { exit: EXIT.failed, title: 'The API refused the request.' },
-  I18NE4002: { exit: EXIT.failed, title: 'The API failed, or did not answer.' },
+  G8N4001: { exit: EXIT.failed, title: 'The API refused the request.' },
+  G8N4002: { exit: EXIT.failed, title: 'The API failed, or did not answer.' },
 } as const;
 
 export type ErrorCode = keyof typeof ERRORS;
@@ -74,9 +74,9 @@ export const asCliError = (error: unknown): CliError => {
   if (error instanceof ApiError) {
     const message = `${error.status} — ${messageOf(error.message)}`;
 
-    if (error.status === 401) return new CliError('I18NE2001', `${message}. Run i18n-editor login.`);
+    if (error.status === 401) return new CliError('G8N2001', `${message}. Run git8n login.`);
 
-    return new CliError(error.status < 500 ? 'I18NE4001' : 'I18NE4002', message);
+    return new CliError(error.status < 500 ? 'G8N4001' : 'G8N4002', message);
   }
 
   if (error instanceof Error) {
@@ -84,8 +84,8 @@ export const asCliError = (error: unknown): CliError => {
     const cause =
       error.cause instanceof Error ? `: ${(error.cause as Error & { code?: string }).code ?? error.cause.message}` : '';
 
-    return new CliError('I18NE4002', `${error.message}${cause}`);
+    return new CliError('G8N4002', `${error.message}${cause}`);
   }
 
-  return new CliError('I18NE4002', String(error));
+  return new CliError('G8N4002', String(error));
 };

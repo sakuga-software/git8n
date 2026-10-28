@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
-import { ApiError } from '@i18n-editor/mcp/api';
+import { ApiError } from '@git8n/mcp/api';
 import { forgetReads, mayPoll, quietly, readErrorOf, readOf, reads, readsFor, type Read } from './use-read';
 
 /** A read that answers when the test says so. */

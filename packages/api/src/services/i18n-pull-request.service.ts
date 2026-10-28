@@ -1,5 +1,5 @@
-import type { I18nRepository } from '@i18n-editor/db';
-import { countKeys, messageOf } from '@i18n-editor/db/messages';
+import type { I18nRepository } from '@git8n/db';
+import { countKeys, messageOf } from '@git8n/db/messages';
 import { ask, GithubError, insideRepository, installationToken } from '@/services/github-app.service';
 import { createCache } from '@/utils/cache';
 

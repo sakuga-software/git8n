@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Repository } from '@i18n-editor/mcp/api';
+import type { Repository } from '@git8n/mcp/api';
 import {
   changeOf,
   fieldOfIssue,

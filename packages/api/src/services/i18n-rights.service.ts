@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { i18nRepositories, memberLanguages, members, type MemberRole } from '@i18n-editor/db';
+import { i18nRepositories, memberLanguages, members, type MemberRole } from '@git8n/db';
 import { env } from '@/config/env';
 import { db } from '@/db';
 import { roleMay } from '@/permissions';

@@ -3,13 +3,7 @@ import { SearchField } from '@heroui/react/search-field';
 import { Table } from '@heroui/react/table';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import {
-  overview,
-  rightsOf,
-  type LanguageProgress,
-  type OverviewSort,
-  type RepositoryOverview,
-} from '@i18n-editor/mcp/api';
+import { overview, rightsOf, type LanguageProgress, type OverviewSort, type RepositoryOverview } from '@git8n/mcp/api';
 import { api } from '~/utils/api';
 import { ChevronDown, Plus, Repository } from '~/editor/icons';
 import { PUBLISH_MODE_LABEL } from '~/editor/publication';

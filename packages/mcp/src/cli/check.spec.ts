@@ -7,7 +7,7 @@ import { fakeIo } from './testing.ts';
 
 /** A working copy in a temporary folder, with these files. */
 const workingCopy = async (files: Record<string, unknown>): Promise<string> => {
-  const root = await mkdtemp(join(tmpdir(), 'i18n-editor-check-'));
+  const root = await mkdtemp(join(tmpdir(), 'git8n-check-'));
 
   for (const [path, content] of Object.entries(files)) {
     await mkdir(dirname(join(root, path)), { recursive: true });
@@ -235,7 +235,7 @@ describe('checkLocales', () => {
   });
 });
 
-describe('i18n-editor check', () => {
+describe('git8n check', () => {
   const FILES = {
     'locales/en/common.json': { hello: 'Hello {{name}}', bye: 'Bye' },
     'locales/de/common.json': { hello: 'Hallo {{name}}' },
@@ -304,7 +304,7 @@ describe('i18n-editor check', () => {
     const refused = await cli.run('check', '--json');
 
     expect(refused.exit).toBe(2);
-    expect(refused.json().error.code).toBe('I18NE1005');
+    expect(refused.json().error.code).toBe('G8N1005');
     expect((await cli.run('check', '--reporter', 'xml')).exit).toBe(2);
   });
 });

@@ -23,26 +23,26 @@ For an agent, a CI job or the [MCP server](./mcp.md).
 4. Choose **Créer le jeton**, and copy the token.
 
 The page shows a new token one time only. The editor keeps its SHA-256 and the
-first characters, `i18e_` and four more, so that you can tell your tokens
+first characters, `g8n_` and four more, so that you can tell your tokens
 apart. If you lose a token, revoke it and create another one.
 
 The list shows when each token was created, when it ends, and when it last
 served. **Révoquer** deletes a token: the API refuses it at once.
 
-An access token starts with `i18e_`. The API reads that prefix and finds the
+An access token starts with `g8n_`. The API reads that prefix and finds the
 account of the token. A token that expired, or that was revoked, gets `401`.
 
 ## A sign-in from a terminal
 
 For a person at a terminal. This is the device flow of OAuth (RFC 8628), as
-`gh auth login` does. `i18n-editor login` of the [CLI](./cli.md) uses it.
+`gh auth login` does. `git8n login` of the [CLI](./cli.md) uses it.
 
 1. The terminal asks for a code:
 
    ```sh
-   curl -X POST https://i18n.example.com/api/auth/device/code \
+   curl -X POST https://git8n.example.com/api/auth/device/code \
      -H 'Content-Type: application/json' \
-     -d '{"client_id":"i18n-editor-cli"}'
+     -d '{"client_id":"git8n-cli"}'
    ```
 
    The answer gives `device_code`, `user_code` (for example `W3ND6J6U`),
@@ -58,9 +58,9 @@ For a person at a terminal. This is the device flow of OAuth (RFC 8628), as
 3. The terminal polls every `interval` seconds:
 
    ```sh
-   curl -X POST https://i18n.example.com/api/auth/device/token \
+   curl -X POST https://git8n.example.com/api/auth/device/token \
      -H 'Content-Type: application/json' \
-     -d '{"grant_type":"urn:ietf:params:oauth:grant-type:device_code","device_code":"…","client_id":"i18n-editor-cli"}'
+     -d '{"grant_type":"urn:ietf:params:oauth:grant-type:device_code","device_code":"…","client_id":"git8n-cli"}'
    ```
 
    Before the approval, the answer is `400` with

@@ -1,4 +1,4 @@
-// Copies the build of the demo (`pnpm -F @i18n-editor/web build:demo`) where the site serves it: /docs/demo/.
+// Copies the build of the demo (`pnpm -F @git8n/web build:demo`) where the site serves it: /docs/demo/.
 import { cp, rm } from 'node:fs/promises';
 
 const from = new URL('../../packages/web/build-demo/client/', import.meta.url);

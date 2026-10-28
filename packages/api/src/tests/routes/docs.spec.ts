@@ -15,7 +15,7 @@ write('index.html', '<p>the editor</p>');
 write('docs/index.html', '<p>the docs</p>');
 write('docs/guide/concepts.html', '<p>concepts</p>');
 write('docs/raw/guide/concepts.md', '# Concepts\n');
-write('docs/llms.txt', '# i18n-editor\n');
+write('docs/llms.txt', '# git8n\n');
 write('docs/demo/index.html', '<p>the demo</p>');
 
 let app: (typeof import('../../app'))['default'];

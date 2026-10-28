@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { DEMO, DEMO_BASE } from './demo.config.ts';
 
-/** Where `pnpm -F @i18n-editor/api dev` answers. */
+/** Where `pnpm -F @git8n/api dev` answers. */
 const API = process.env.API_PROXY ?? 'http://localhost:8001';
 
 // https://vitejs.dev/config/

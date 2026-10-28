@@ -1,6 +1,6 @@
 # CLI
 
-`i18n-editor` is a command line client of the API. It reads and proposes
+`git8n` is a command line client of the API. It reads and proposes
 translations from a terminal, a script or a CI job. It also starts the
 [MCP server](./mcp.md).
 
@@ -12,36 +12,36 @@ account on each call: the CLI can do no more than the account in the browser.
 The CLI is not on npm yet. Run it from a clone of the repository, with Node 26:
 
 ```sh
-git clone https://github.com/sakuga-software/i18n-editor
-cd i18n-editor && pnpm install
-alias i18n-editor="node --experimental-strip-types $PWD/packages/mcp/src/cli/main.ts"
+git clone https://github.com/sakuga-software/git8n
+cd git8n && pnpm install
+alias git8n="node --experimental-strip-types $PWD/packages/mcp/src/cli/main.ts"
 ```
 
 ## Sign in
 
 ```sh
-i18n-editor login --api https://i18n.example.com
+git8n login --api https://git8n.example.com
 ```
 
 The terminal shows a code and opens the page `/device` of the editor. Compare
 the code, then choose **Approuver**. The terminal then holds a session of your
 account for 14 days. [Access tokens](./tokens.md) tells how this works.
 
-The CLI keeps the token in `~/.config/i18n-editor/credentials.json`
+The CLI keeps the token in `~/.config/git8n/credentials.json`
 (`$XDG_CONFIG_HOME` if it is set). Only your account can read this file. The
 address of the last `login` becomes the default: the next commands need no
 `--api`.
 
-`i18n-editor logout` ends the session on the API and deletes the token of
-this computer. `i18n-editor whoami` shows the account and what it may do in each
+`git8n logout` ends the session on the API and deletes the token of
+this computer. `git8n whoami` shows the account and what it may do in each
 repository.
 
 In a CI job, do not sign in. Create an access token on the page
 **Jetons d'accès**, and set two variables:
 
 ```sh
-export I18N_EDITOR_API_URL=https://i18n.example.com
-export I18N_EDITOR_API_TOKEN=i18e_…
+export GIT8N_API_URL=https://git8n.example.com
+export GIT8N_API_TOKEN=g8n_…
 ```
 
 ## Choose the repository and the language
@@ -49,7 +49,7 @@ export I18N_EDITOR_API_TOKEN=i18e_…
 A command that reads keys works on one repository and one language:
 
 - **The repository** is the one of `--repo <owner/name>`, else of
-  `I18N_EDITOR_REPO`, else the one that a GitHub remote of the current folder
+  `GIT8N_REPO`, else the one that a GitHub remote of the current folder
   names. If the folder has no GitHub remote and the account opens one
   repository only, the CLI takes it. A folder of a repository that the account
   does not open stops the command.
@@ -62,12 +62,12 @@ choices.
 ## Read
 
 ```sh
-i18n-editor status                   # The progress of each language
-i18n-editor keys --missing           # The keys with no translation
-i18n-editor keys --state review --values
-i18n-editor get common:hello.title   # One key, with its neighbours
-i18n-editor search "mot de passe"    # The keys whose id, source or translation holds a text
-i18n-editor proposals                # The batches that wait for a reviewer
+git8n status                   # The progress of each language
+git8n keys --missing           # The keys with no translation
+git8n keys --state review --values
+git8n get common:hello.title   # One key, with its neighbours
+git8n search "mot de passe"    # The keys whose id, source or translation holds a text
+git8n proposals                # The batches that wait for a reviewer
 ```
 
 A key is named `<file>:<key>`: the locale file, a colon, and the dotted path,
@@ -81,7 +81,7 @@ on stderr gives the `--cursor` of the next page.
 
 ```sh
 echo '{"common:hello.title": "Hello", "common:bye": "Goodbye"}' \
-  | i18n-editor apply - --lang en --dry-run
+  | git8n apply - --lang en --dry-run
 ```
 
 The input can also put the keys under their file:
@@ -111,7 +111,7 @@ refuses a key whose source changed since.
 ## Translate with an LLM
 
 ```sh
-i18n-editor prompt translate --to en > prompt.md
+git8n prompt translate --to en > prompt.md
 ```
 
 The prompt lists the missing keys, 50 at a time, with their source text and
@@ -129,7 +129,7 @@ gives each command, each field and each code.
 
 ## In CI
 
-`i18n-editor check` reads the locale files of the clone, with no server and no
+`git8n check` reads the locale files of the clone, with no server and no
 token. It fails on a file that does not parse, or on a translation that loses a
 placeholder. A missing or empty key is a warning: `--max-warnings 0` makes it
 fail too.
@@ -145,12 +145,12 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 26
-      # Pin the commit of i18n-editor that the job runs: a new version cannot change the check by itself.
+      # Pin the commit of git8n that the job runs: a new version cannot change the check by itself.
       - run: |
-          git clone --filter=blob:none https://github.com/sakuga-software/i18n-editor /tmp/i18n-editor
-          git -C /tmp/i18n-editor checkout <commit>
-      - run: cd /tmp/i18n-editor && corepack enable && pnpm install --frozen-lockfile --filter @i18n-editor/mcp...
-      - run: node --experimental-strip-types /tmp/i18n-editor/packages/mcp/src/cli/main.ts check --reporter github
+          git clone --filter=blob:none https://github.com/sakuga-software/git8n /tmp/git8n
+          git -C /tmp/git8n checkout <commit>
+      - run: cd /tmp/git8n && corepack enable && pnpm install --frozen-lockfile --filter @git8n/mcp...
+      - run: node --experimental-strip-types /tmp/git8n/packages/mcp/src/cli/main.ts check --reporter github
 ```
 
 `--reporter github` writes one annotation for each problem, on the file of the

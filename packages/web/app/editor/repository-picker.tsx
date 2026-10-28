@@ -5,7 +5,7 @@ import { Input } from '@heroui/react/input';
 import { ListBox } from '@heroui/react/list-box';
 import { Collection, ListBoxLoadMoreItem } from '@heroui/react/rac';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { reachableRepositories, type Repository } from '@i18n-editor/mcp/api';
+import { reachableRepositories, type Repository } from '@git8n/mcp/api';
 import { api } from '~/utils/api';
 import { Retry } from './icons';
 import { keyOf, PICKER_PAGE, pushedAgo, SEARCH_DELAY_MS, withPage, type RepositoryChoice } from './connect-flow';

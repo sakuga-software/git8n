@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Loading } from '~/editor/states';
 
-export const meta = () => [{ title: 'Réglages · Traductions' }];
+export const meta = () => [{ title: 'Réglages · git8n' }];
 
 const Settings = lazy(() => import('~/settings/screen'));
 

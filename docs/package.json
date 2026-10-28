@@ -1,10 +1,10 @@
 {
-  "name": "@i18n-editor/docs",
+  "name": "@git8n/docs",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "demo": "pnpm --filter @i18n-editor/web build:demo && node scripts/copy-demo.mjs",
+    "demo": "pnpm --filter @git8n/web build:demo && node scripts/copy-demo.mjs",
     "dev": "vitepress dev --port 5208",
     "build": "pnpm run demo && vitepress build",
     "preview": "vitepress preview"

@@ -1,4 +1,4 @@
-import type { PublishMode, Repository } from '@i18n-editor/mcp/api';
+import type { PublishMode, Repository } from '@git8n/mcp/api';
 
 /**
  * The rules of the flow that connects a repository (DB-581), with no React,

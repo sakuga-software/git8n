@@ -1,5 +1,5 @@
 import { Spinner } from '@heroui/react/spinner';
-import type { CatalogueProgress } from '@i18n-editor/mcp/api';
+import type { CatalogueProgress } from '@git8n/mcp/api';
 
 const countOf = (value: number): string => value.toLocaleString('fr-FR');
 

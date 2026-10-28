@@ -2,7 +2,7 @@
 # stops. Build from the root of the repository: pnpm needs the workspace files
 # to resolve the `catalog:` versions.
 #
-#   docker build -f packages/db/Dockerfile -t i18n-editor-migrator .
+#   docker build -f packages/db/Dockerfile -t git8n-migrator .
 
 # Keep NODE_VERSION equal to `.node-version`, which the workflows read.
 ARG NODE_VERSION=26.12.1
@@ -17,9 +17,9 @@ COPY --link package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY --link packages/db/package.json ./packages/db/
 # `--ignore-scripts` skips the `prepare` script of the root, which calls husky.
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --ignore-scripts --filter @i18n-editor/db
+    pnpm install --frozen-lockfile --ignore-scripts --filter @git8n/db
 COPY --link packages/db ./packages/db
-RUN pnpm --filter @i18n-editor/db run build
+RUN pnpm --filter @git8n/db run build
 
 # One bundle and the SQL files. The bundle finds `drizzle/` at `../drizzle` from `dist/`.
 FROM gcr.io/distroless/nodejs26-debian13:nonroot

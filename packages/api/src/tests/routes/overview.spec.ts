@@ -1,7 +1,7 @@
 import '../setup-env';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { i18nRepositories, newId } from '@i18n-editor/db';
+import { i18nRepositories, newId } from '@git8n/db';
 import app from '../../app';
 import { db } from '@/db';
 import { clearOverviewCache } from '@/services/i18n-overview.service';

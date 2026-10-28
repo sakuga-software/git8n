@@ -12,6 +12,25 @@ const app = new Hono<HonoEnv>();
 
 app.onError(errorHandler);
 
+// The editor moved to the host of BETTER_AUTH_URL (DB-674). Its old links keep working.
+// Only GET and HEAD move. A client changes a POST to a GET after a 301, and GitHub does not follow
+// a redirect for a webhook delivery. The old host serves the other methods as before.
+app.use('*', async (c, next) => {
+  const host = c.req.header('host')?.toLowerCase();
+
+  if (!host || !env.REDIRECT_HOSTS.includes(host)) return next();
+  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return next();
+
+  // Only the path and the query move. A path such as `//evil.example` must not change the host.
+  const url = new URL(c.req.url);
+  const target = new URL(env.BETTER_AUTH_URL);
+
+  target.pathname = url.pathname;
+  target.search = url.search;
+
+  return c.redirect(target.toString(), 301);
+});
+
 // The organization plugin opens routes to every signed-in account: a member
 // could change their own role. The routes of `/i18n` do these changes, with their own checks.
 app.all('/api/auth/organization/*', (c) => c.notFound());

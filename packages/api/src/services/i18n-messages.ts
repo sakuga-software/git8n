@@ -1,10 +1,10 @@
-import type { I18nRepository } from '@i18n-editor/db';
-import { countKeys, messageOf } from '@i18n-editor/db/messages';
+import type { I18nRepository } from '@git8n/db';
+import { countKeys, messageOf } from '@git8n/db/messages';
 
 /**
  * The messages the editor writes on GitHub, in the formats of the repository (DB-609).
  *
- * `@i18n-editor/db/messages` holds the formats and the variables. This file
+ * `@git8n/db/messages` holds the formats and the variables. This file
  * gives each variable its value.
  */
 

@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { type Database, schema } from '@i18n-editor/db';
+import { type Database, schema } from '@git8n/db';
 
 export type { Database };
 

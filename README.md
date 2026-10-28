@@ -1,4 +1,4 @@
-# i18n-editor
+# git8n
 
 An editor for the translations of a product. Its source of truth is the JSON
 locale files in a GitHub repository. Translators propose texts, reviewers
@@ -6,9 +6,9 @@ publish them, and each publication is a commit on the repository, made by a
 GitHub App. Agents and scripts read and propose translations through a CLI or
 an MCP server, with the rights of an account.
 
-**Documentation: <https://i18n.sakuga.dev/docs/>**. The sources are in
+**Documentation: <https://git8n.sakuga.dev/docs/>**. The sources are in
 [`docs/`](docs/). Every page is also plain Markdown for an agent:
-[`llms.txt`](https://i18n.sakuga.dev/docs/llms.txt) lists them.
+[`llms.txt`](https://git8n.sakuga.dev/docs/llms.txt) lists them.
 
 - [Getting started](docs/guide/getting-started.md): run it locally and connect
   a repository.
@@ -25,8 +25,8 @@ an MCP server, with the rights of an account.
 pnpm install
 pnpm typecheck
 pnpm test
-pnpm -F @i18n-editor/docs demo  # the demo of the home page, built once
-pnpm -F @i18n-editor/docs dev   # the documentation, on port 5208
+pnpm -F @git8n/docs demo  # the demo of the home page, built once
+pnpm -F @git8n/docs dev   # the documentation, on port 5208
 ```
 
 The tests of the API run on PGlite, a PostgreSQL in memory. They need no server.

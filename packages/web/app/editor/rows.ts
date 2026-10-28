@@ -1,4 +1,4 @@
-import type { Catalogue, ProposedKey, Rights } from '@i18n-editor/mcp/api';
+import type { Catalogue, ProposedKey, Rights } from '@git8n/mcp/api';
 
 /**
  * What a key is for a translator, in the order the table shows it (DB-213).

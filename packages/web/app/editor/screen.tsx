@@ -20,7 +20,7 @@ import {
   type CatalogueProgress,
   type PublishPull,
   type RefusedKey,
-} from '@i18n-editor/mcp/api';
+} from '@git8n/mcp/api';
 import { api } from '~/utils/api';
 import { ChevronDown, Gear, Info, KeyView, Lock, Plus, Published, Repository, TableView } from '~/editor/icons';
 import { ConnectRepository } from '~/editor/connect';

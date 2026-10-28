@@ -18,7 +18,7 @@ import {
   newId,
   organizations,
   users,
-} from '@i18n-editor/db';
+} from '@git8n/db';
 import { env } from './config/env';
 import { db } from './db';
 import { ac, roles } from './permissions';
@@ -43,7 +43,7 @@ export interface AuthUser {
 }
 
 /** The `client_id` that the command line sends to ask for a device code. The plugin refuses any other. */
-export const CLI_CLIENT_ID = 'i18n-editor-cli';
+export const CLI_CLIENT_ID = 'git8n-cli';
 
 export const SESSION_DAYS = 14;
 
@@ -121,7 +121,7 @@ export function createAuth(options: AuthOptions) {
     plugins: [
       // The command line and the MCP server send a session token as a bearer token. The browser sends the cookie.
       bearer(),
-      // `i18n-editor login` (DB-669): the command line shows a code, and the person approves it on the page `/device`.
+      // `git8n login` (DB-669): the command line shows a code, and the person approves it on the page `/device`.
       deviceAuthorization({
         expiresIn: '10m',
         interval: '5s',

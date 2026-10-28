@@ -1,7 +1,7 @@
 import { type RouteConfig, index, route } from '@react-router/dev/routes';
 
 export default [
-  // Every repository, searched and sorted (DB-610). « i18n Traductions » leads here.
+  // Every repository, searched and sorted (DB-610). « g8n git8n » leads here.
   index('routes/repositories.tsx'),
   route('repositories/:id', 'routes/editor.tsx'),
   // The settings of one repository, for an admin (DB-609).
@@ -10,6 +10,6 @@ export default [
   route('setup', 'routes/editor.tsx', { id: 'setup' }),
   // The access tokens of the signed-in account, for an agent or a CI job (DB-669).
   route('tokens', 'routes/tokens.tsx'),
-  // `i18n-editor login` sends the person here to approve the code of the terminal (DB-669).
+  // `git8n login` sends the person here to approve the code of the terminal (DB-669).
   route('device', 'routes/device.tsx'),
 ] satisfies RouteConfig;

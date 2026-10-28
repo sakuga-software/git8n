@@ -4,8 +4,8 @@ import { PgTable } from 'drizzle-orm/pg-core';
 import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
-import { schema } from '@i18n-editor/db';
-import { MIGRATIONS_FOLDER } from '@i18n-editor/db/migrations';
+import { schema } from '@git8n/db';
+import { MIGRATIONS_FOLDER } from '@git8n/db/migrations';
 import { type Connection, type Database, useDatabase } from '@/db';
 
 /** A PostgreSQL database in memory, with the migrations applied. */

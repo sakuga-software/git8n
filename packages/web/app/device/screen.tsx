@@ -8,7 +8,7 @@ import { Busy } from '~/editor/ui';
 import { normalCode, shownCode, stateOf, type DeviceAnswer, type DeviceState } from './rules';
 
 /**
- * The approval of the code that `i18n-editor login` shows (DB-669).
+ * The approval of the code that `git8n login` shows (DB-669).
  *
  * The terminal opens this page with `?user_code=`. The person signs in if
  * needed, compares the code with the one of the terminal, then approves it.
@@ -60,7 +60,7 @@ function Device({ account }: { account: string }) {
       <div className="flex flex-col gap-1">
         <h1 className="text-[22px] font-semibold tracking-[-0.01em]">Connecter un terminal</h1>
         <p className="text-sub text-sm leading-normal">
-          La commande <code className="font-mono text-[13px]">i18n-editor login</code> affiche un code. Ce code relie le
+          La commande <code className="font-mono text-[13px]">git8n login</code> affiche un code. Ce code relie le
           terminal à votre compte.
         </p>
       </div>
@@ -114,8 +114,8 @@ function Device({ account }: { account: string }) {
       )}
       {(phase.kind === 'unknown' || phase.kind === 'failed') && (
         <Outcome>
-          Ce code n'existe pas ou a expiré. Relancez <code className="font-mono">i18n-editor login</code> pour en
-          obtenir un autre.
+          Ce code n'existe pas ou a expiré. Relancez <code className="font-mono">git8n login</code> pour en obtenir un
+          autre.
         </Outcome>
       )}
 

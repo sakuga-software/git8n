@@ -159,7 +159,7 @@ the missing permission.
    Save. GitHub asks for a note to the installations; it can stay empty.
 2. **Each installation must accept it.** GitHub keeps the old permissions of an
    installation until an owner of the account accepts the new ones. An owner
-   of the organisation opens **Settings → GitHub Apps → i18n-editor →
+   of the organisation opens **Settings → GitHub Apps → git8n →
    Configure**, and clicks **Review request**, then **Accept new permissions**.
    GitHub also sends this request by e-mail to the owners.
 

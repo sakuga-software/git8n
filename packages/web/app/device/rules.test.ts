@@ -8,7 +8,7 @@ describe('the code of a terminal', () => {
   });
 
   it('asks the account to approve a code that waits for it', () => {
-    expect(stateOf({ status: 'pending', client_id: 'i18n-editor-cli' })).toEqual({ kind: 'review' });
+    expect(stateOf({ status: 'pending', client_id: 'git8n-cli' })).toEqual({ kind: 'review' });
   });
 
   it('says that another account holds a code that waits with no client', () => {

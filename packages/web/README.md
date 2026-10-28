@@ -7,7 +7,7 @@ holds no data of its own.
 ## Run it
 
 ```sh
-pnpm -F @i18n-editor/web dev
+pnpm -F @git8n/web dev
 ```
 
 Vite passes `/api` and `/i18n` to the API on port 8001, or to `API_PROXY` when
@@ -68,5 +68,5 @@ The API serves this build on its own origin when `WEB_ROOT` names
 
 ## Tests
 
-`pnpm -F @i18n-editor/web test` runs the rules of the table (`app/editor/rows.ts`). No test
+`pnpm -F @git8n/web test` runs the rules of the table (`app/editor/rows.ts`). No test
 renders a component.

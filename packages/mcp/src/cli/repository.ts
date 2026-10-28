@@ -33,7 +33,7 @@ export const pickRepository = (repositories: Repository[], wanted: string | unde
       (repository) => repository.id === wanted || nameOf(repository).toLowerCase() === wanted.toLowerCase(),
     );
 
-    if (!found) throw new CliError('I18NE3001', `No repository of this account is ${wanted}.`, listOf(repositories));
+    if (!found) throw new CliError('G8N3001', `No repository of this account is ${wanted}.`, listOf(repositories));
 
     return found;
   }
@@ -45,7 +45,7 @@ export const pickRepository = (repositories: Repository[], wanted: string | unde
   // A folder of another repository must not send its work to the only repository of the account.
   if (fromGit.length === 0 && slugs.length > 0) {
     throw new CliError(
-      'I18NE3001',
+      'G8N3001',
       `This account opens no repository of this folder (${slugs.join(', ')}). Pass --repo <owner/name>.`,
       listOf(repositories),
     );
@@ -53,9 +53,9 @@ export const pickRepository = (repositories: Repository[], wanted: string | unde
 
   if (repositories.length === 1) return repositories[0]!;
 
-  if (repositories.length === 0) throw new CliError('I18NE3001', 'This account opens no repository.');
+  if (repositories.length === 0) throw new CliError('G8N3001', 'This account opens no repository.');
 
-  throw new CliError('I18NE3002', 'Name the repository with --repo <owner/name>.', listOf(repositories));
+  throw new CliError('G8N3002', 'Name the repository with --repo <owner/name>.', listOf(repositories));
 };
 
 /** The target languages that the account can open in a repository. An admin opens each one. */
@@ -73,13 +73,13 @@ export const pickLanguage = (me: Me, repository: Repository, wanted: string | un
 
   if (wanted) {
     if (!repository.targets.includes(wanted)) {
-      throw new CliError('I18NE3003', `${nameOf(repository)} does not translate into ${wanted}.`, [
+      throw new CliError('G8N3003', `${nameOf(repository)} does not translate into ${wanted}.`, [
         `Its target languages: ${repository.targets.join(', ') || 'none'}.`,
       ]);
     }
 
     if (!open.includes(wanted)) {
-      throw new CliError('I18NE3003', `This account cannot open ${wanted} in ${nameOf(repository)}.`, [
+      throw new CliError('G8N3003', `This account cannot open ${wanted} in ${nameOf(repository)}.`, [
         `The languages this account can open there: ${open.join(', ') || 'none'}.`,
       ]);
     }
@@ -89,7 +89,7 @@ export const pickLanguage = (me: Me, repository: Repository, wanted: string | un
 
   if (open.length === 1) return open[0]!;
 
-  throw new CliError('I18NE3003', 'Name the language with --lang <language>.', [
+  throw new CliError('G8N3003', 'Name the language with --lang <language>.', [
     `The languages this account can open in ${nameOf(repository)}: ${open.join(', ') || 'none'}.`,
   ]);
 };

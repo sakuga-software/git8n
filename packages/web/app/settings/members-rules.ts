@@ -1,4 +1,4 @@
-import type { MemberRights } from '@i18n-editor/mcp/api';
+import type { MemberRights } from '@git8n/mcp/api';
 import type { ChoiceItem } from '~/editor/ui';
 
 /** The roles of a repository, in the words of the page (DB-637). */

@@ -55,7 +55,7 @@ need to deploy again.
 ## The page of every repository
 
 `/` lists the connected repositories. `/repositories/<id>` opens the table of
-one of them, and « i18n Traductions » in the header leads back to the list.
+one of them, and « g8n git8n » in the header leads back to the list.
 
 The list reads `GET /i18n/overview`:
 

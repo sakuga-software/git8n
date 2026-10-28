@@ -8,7 +8,7 @@ export const parseId = (id: string): { file: string; key: string } => {
   const colon = id.indexOf(':');
 
   if (colon <= 0 || colon === id.length - 1) {
-    throw new CliError('I18NE1001', `${id} is not a key. Name a key as <file>:<key>, for example common:hello.title.`);
+    throw new CliError('G8N1001', `${id} is not a key. Name a key as <file>:<key>, for example common:hello.title.`);
   }
 
   return { file: id.slice(0, colon), key: id.slice(colon + 1) };
@@ -56,7 +56,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const flatten = (file: string, value: unknown, path: string, into: Map<string, string>): void => {
   if (typeof value === 'string') {
-    if (!path) throw new CliError('I18NE1003', `${file} holds a text and no key.`);
+    if (!path) throw new CliError('G8N1003', `${file} holds a text and no key.`);
 
     into.set(`${file}:${path}`, value);
 
@@ -64,7 +64,7 @@ const flatten = (file: string, value: unknown, path: string, into: Map<string, s
   }
 
   if (!isRecord(value)) {
-    throw new CliError('I18NE1003', `${file}:${path} is not a text. A value is a string, or an object of keys.`);
+    throw new CliError('G8N1003', `${file}:${path} is not a text. A value is a string, or an object of keys.`);
   }
 
   for (const [name, inner] of Object.entries(value)) flatten(file, inner, path ? `${path}.${name}` : name, into);
@@ -84,10 +84,10 @@ export const textsOf = (input: string, file?: string): Map<string, string> => {
   try {
     parsed = JSON.parse(input);
   } catch (error) {
-    throw new CliError('I18NE1003', `The input is not JSON: ${(error as Error).message}`);
+    throw new CliError('G8N1003', `The input is not JSON: ${(error as Error).message}`);
   }
 
-  if (!isRecord(parsed)) throw new CliError('I18NE1003', 'The input must be a JSON object of keys and texts.');
+  if (!isRecord(parsed)) throw new CliError('G8N1003', 'The input must be a JSON object of keys and texts.');
 
   const texts = new Map<string, string>();
 
@@ -96,7 +96,7 @@ export const textsOf = (input: string, file?: string): Map<string, string> => {
   } else {
     for (const [name, value] of Object.entries(parsed)) {
       if (name.includes(':')) {
-        if (typeof value !== 'string') throw new CliError('I18NE1003', `${name} is not a text.`);
+        if (typeof value !== 'string') throw new CliError('G8N1003', `${name} is not a text.`);
 
         const { file: inFile, key } = parseId(name);
 
@@ -105,7 +105,7 @@ export const textsOf = (input: string, file?: string): Map<string, string> => {
         flatten(name, value, '', texts);
       } else {
         throw new CliError(
-          'I18NE1003',
+          'G8N1003',
           `${name} names no file. Write <file>:<key>, put the keys under their file, or pass --file.`,
         );
       }
@@ -116,7 +116,7 @@ export const textsOf = (input: string, file?: string): Map<string, string> => {
 
   if (blank.length > 0) {
     throw new CliError(
-      'I18NE1003',
+      'G8N1003',
       'An empty text is not a translation. To leave a key empty on purpose, mark it « vide exprès » in the editor.',
       blank.slice(0, 10),
     );
@@ -148,7 +148,7 @@ export const planOf = (read: Catalogue, texts: Map<string, string>, readAt: stri
 
   if (closed.length > 0) {
     throw new CliError(
-      'I18NE3004',
+      'G8N3004',
       `These keys are in a file that has no ${read.language} version, and take no proposal.`,
       closed.slice(0, 10),
     );
@@ -156,7 +156,7 @@ export const planOf = (read: Catalogue, texts: Map<string, string>, readAt: stri
 
   if (unknown.length > 0) {
     throw new CliError(
-      'I18NE3004',
+      'G8N3004',
       `${unknown.length} key(s) of the input are not keys of the source (${read.source}).`,
       unknown.slice(0, 10),
     );
@@ -176,7 +176,7 @@ export const planOf = (read: Catalogue, texts: Map<string, string>, readAt: stri
 
   if (changes.length > MOST_KEYS) {
     throw new CliError(
-      'I18NE1003',
+      'G8N1003',
       `${changes.length} keys are more than ${MOST_KEYS} in one proposal. Split the input.`,
     );
   }

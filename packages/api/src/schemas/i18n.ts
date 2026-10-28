@@ -1,5 +1,5 @@
-import { MEMBER_ROLES, PUBLISH_MODES } from '@i18n-editor/db';
-import { templateProblem, type TemplateKind, type TemplateProblem } from '@i18n-editor/db/messages';
+import { MEMBER_ROLES, PUBLISH_MODES } from '@git8n/db';
+import { templateProblem, type TemplateKind, type TemplateProblem } from '@git8n/db/messages';
 import { z } from 'zod';
 
 /**

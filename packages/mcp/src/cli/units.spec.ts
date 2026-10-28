@@ -37,7 +37,7 @@ describe('the input of apply', () => {
 describe('the codes of the errors', () => {
   it('gives each code an exit status of the documented table', () => {
     for (const [code, error] of Object.entries(ERRORS)) {
-      expect(code).toMatch(/^I18NE\d{4}$/);
+      expect(code).toMatch(/^G8N\d{4}$/);
       expect(Object.values(EXIT)).toContain(error.exit);
     }
   });

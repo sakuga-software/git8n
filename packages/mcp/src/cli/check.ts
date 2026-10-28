@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
 /**
- * `i18n-editor check`: the locale files of a folder, read with no server (DB-672).
+ * `git8n check`: the locale files of a folder, read with no server (DB-672).
  *
  * It applies the rules of the editor (docs/guide/repositories.md) to the files
  * of a working copy, so the CI of a repository can refuse a broken file before

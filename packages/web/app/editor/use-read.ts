@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { hashKey, QueryClient, useQuery, type QueryObserverResult } from '@tanstack/react-query';
-import { ApiError } from '@i18n-editor/mcp/api';
+import { ApiError } from '@git8n/mcp/api';
 
 /**
  * A read that failed, and what the person can do about it.

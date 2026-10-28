@@ -38,7 +38,7 @@ const answering = <T>(run: () => Promise<T>) =>
   });
 
 export const buildServer = (config: ApiConfig): McpServer => {
-  const server = new McpServer({ name: 'i18n-editor', version: '0.1.0' });
+  const server = new McpServer({ name: 'git8n', version: '0.1.0' });
   // One per server: two servers in one process must not answer each other's
   // readings, which their tokens may not reach.
   const held = createCatalogues();

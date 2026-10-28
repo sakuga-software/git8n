@@ -8,7 +8,7 @@ import {
   TEMPLATE_KINDS,
   TEMPLATE_VARIABLES,
   templateProblem,
-} from '@i18n-editor/db/messages';
+} from '@git8n/db/messages';
 import { proposalSubject, publicationSubject } from '@/services/i18n-messages';
 
 /**

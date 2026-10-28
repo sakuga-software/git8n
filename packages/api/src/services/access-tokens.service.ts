@@ -1,10 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
-import { accessTokens, newId, users } from '@i18n-editor/db';
+import { accessTokens, newId, users } from '@git8n/db';
 import { db } from '@/db';
 
 /** Every access token starts with this prefix. `withAuth` reads it to tell a token from a session. */
-export const ACCESS_TOKEN_PREFIX = 'i18e_';
+export const ACCESS_TOKEN_PREFIX = 'g8n_';
 
 /** How many characters of the token the list shows. */
 const SHOWN_START = ACCESS_TOKEN_PREFIX.length + 4;

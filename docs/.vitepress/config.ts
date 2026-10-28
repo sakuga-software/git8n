@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { defineConfig } from 'vitepress';
 
-const repository = 'https://github.com/sakuga-software/i18n-editor';
+const repository = 'https://github.com/sakuga-software/git8n';
 
 const titleOf = (markdown: string, page: string): string =>
   markdown.match(/^title:\s*(.+)$/m)?.[1] ?? markdown.match(/^#\s+(.+)$/m)?.[1] ?? page;
@@ -13,7 +13,7 @@ const titleOf = (markdown: string, page: string): string =>
  */
 const writeRawPages = async (srcDir: string, outDir: string, pages: string[]) => {
   const lines = [
-    '# i18n-editor',
+    '# git8n',
     '',
     '> An editor for the JSON locale files of a GitHub repository, with an MCP server for agents.',
     '',
@@ -34,7 +34,7 @@ const writeRawPages = async (srcDir: string, outDir: string, pages: string[]) =>
 };
 
 export default defineConfig({
-  title: 'i18n-editor',
+  title: 'git8n',
   description: 'Translate the JSON locale files of a GitHub repository, by hand or with an agent.',
   base: '/docs/',
   lastUpdated: false,

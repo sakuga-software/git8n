@@ -28,7 +28,7 @@ describe('the command an agent runs', () => {
         args: ['--experimental-strip-types', MAIN],
         // The API is never called: listing the tools asks it nothing. What is
         // under test is that the process boots and speaks.
-        env: { ...process.env, I18N_EDITOR_API_URL: 'https://api.test', I18N_EDITOR_API_TOKEN: 'unused' },
+        env: { ...process.env, GIT8N_API_URL: 'https://api.test', GIT8N_API_TOKEN: 'unused' },
         stderr: 'pipe',
       }),
     );

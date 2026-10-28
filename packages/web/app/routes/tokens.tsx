@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Loading } from '~/editor/states';
 
-export const meta = () => [{ title: "Jetons d'accès · Traductions" }];
+export const meta = () => [{ title: "Jetons d'accès · git8n" }];
 
 const Tokens = lazy(() => import('~/tokens/screen'));
 
