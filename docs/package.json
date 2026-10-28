@@ -10,6 +10,7 @@
     "preview": "vitepress preview"
   },
   "devDependencies": {
+    "@git8n/web": "workspace:*",
     "@types/node": "catalog:",
     "vitepress": "2.0.0-alpha.20"
   }
