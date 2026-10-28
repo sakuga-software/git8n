@@ -50,6 +50,7 @@ export const fakeIo = async (
     },
     readStdin: async () => '',
     readFile: async () => '',
+    readDir: async () => null,
     fetch: ((input: string | URL | Request, init?: RequestInit) => fetcher(String(input), init)) as typeof fetch,
     sleep: async (ms) => {
       clock += ms;

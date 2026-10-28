@@ -127,7 +127,29 @@ Each command takes `--json`. The answer is then one JSON document on stdout:
 the exit status and the code, not the message. [CLI reference](../reference/cli.md)
 gives each command, each field and each code.
 
-## Later
+## In CI
 
-`i18n-editor check` will read the locale files of a clone with no server, and
-report the missing keys and the placeholders that differ, for a CI job.
+`i18n-editor check` reads the locale files of the clone, with no server and no
+token. It fails on a file that does not parse, or on a translation that loses a
+placeholder. A missing or empty key is a warning: `--max-warnings 0` makes it
+fail too.
+
+```yaml
+name: i18n
+on: pull_request
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+      - run: git clone --depth 1 https://github.com/sakuga-software/i18n-editor /tmp/i18n-editor
+      - run: cd /tmp/i18n-editor && corepack enable && pnpm install --frozen-lockfile --filter @i18n-editor/mcp...
+      - run: node --experimental-strip-types /tmp/i18n-editor/packages/mcp/src/cli/main.ts check --reporter github
+```
+
+`--reporter github` writes one annotation for each problem, on the file of the
+pull request. [CLI reference](../reference/cli.md#check) gives every option and
+every rule.
