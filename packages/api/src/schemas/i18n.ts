@@ -274,8 +274,8 @@ export const overviewQuerySchema = z.object({
   sort: z.enum(OVERVIEW_SORTS).default('name'),
   order: z.enum(['asc', 'desc']).default('asc'),
   /**
-   * `wait` (the default) reads the progress of each row before the answer.
-   * `held` answers what the cache holds, and marks the other rows `progressPending` (DB-679).
+   * `wait` (the default) answers the progress of each row: a held value, even an old one, or else a read
+   * that the answer waits for. `held` waits for no read, and marks a row with no held value `progressPending` (DB-679).
    */
   progress: z.enum(['wait', 'held']).default('wait'),
 });
