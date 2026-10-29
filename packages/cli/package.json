@@ -1,0 +1,49 @@
+{
+  "name": "git8n",
+  "version": "0.1.0",
+  "description": "The CLI and the MCP server of git8n: read, check and propose the translations of a GitHub repository.",
+  "keywords": [
+    "cli",
+    "github",
+    "i18n",
+    "i18next",
+    "localization",
+    "mcp",
+    "translation"
+  ],
+  "homepage": "https://git8n.sakuga.dev/docs/",
+  "bugs": "https://github.com/sakuga-software/git8n/issues",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sakuga-software/git8n.git",
+    "directory": "packages/cli"
+  },
+  "bin": {
+    "git8n": "./dist/git8n.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/git8n.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/git8n.js --external:@modelcontextprotocol/sdk --external:zod",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm run build && vitest run",
+    "prepack": "pnpm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@git8n/mcp": "workspace:*",
+    "@types/node": "catalog:",
+    "esbuild": "^0.28.2",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

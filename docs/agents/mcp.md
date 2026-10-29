@@ -44,28 +44,15 @@ Give the agent its own token, so that you can revoke it alone.
 
 ## Connect it to an agent
 
-With the [CLI](./cli.md), `git8n mcp` starts the server with the token
-of `git8n login`, or of `GIT8N_API_TOKEN`:
+`git8n mcp` starts the server. It uses the token of `git8n login`, or the
+variables `GIT8N_API_URL` and `GIT8N_API_TOKEN`:
 
 ```json
 {
   "mcpServers": {
     "git8n": {
-      "command": "node",
-      "args": ["--experimental-strip-types", "/path/to/git8n/packages/mcp/src/cli/main.ts", "mcp"]
-    }
-  }
-}
-```
-
-Without the CLI, run the server from a clone of the repository, after `pnpm install`:
-
-```json
-{
-  "mcpServers": {
-    "git8n": {
-      "command": "node",
-      "args": ["--experimental-strip-types", "packages/mcp/src/main.ts"],
+      "command": "npx",
+      "args": ["-y", "git8n", "mcp"],
       "env": {
         "GIT8N_API_URL": "https://git8n.example.com",
         "GIT8N_API_TOKEN": "…"
@@ -73,6 +60,15 @@ Without the CLI, run the server from a clone of the repository, after `pnpm inst
     }
   }
 }
+```
+
+After a `git8n login` on the same computer, leave out `env`.
+
+With Claude Code:
+
+```sh
+claude mcp add git8n --scope user -- npx -y git8n mcp
+claude mcp list
 ```
 
 The server writes only the protocol on stdout. It writes its errors on stderr.
