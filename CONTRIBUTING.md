@@ -47,8 +47,8 @@ from `main`, and needs no release.
    the environment `npm`.
 
 A tag pushed alone starts nothing. A run from « Run workflow » packs and checks,
-and publishes nothing. A version that npm already has is skipped, so a failed
-run can run again.
+and publishes nothing, also on a tag. To try a failed release again, use
+« Re-run jobs » on its run: a version that npm already has is skipped.
 
 No npm token exists. npm trusts the OIDC token of `release-npm.yml`, in the
 environment `npm`, as the trusted publisher of `@git8n/cli`. To set it again,

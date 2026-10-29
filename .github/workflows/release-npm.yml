@@ -70,7 +70,8 @@ jobs:
 
   # Sends the tarball of `package` to npm. The environment `npm` gives the job its OIDC token only
   # after a person approves the run.
-  # WARNING: a run that does not come from a tag `v*` only packs and checks (`--dry-run`).
+  # WARNING: only a published release publishes. A run by hand only packs and checks (`--dry-run`),
+  # also on a tag. To run a failed release again, use « Re-run jobs » of its run.
   publish:
     name: publish to npm
     needs: [ci, package]
@@ -105,7 +106,7 @@ jobs:
       # See CONTRIBUTING.md.
       - name: Publish the tarball
         env:
-          FROM_A_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          FROM_A_RELEASE: ${{ github.event_name == 'release' && startsWith(github.ref, 'refs/tags/v') }}
         run: |
           set -euo pipefail
           # `./` first: else npm reads `tarballs/x.tgz` as the GitHub repository `tarballs/x.tgz`.
@@ -115,7 +116,7 @@ jobs:
             exit 1
           fi
           version=$(tar -xzOf "$tarball" package/package.json | node -p "JSON.parse(require('fs').readFileSync(0)).version")
-          if [ "$FROM_A_TAG" != true ]; then
+          if [ "$FROM_A_RELEASE" != true ]; then
             npm publish "$tarball" --access public --dry-run
           elif npm view "@git8n/cli@$version" version >/dev/null 2>&1; then
             echo "@git8n/cli@$version is already on npm"
