@@ -11,7 +11,8 @@
     ".": "./src/index.ts",
     "./api": "./src/api.ts",
     "./cli": "./src/cli/run.ts",
-    "./cli/testing": "./src/cli/testing.ts"
+    "./cli/testing": "./src/cli/testing.ts",
+    "./cli/node": "./src/cli/node.ts"
   },
   "scripts": {
     "start": "node --experimental-strip-types src/main.ts",

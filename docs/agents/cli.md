@@ -9,13 +9,14 @@ account on each call: the CLI can do no more than the account in the browser.
 
 ## Install it
 
-The CLI is not on npm yet. Run it from a clone of the repository, with Node 26:
+The CLI is the npm package [`git8n`](https://www.npmjs.com/package/git8n). It
+needs Node 22 or later.
 
 ```sh
-git clone https://github.com/sakuga-software/git8n
-cd git8n && pnpm install
-alias git8n="node --experimental-strip-types $PWD/packages/mcp/src/cli/main.ts"
+npm install --global git8n
 ```
+
+`npx git8n <command>` runs it with no install.
 
 ## Sign in
 
@@ -144,13 +145,9 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 26
-      # Pin the commit of git8n that the job runs: a new version cannot change the check by itself.
-      - run: |
-          git clone --filter=blob:none https://github.com/sakuga-software/git8n /tmp/git8n
-          git -C /tmp/git8n checkout <commit>
-      - run: cd /tmp/git8n && corepack enable && pnpm install --frozen-lockfile --filter @git8n/mcp...
-      - run: node --experimental-strip-types /tmp/git8n/packages/mcp/src/cli/main.ts check --reporter github
+          node-version: 24
+      # Pin the version: a new version cannot change the check by itself.
+      - run: npx git8n@0.1.0 check --reporter github
 ```
 
 `--reporter github` writes one annotation for each problem, on the file of the
