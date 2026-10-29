@@ -22,18 +22,41 @@ export const PUBLISHED: readonly string[] = ['packages/cli/', 'packages/mcp/'];
 export const isPublished = (file: string): boolean =>
   PUBLISHED.some((directory) => file.startsWith(directory)) && !/\.(spec|test)\.ts$/.test(file);
 
+/** One line of `git diff --name-status`: `A`, `M` or `D`, and the path. */
+export interface Change {
+  status: string;
+  file: string;
+}
+
 /** A changeset is one Markdown file in `.changeset/`. The README of the directory is not one. */
 export const isChangeset = (file: string): boolean =>
   /^\.changeset\/[^/]+\.md$/.test(file) && file !== '.changeset/README.md';
 
-/** The published files that changed, if no changeset came with them. Empty means that the check passes. */
-export const withoutChangeset = (changed: readonly string[]): string[] =>
-  changed.some(isChangeset) ? [] : changed.filter(isPublished);
+/**
+ * Whether the changes carry a changeset.
+ *
+ * A changeset that the pull request deletes counts only in the pull request of a version:
+ * `changeset version` deletes the changesets and writes `packages/cli/CHANGELOG.md`.
+ * Else a pull request could delete an old changeset and add none.
+ */
+const carriesChangeset = (changes: readonly Change[]): boolean =>
+  changes.some(({ status, file }) => isChangeset(file) && status !== 'D') ||
+  (changes.some(({ status, file }) => isChangeset(file) && status === 'D') &&
+    changes.some(({ file }) => file === 'packages/cli/CHANGELOG.md'));
 
-const changedOnTopOfBase = (): string[] =>
-  execFileSync('git', ['diff', '--name-only', '--no-renames', 'HEAD^1', 'HEAD'], { encoding: 'utf8' })
+/** The published files that changed, if no changeset came with them. Empty means that the check passes. */
+export const withoutChangeset = (changes: readonly Change[]): string[] =>
+  carriesChangeset(changes) ? [] : changes.map(({ file }) => file).filter(isPublished);
+
+const changedOnTopOfBase = (): Change[] =>
+  execFileSync('git', ['diff', '--name-status', '--no-renames', 'HEAD^1', 'HEAD'], { encoding: 'utf8' })
     .split('\n')
-    .filter((line) => line !== '');
+    .filter((line) => line !== '')
+    .map((line) => {
+      const [status = '', file = ''] = line.split('\t');
+
+      return { status, file };
+    });
 
 const main = ([event = '']: string[]): void => {
   if (event !== 'pull_request') return;
