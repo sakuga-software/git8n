@@ -9,14 +9,14 @@ account on each call: the CLI can do no more than the account in the browser.
 
 ## Install it
 
-The CLI is the npm package [`git8n`](https://www.npmjs.com/package/git8n). It
-needs Node 22 or later.
+The CLI is the npm package [`@git8n/cli`](https://www.npmjs.com/package/@git8n/cli).
+It installs the command `git8n`, and needs Node 22 or later.
 
 ```sh
-npm install --global git8n
+npm install --global @git8n/cli
 ```
 
-`npx git8n <command>` runs it with no install.
+`npx @git8n/cli <command>` runs it with no install.
 
 ## Sign in
 
@@ -147,7 +147,7 @@ jobs:
         with:
           node-version: 24
       # Pin the version: a new version cannot change the check by itself.
-      - run: npx git8n@0.1.0 check --reporter github
+      - run: npx @git8n/cli@0.1.0 check --reporter github
 ```
 
 `--reporter github` writes one annotation for each problem, on the file of the

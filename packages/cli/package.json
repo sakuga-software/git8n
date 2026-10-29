@@ -1,5 +1,5 @@
 {
-  "name": "git8n",
+  "name": "@git8n/cli",
   "version": "0.1.0",
   "description": "The CLI and the MCP server of git8n: read, check and propose the translations of a GitHub repository.",
   "keywords": [
@@ -26,6 +26,9 @@
     "dist"
   ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "esbuild src/git8n.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/git8n.js --external:@modelcontextprotocol/sdk --external:zod",
     "typecheck": "tsc --noEmit",
