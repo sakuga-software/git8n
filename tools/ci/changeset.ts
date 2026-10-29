@@ -36,13 +36,16 @@ export const isChangeset = (file: string): boolean =>
  * Whether the changes carry a changeset.
  *
  * A changeset that the pull request deletes counts only in the pull request of a version:
- * `changeset version` deletes the changesets and writes `packages/cli/CHANGELOG.md`.
- * Else a pull request could delete an old changeset and add none.
+ * `changeset version` deletes the changesets, and writes `packages/cli/CHANGELOG.md` and the
+ * version in `packages/cli/package.json`. Else a pull request could delete an old changeset and
+ * add none.
  */
 const carriesChangeset = (changes: readonly Change[]): boolean =>
   changes.some(({ status, file }) => isChangeset(file) && status !== 'D') ||
   (changes.some(({ status, file }) => isChangeset(file) && status === 'D') &&
-    changes.some(({ file }) => file === 'packages/cli/CHANGELOG.md'));
+    ['packages/cli/CHANGELOG.md', 'packages/cli/package.json'].every((path) =>
+      changes.some(({ file }) => file === path),
+    ));
 
 /** The published files that changed, if no changeset came with them. Empty means that the check passes. */
 export const withoutChangeset = (changes: readonly Change[]): string[] =>

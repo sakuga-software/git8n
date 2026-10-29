@@ -41,6 +41,15 @@ test('the pull request of a version deletes the changesets and writes the change
   );
 });
 
+test('a changelog written by hand does not make a deleted changeset count', () => {
+  assert.deepEqual(
+    withoutChangeset(
+      changes('D .changeset/brave-owls-sing.md', 'M packages/cli/CHANGELOG.md', 'M packages/mcp/src/cli/check.ts'),
+    ),
+    ['packages/cli/CHANGELOG.md', 'packages/mcp/src/cli/check.ts'],
+  );
+});
+
 test('the README of .changeset is not a changeset', () => {
   assert.deepEqual(withoutChangeset(changes('M packages/cli/src/git8n.ts', 'M .changeset/README.md')), [
     'packages/cli/src/git8n.ts',

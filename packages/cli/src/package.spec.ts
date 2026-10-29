@@ -57,7 +57,7 @@ describe('the tarball of @git8n/cli', () => {
   it('gives real ranges to its dependencies', async () => {
     const { manifest } = await tarball();
 
-    for (const range of Object.values<string>(manifest.dependencies)) {
+    for (const range of Object.values<string>(manifest.dependencies ?? {})) {
       expect(range).not.toMatch(/^(catalog|workspace):/);
     }
   }, 60_000);
