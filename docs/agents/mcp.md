@@ -52,7 +52,7 @@ variables `GIT8N_API_URL` and `GIT8N_API_TOKEN`:
   "mcpServers": {
     "git8n": {
       "command": "npx",
-      "args": ["-y", "git8n", "mcp"],
+      "args": ["-y", "@git8n/cli", "mcp"],
       "env": {
         "GIT8N_API_URL": "https://git8n.example.com",
         "GIT8N_API_TOKEN": "…"
@@ -67,7 +67,7 @@ After a `git8n login` on the same computer, leave out `env`.
 With Claude Code:
 
 ```sh
-claude mcp add git8n --scope user -- npx -y git8n mcp
+claude mcp add git8n --scope user -- npx -y @git8n/cli mcp
 claude mcp list
 ```
 
