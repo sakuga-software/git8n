@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@4.0.1/schema.json",
+  "baseBranch": "main",
+  "access": "public",
+  "fixed": [["@git8n/cli", "@git8n/mcp"]],
+  "linked": [],
+  "ignore": ["@git8n/api", "@git8n/web", "@git8n/db", "@git8n/docs"],
+  "privatePackages": { "version": true, "tag": false },
+  "updateInternalDependencies": "patch",
+  "commit": false,
+  "changelog": "@changesets/cli/changelog"
+}
