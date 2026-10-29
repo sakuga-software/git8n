@@ -17,6 +17,9 @@ pnpm test
 
 Both must pass. A change of behaviour comes with a test that fails without it.
 
+If you change `packages/cli` or `packages/mcp`, add a changeset with
+`pnpm changeset`. [.changeset/README.md](.changeset/README.md) tells how.
+
 If you change `packages/db/src/schema.ts`, generate the migration with
 `pnpm -F @git8n/db db:generate`. Never edit a migration that is already
 on `main`.
@@ -28,6 +31,33 @@ on `main`.
 - Write the title and the description in English. Say what changes for a
   translator, a reviewer or an operator, and how you checked it.
 - If the change has a visual effect, add a screenshot or a recording.
+
+## Release the CLI
+
+`@git8n/cli` goes to npm from a release on GitHub. The editor itself deploys
+from `main`, and needs no release.
+
+1. Open a pull request `chore: version x.y.z`. It runs `pnpm changeset version`,
+   which writes the version of `packages/cli` and `packages/mcp`, and
+   `packages/cli/CHANGELOG.md`. Merge it.
+2. On GitHub, « Draft a new release ». Create the tag `vx.y.z` on the merge
+   commit, then « Generate release notes » and « Publish release ».
+3. The release starts `release-npm.yml`: the checks of CI on the tag, the
+   tarball, then the publication. The publication waits until a person approves
+   the environment `npm`.
+
+A tag pushed alone starts nothing. A run from « Run workflow » packs and checks,
+and publishes nothing. A version that npm already has is skipped, so a failed
+run can run again.
+
+No npm token exists. npm trusts the OIDC token of `release-npm.yml`, in the
+environment `npm`, as the trusted publisher of `@git8n/cli`. To set it again,
+a person who can publish in the npm org `git8n` runs, with npm 11.5.1 or later:
+
+```sh
+npm trust github @git8n/cli --file release-npm.yml \
+  --repository sakuga-software/git8n --environment npm --allow-publish
+```
 
 ## Comments in the code
 

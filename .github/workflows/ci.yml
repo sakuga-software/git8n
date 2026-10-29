@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # `release-npm.yml` runs the same checks on the commit of a release.
+  workflow_call:
 
 permissions:
   contents: read
@@ -84,3 +86,27 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  changeset:
+    # A pull request that changes the npm package carries a changeset (DB-688).
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ github.event.repository.private && fromJSON('["self-hosted","sakuga-linux-arm"]') || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: ${{ runner.environment == 'github-hosted' }}
+          # The merge commit and its first parent, the head of the base.
+          fetch-depth: 2
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: The guard is right
+        run: node --test 'tools/ci/*.test.ts'
+
+      - name: A change to the npm package carries a changeset
+        env:
+          EVENT: ${{ github.event_name }}
+        run: node tools/ci/changeset.ts "$EVENT"

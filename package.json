@@ -10,9 +10,11 @@
     "lint": "oxlint",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "prepare": "husky"
+    "prepare": "husky",
+    "changeset": "changeset"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "oxfmt": "0.45.0",
