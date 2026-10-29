@@ -1,6 +1,6 @@
 {
   "name": "@git8n/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The CLI and the MCP server of git8n: read, check and propose the translations of a GitHub repository.",
   "keywords": [
     "cli",

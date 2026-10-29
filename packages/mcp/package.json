@@ -1,6 +1,6 @@
 {
   "name": "@git8n/mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "bin": {
     "git8n": "./src/cli/main.ts",
