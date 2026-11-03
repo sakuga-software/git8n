@@ -138,6 +138,9 @@ fail too.
 ```yaml
 name: i18n
 on: pull_request
+# The check reads the clone. It needs no other right, and no secret.
+permissions:
+  contents: read
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -147,9 +150,10 @@ jobs:
         with:
           node-version: 24
       # Pin the version: a new version cannot change the check by itself.
-      - run: npx @git8n/cli@0.1.0 check --reporter github
+      - run: npx @git8n/cli@0.1.1 check --reporter github
 ```
 
 `--reporter github` writes one annotation for each problem, on the file of the
-pull request. [CLI reference](../reference/cli.md#check) gives every option and
+pull request. The other reporters are `pretty` and `json`: there is no reporter
+for the job summary. [CLI reference](../reference/cli.md#check) gives every option and
 every rule.

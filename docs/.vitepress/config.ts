@@ -42,6 +42,8 @@ const writeRawPages = async (
     '',
     '> An editor for the JSON locale files of a GitHub repository, with an MCP server for agents.',
     '',
+    'To connect an agent to git8n, read [the setup prompt](/docs/agent-prompt.md).',
+    '',
     '## Pages',
     '',
   ];
@@ -65,6 +67,8 @@ export default defineConfig({
   title: 'git8n',
   description: 'Translate the JSON locale files of a GitHub repository, by hand or with an agent.',
   base: '/docs/',
+  // `public/agent-prompt.md` is a file that an agent reads as it is, and not a page.
+  srcExclude: ['public/**'],
   lastUpdated: hasFullHistory(),
   head: [['link', { rel: 'alternate', type: 'text/plain', href: '/docs/llms.txt', title: 'llms.txt' }]],
   themeConfig: {

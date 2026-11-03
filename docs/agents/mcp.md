@@ -44,10 +44,75 @@ Give the agent its own token, so that you can revoke it alone.
 
 ## Connect it to an agent
 
-`git8n mcp` starts the server. It uses the token of `git8n login`, or the
-variables `GIT8N_API_URL` and `GIT8N_API_TOKEN`:
+`npx -y @git8n/cli mcp` starts the server, with Node 22 or later. It takes the
+session of `git8n login` on the same computer, or the variables
+`GIT8N_API_URL` and `GIT8N_API_TOKEN`. [CLI](./cli.md#sign-in) tells how to
+sign in.
 
-```json
+### Let your agent do it
+
+Copy this prompt into your agent. It tells the agent how to sign in, add the
+server to its client and check the connection, and which commands do not
+exist.
+
+<CopyPrompt />
+
+### Add it by hand
+
+Each tab adds the server for the person, in all their projects. A file in a
+project, such as `.cursor/mcp.json` or `.vscode/mcp.json`, adds it to that
+project only. With a `git8n login` on the same computer, leave out the
+variables.
+
+::: code-group
+
+```sh [Claude Code]
+claude mcp add --scope user git8n -- npx -y @git8n/cli mcp
+
+# With an access token and no login. The name comes before --env:
+# --env takes every KEY=value that follows it.
+claude mcp add --scope user git8n \
+  --env GIT8N_API_URL=https://git8n.example.com \
+  --env GIT8N_API_TOKEN=g8n_… \
+  -- npx -y @git8n/cli mcp
+```
+
+```json [Cursor]
+{
+  "mcpServers": {
+    "git8n": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@git8n/cli", "mcp"],
+      "env": {
+        "GIT8N_API_URL": "https://git8n.example.com",
+        "GIT8N_API_TOKEN": "${env:GIT8N_API_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+```sh [VS Code]
+code --add-mcp '{"name":"git8n","type":"stdio","command":"npx","args":["-y","@git8n/cli","mcp"]}'
+
+# Or in .vscode/mcp.json, for one workspace:
+# {
+#   "servers": {
+#     "git8n": { "type": "stdio", "command": "npx", "args": ["-y", "@git8n/cli", "mcp"] }
+#   }
+# }
+```
+
+```toml [Codex]
+[mcp_servers.git8n]
+command = "npx"
+args = ["-y", "@git8n/cli", "mcp"]
+env = { GIT8N_API_URL = "https://git8n.example.com" }
+env_vars = ["GIT8N_API_TOKEN"]
+```
+
+```json [Claude Desktop]
 {
   "mcpServers": {
     "git8n": {
@@ -55,21 +120,50 @@ variables `GIT8N_API_URL` and `GIT8N_API_TOKEN`:
       "args": ["-y", "@git8n/cli", "mcp"],
       "env": {
         "GIT8N_API_URL": "https://git8n.example.com",
-        "GIT8N_API_TOKEN": "…"
+        "GIT8N_API_TOKEN": "g8n_…"
       }
     }
   }
 }
 ```
 
-After a `git8n login` on the same computer, leave out `env`.
-
-With Claude Code:
-
-```sh
-claude mcp add git8n --scope user -- npx -y @git8n/cli mcp
-claude mcp list
+```txt [Others]
+transport  stdio
+command    npx
+args       -y @git8n/cli mcp
+env        GIT8N_API_URL    the address of the editor
+           GIT8N_API_TOKEN  an access token, if there is no git8n login
 ```
+
+:::
+
+The files:
+
+- **Cursor**: `~/.cursor/mcp.json`, or `.cursor/mcp.json` for one project.
+- **VS Code**: `code --add-mcp` writes the configuration of the user profile.
+  `.vscode/mcp.json` is for one workspace.
+- **Codex**: `~/.codex/config.toml`, or `codex mcp add git8n -- npx -y @git8n/cli mcp`.
+- **Claude Desktop**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+  on macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows. Quit and
+  start the app again after a change.
+
+Do not commit a token in a project file. In Cursor, `${env:GIT8N_API_TOKEN}`
+reads it from your shell. In Codex, `env_vars` forwards it from your shell.
+
+### Check the connection
+
+| Client         | Check                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| Claude Code    | `claude mcp list` shows `git8n` as connected. In a session, `/mcp` lists its tools.        |
+| Cursor         | The server shows in **Customize**. Its errors are in the panel Output, under « MCP Logs ». |
+| VS Code        | Ask the agent to call a tool of `git8n`, then expand the tool call in the conversation.    |
+| Codex          | `codex mcp list` shows `git8n`. In the terminal UI, `/mcp` lists the active servers.       |
+| Claude Desktop | Quit and start the app again. The server shows under « Connectors ».                       |
+
+Then ask the agent to call `i18n_me`. It answers the account of the token or
+of the login, and what it may do. An error answers a code, for example
+`G8N2001` when nobody is signed in: [Error codes](../reference/errors/) gives
+each one.
 
 The server writes only the protocol on stdout. It writes its errors on stderr.
 If a variable is missing, it stops with a message that names it.
