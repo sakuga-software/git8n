@@ -54,13 +54,30 @@ const titleOf = (markdown: string, page: string): string =>
   fieldOf(markdown, page, 'title') ?? markdown.match(/^#\s+(.+)$/m)?.[1] ?? page;
 
 /**
- * The page again, for a reader of `/docs/raw/`.
+ * The page of the site that a link names, as the path of its `.md` file, or nothing.
  *
- * A link that starts with `/` names a page of the site, and the site lives under `/docs/`. A link
- * to a folder names its `index.md`, the only file that `/docs/raw/` holds for it. The lines of a
- * code block stay as they are.
+ * A link to a folder names its `index.md`. A link can name the page with or without `.md` or
+ * `.html`.
  */
-const rawOf = (markdown: string): string => {
+const pageOf = (path: string, pages: ReadonlySet<string>): string | undefined => {
+  const name = path.replace(/\.html$/, '');
+  const candidates = name === '' || name.endsWith('/') ? [`${name}index.md`] : [name, `${name}.md`];
+
+  return candidates.find((candidate) => pages.has(candidate));
+};
+
+/**
+ * The page again, for a reader of `/docs/raw/`. A link to a page names its raw copy, so that an
+ * agent stays in Markdown:
+ *
+ * - a link that starts with `/` names a page under `/docs/raw/`, and a file such as an image under
+ *   `/docs/`, where the site lives;
+ * - a relative link to a folder names its `index.md`, the only file of `/docs/raw/` for it. A
+ *   relative `.md` link already names the raw copy.
+ *
+ * The lines of a code block stay as they are.
+ */
+const rawOf = (markdown: string, pages: ReadonlySet<string>): string => {
   let fence = false;
 
   return markdown
@@ -70,7 +87,11 @@ const rawOf = (markdown: string): string => {
       if (fence) return line;
 
       return line
-        .replace(/\]\(\/(?!docs\/)([^)]*)\)/g, '](/docs/$1)')
+        .replace(/\]\(\/(?!docs\/)([^)#]*)(#[^)]*)?\)/g, (_, path: string, anchor = '') => {
+          const page = pageOf(path, pages);
+
+          return page ? `](/docs/raw/${page}${anchor})` : `](/docs/${path}${anchor})`;
+        })
         .replace(/\]\((\.{1,2}\/[^)#]*\/)(#[^)]*)?\)/g, ']($1index.md$2)');
     })
     .join('\n');
@@ -90,19 +111,19 @@ const linksOf = (markdown: string): string[] => {
   });
 };
 
-/** Whether a link of the raw copy of `page` reaches a file of the build. */
+/**
+ * Whether a link of the raw copy of `page` names a file of the build itself. A link that only an
+ * HTML page answers, such as a folder or a page without `.md`, fails: it leaves the raw copies.
+ */
 const reaches = async (outDir: string, page: string, link: string): Promise<boolean> => {
   const path = link.startsWith('/docs/') ? link.slice('/docs/'.length) : posix.join('raw', posix.dirname(page), link);
-  const candidates = path === '' || path.endsWith('/') ? [`${path}index.html`] : [path, `${path}.html`];
 
-  for (const candidate of candidates) {
-    try {
-      await access(join(outDir, candidate));
-      return true;
-    } catch {}
+  try {
+    await access(join(outDir, path));
+    return !path.endsWith('/') && !path.endsWith('.html');
+  } catch {
+    return false;
   }
-
-  return false;
 };
 
 /** The limits of git8n, for an agent that reads `llms.txt` before anything else. */
@@ -133,6 +154,7 @@ const writeRawPages = async (
 ) => {
   // A page of a dynamic route has no file of its own: its template holds the content of its loader.
   const dynamic = new Map(dynamicRoutes.map((route) => [route.path, route]));
+  const pageSet = new Set(pages);
   const lines = [
     '# git8n',
     '',
@@ -154,7 +176,7 @@ const writeRawPages = async (
     const markdown = route
       ? (await readFile(join(srcDir, route.route), 'utf8')).replace('<!-- @content -->', route.content ?? '')
       : await readFile(join(srcDir, page), 'utf8');
-    const raw = rawOf(markdown);
+    const raw = rawOf(markdown, pageSet);
     const target = join(outDir, 'raw', page);
     const description = fieldOf(markdown, page, 'description');
 
