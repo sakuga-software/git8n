@@ -172,6 +172,51 @@ const endOf = (node: JsonNode): number => (node.kind === 'object' ? node.end + 1
 const memberOf = (node: ObjectNode, key: string): Member | undefined =>
   [...node.members].reverse().find((member) => member.key === key);
 
+/**
+ * The paths of member keys that hold the key of `parts`, in each shape that the
+ * file uses. A member key can join more than one segment with dots.
+ */
+const pathsTo = (node: ObjectNode, parts: readonly string[], from = 0): string[][] => {
+  const found: string[][] = [];
+
+  for (let end = parts.length; end > from; end -= 1) {
+    const member = memberOf(node, parts.slice(from, end).join('.'));
+
+    if (!member) continue;
+
+    if (end === parts.length) {
+      found.push([member.key]);
+    } else if (member.value.kind === 'object') {
+      for (const rest of pathsTo(member.value, parts, end)) found.push([member.key, ...rest]);
+    }
+  }
+
+  return found;
+};
+
+/** The next object on the way to `parts`, from the longest member key that matches. */
+const objectStep = (
+  node: ObjectNode,
+  parts: readonly string[],
+  from: number,
+): { node: ObjectNode; next: number } | undefined => {
+  for (let end = parts.length - 1; end > from; end -= 1) {
+    const member = memberOf(node, parts.slice(from, end).join('.'));
+
+    if (member?.value.kind === 'object') return { node: member.value, next: end };
+  }
+
+  return undefined;
+};
+
+/**
+ * Whether an object writes its keys flat, as `"cart.empty"`: a member key holds
+ * a dot, and no member holds an object. A new key there follows that shape.
+ */
+const usesDottedKeys = (node: ObjectNode): boolean =>
+  node.members.some((member) => member.key.includes('.')) &&
+  node.members.every((member) => member.value.kind !== 'object');
+
 export class LocaleFile {
   private text: string;
   private parsed: Record<string, unknown> | undefined;
@@ -220,7 +265,8 @@ export class LocaleFile {
   /**
    * Sets a dotted key to a string, and makes the objects on the way.
    *
-   * - An existing value is replaced where it is.
+   * - An existing value is replaced where it is, in the shape that the file
+   *   gives it: `"cart.empty"` at the top, or `"empty"` in `"cart"`.
    * - A new key goes where an alphabetical order puts it, if its siblings are
    *   in alphabetical order. Otherwise, it goes after the last sibling.
    */
@@ -233,6 +279,11 @@ export class LocaleFile {
    *
    * A segment can hold a dot here. The manifest names a key as `<file>:<key>`
    * in one segment (DB-611).
+   *
+   * The reads join the keys of a file with dots, so `{"cart.empty": …}` and
+   * `{"cart": {"empty": …}}` are the same key. If the file holds that key, in
+   * one shape or in more than one, each of them gets the value. Else a read
+   * could keep the other one, and the change would not show.
    */
   setAt(parts: readonly string[], value: string): void {
     const key = parts.join('.');
@@ -242,35 +293,56 @@ export class LocaleFile {
       if (UNSAFE_SEGMENTS.has(part)) throw new UnwritableKeyError(`${key} names ${part}, which every object holds.`);
     }
 
+    const held = pathsTo(scan(this.text), parts);
+
+    if (held.length > 0) {
+      for (const path of held) this.replaceAt(path, value);
+
+      return;
+    }
+
+    let node = scan(this.text);
+    let index = 0;
+
+    while (index < parts.length) {
+      const step = objectStep(node, parts, index);
+
+      if (!step) break;
+
+      node = step.node;
+      index = step.next;
+    }
+
+    const blocking = memberOf(node, parts[index]);
+
+    if (blocking) {
+      // Writing here would replace a translation that is already in the file.
+      throw new UnwritableKeyError(`${key} passes through ${parts[index]}, which the file holds as a value.`);
+    }
+
+    const rest = parts.slice(index);
+
+    this.insert(node, usesDottedKeys(node) ? [rest.join('.')] : rest, value);
+  }
+
+  /** Replaces the value at a path of exact member keys. */
+  private replaceAt(path: readonly string[], value: string): void {
     let node = scan(this.text);
 
-    for (const [index, part] of parts.entries()) {
-      const member = memberOf(node, part);
-      const last = index === parts.length - 1;
+    for (const [index, part] of path.entries()) {
+      const member = memberOf(node, part)!;
 
-      if (last && member) {
-        const current = this.text.slice(member.value.start, endOf(member.value));
-
-        // The same text, written with other escapes, stays as the file wrote it.
-        if (member.value.kind === 'value' && JSON.parse(current) === value) return;
-
-        this.splice(member.value.start, endOf(member.value), JSON.stringify(value));
-
-        return;
+      if (index < path.length - 1) {
+        node = member.value as ObjectNode;
+        continue;
       }
 
-      if (!member) {
-        this.insert(node, parts.slice(index), value);
+      const current = this.text.slice(member.value.start, endOf(member.value));
 
-        return;
-      }
+      // The same text, written with other escapes, stays as the file wrote it.
+      if (member.value.kind === 'value' && JSON.parse(current) === value) return;
 
-      if (member.value.kind !== 'object') {
-        // Writing here would replace a translation that is already in the file.
-        throw new UnwritableKeyError(`${key} passes through ${part}, which the file holds as a value.`);
-      }
-
-      node = member.value;
+      this.splice(member.value.start, endOf(member.value), JSON.stringify(value));
     }
   }
 

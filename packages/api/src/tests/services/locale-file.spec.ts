@@ -165,6 +165,46 @@ describe('a locale file', () => {
     );
   });
 
+  describe('a key that the file writes flat, as "cart.empty" (G8N-111)', () => {
+    it('changes the flat key where it is, and adds no nested key', () => {
+      const before = '{\n  "cart.empty": "Empty",\n  "cart.title": "Cart"\n}\n';
+      const after = edited(before, 'cart.empty', 'Nothing here');
+
+      expect(after).toBe('{\n  "cart.empty": "Nothing here",\n  "cart.title": "Cart"\n}\n');
+    });
+
+    it('changes a flat key inside an object', () => {
+      const before = '{\n  "shop": {\n    "cart.empty": "Empty"\n  }\n}\n';
+
+      expect(edited(before, 'shop.cart.empty', 'Nothing')).toBe(
+        '{\n  "shop": {\n    "cart.empty": "Nothing"\n  }\n}\n',
+      );
+    });
+
+    it('adds a new key flat beside flat siblings', () => {
+      const before = '{\n  "cart.empty": "Empty",\n  "home.title": "Home"\n}\n';
+
+      expect(edited(before, 'cart.total', 'Total')).toBe(
+        '{\n  "cart.empty": "Empty",\n  "cart.total": "Total",\n  "home.title": "Home"\n}\n',
+      );
+    });
+
+    it('adds a new key nested beside nested siblings', () => {
+      const before = '{\n  "cart": {\n    "empty": "Empty"\n  }\n}\n';
+
+      expect(edited(before, 'cart.total', 'Total')).toBe(
+        '{\n  "cart": {\n    "empty": "Empty",\n    "total": "Total"\n  }\n}\n',
+      );
+    });
+
+    it('changes both shapes when the file holds the key twice, so that the read sees the change', () => {
+      const before = '{\n  "cart.empty": "Flat",\n  "cart": {\n    "empty": "Nested"\n  }\n}\n';
+      const after = edited(before, 'cart.empty', 'New');
+
+      expect(after).toBe('{\n  "cart.empty": "New",\n  "cart": {\n    "empty": "New"\n  }\n}\n');
+    });
+  });
+
   it('refuses a text that is not a JSON object', () => {
     expect(() => LocaleFile.parse('{ "a": ')).toThrow(SyntaxError);
     expect(() => LocaleFile.parse('["a"]')).toThrow(SyntaxError);
