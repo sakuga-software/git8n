@@ -39,6 +39,39 @@ The last owner of a repository cannot leave it or lose the role.
 Only an admin changes the settings of a repository: its branch, its folders,
 its languages and its mode of publication.
 
+## What each one can do
+
+The API checks each right on each request. A member row grants its rights in
+one repository, and only in the languages of the row. « Écrit la source » is a
+right of its own: no role gives it, and it does not need a role that publishes.
+
+| Action                                                 | Translator | Reviewer | Owner | « Écrit la source » | Admin, with no member row |
+| ------------------------------------------------------ | ---------- | -------- | ----- | ------------------- | ------------------------- |
+| Read the catalogue and the proposals of the repository | Yes        | Yes      | Yes   | Yes                 | Yes, in every repository  |
+| Propose in one of its languages                        | Yes        | Yes      | Yes   | —                   | No                        |
+| Publish one of its languages, or keep a translation    | No         | Yes      | Yes   | —                   | No                        |
+| Propose and publish the source, add a key              | —          | —        | —     | Yes                 | No                        |
+| Add, change and remove the members                     | No         | No       | Yes   | —                   | Yes                       |
+| Connect a repository, change its settings              | No         | No       | No    | —                   | Yes                       |
+
+A dash means that the column does not decide it: the right comes from another
+column. An admin who connects a repository becomes its owner, and then also has
+the rights of the column « Owner » there.
+
+**An access token** acts as its account, with the same rights, through the API.
+It cannot create, list or revoke the access tokens, and cannot approve a
+device code: only the session of the browser does that. Through the
+[MCP server](../agents/mcp.md), an agent can only read and propose:
+`i18n_propose` is the only tool that writes. To keep an agent from
+publishing, give its account the role of translator.
+[Access tokens](../agents/tokens.md) gives the details.
+
+**On GitHub**, a member needs nothing: no GitHub account if they sign in with
+a link by email, and no access to the repository, because the GitHub App writes
+every commit. Only the installation of the App needs a person who can install
+an App on the GitHub account of the repository.
+[The GitHub App](../operate/github-app.md) tells how.
+
 ## Add a member
 
 An admin, or an owner of the repository, opens **Réglages → Membres**. They
