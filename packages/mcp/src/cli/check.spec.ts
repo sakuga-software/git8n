@@ -268,6 +268,9 @@ describe('git8n check', () => {
       'locales/de/common.json\n' +
         '  warning  common:bye has no de text.  missing-key\n' +
         '\n' +
+        'Read more:\n' +
+        '  missing-key  https://git8n.sakuga.dev/docs/reference/rules/missing-key.html\n' +
+        '\n' +
         '0 errors, 1 warning in 2 files (en → de, 2 keys).\n',
     );
     expect((await cli.run('check', '--source', 'en', '--max-warnings', '1')).exit).toBe(0);
@@ -281,7 +284,7 @@ describe('git8n check', () => {
 
     expect(github.exit).toBe(1);
     expect(github.stdout).toBe(
-      '::error file=locales/de/common.json,title=i18n placeholders::common:hello: lost {{name}}.\n' +
+      '::error file=locales/de/common.json,title=i18n placeholders::common:hello: lost {{name}}. https://git8n.sakuga.dev/docs/reference/rules/placeholders.html\n' +
         '1 error, 0 warnings in 2 files (en → de, 2 keys).\n',
     );
   });
@@ -299,12 +302,16 @@ describe('git8n check', () => {
       warnings: 1,
       failed: false,
       maxWarnings: null,
+      problems: [{ rule: 'missing-key', docs: 'https://git8n.sakuga.dev/docs/reference/rules/missing-key.html' }],
     });
 
     const refused = await cli.run('check', '--json');
 
     expect(refused.exit).toBe(2);
-    expect(refused.json().error.code).toBe('G8N1005');
+    expect(refused.json().error).toMatchObject({
+      code: 'G8N1005',
+      docs: 'https://git8n.sakuga.dev/docs/reference/errors/g8n1005.html',
+    });
     expect((await cli.run('check', '--reporter', 'xml')).exit).toBe(2);
   });
 });

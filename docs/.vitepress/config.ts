@@ -29,7 +29,14 @@ const titleOf = (markdown: string, page: string): string =>
  * Writes each page again as Markdown under `raw/`, and lists them in `llms.txt`.
  * An agent reads these files. They do not need the HTML or its scripts.
  */
-const writeRawPages = async (srcDir: string, outDir: string, pages: string[]) => {
+const writeRawPages = async (
+  srcDir: string,
+  outDir: string,
+  pages: string[],
+  dynamicRoutes: Array<{ path: string; route: string; content?: string }>,
+) => {
+  // A page of a dynamic route has no file of its own: its template holds the content of its loader.
+  const dynamic = new Map(dynamicRoutes.map((route) => [route.path, route]));
   const lines = [
     '# git8n',
     '',
@@ -40,7 +47,10 @@ const writeRawPages = async (srcDir: string, outDir: string, pages: string[]) =>
   ];
 
   for (const page of [...pages].sort()) {
-    const markdown = await readFile(join(srcDir, page), 'utf8');
+    const route = dynamic.get(page);
+    const markdown = route
+      ? (await readFile(join(srcDir, route.route), 'utf8')).replace('<!-- @content -->', route.content ?? '')
+      : await readFile(join(srcDir, page), 'utf8');
     const target = join(outDir, 'raw', page);
 
     await mkdir(dirname(target), { recursive: true });
@@ -101,6 +111,8 @@ export default defineConfig({
         items: [
           { text: 'CLI', link: '/reference/cli' },
           { text: 'MCP tools', link: '/reference/mcp-tools' },
+          { text: 'Rules of check', link: '/reference/rules/' },
+          { text: 'Error codes', link: '/reference/errors/' },
         ],
       },
     ],
@@ -120,5 +132,5 @@ export default defineConfig({
   // the date of that file would both be wrong.
   transformPageData: (page) =>
     page.params ? { lastUpdated: undefined, frontmatter: { ...page.frontmatter, editLink: false } } : undefined,
-  buildEnd: (site) => writeRawPages(site.srcDir, site.outDir, site.pages),
+  buildEnd: (site) => writeRawPages(site.srcDir, site.outDir, site.pages, site.dynamicRoutes),
 });
