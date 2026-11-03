@@ -26,6 +26,9 @@ The files of one language are in one directory, under a path that you choose:
 - A file of the source must exist in the source directory. A file of another
   language can be absent: all its keys are then missing.
 
+[Formats](../formats/index.md) gives the placeholders and the plurals that a
+text can hold, and the formats that git8n does not read.
+
 ## Add a repository
 
 An admin adds a repository with `POST /i18n/repositories`. Install the GitHub
