@@ -199,6 +199,51 @@ describe('checkLocales', () => {
     ]);
   });
 
+  it('asks for no form that only a number past 9999 takes, and keeps it allowed', async () => {
+    const report = await check(
+      {
+        'locales/en/common.json': { items_one: 'One item', items_other: '{{count}} items' },
+        'locales/fr/common.json': { items_one: 'Un article', items_other: '{{count}} articles' },
+        'locales/it/common.json': {
+          items_one: 'Un articolo',
+          items_many: 'Un milione di articoli',
+          items_other: '{{count}} articoli',
+        },
+      },
+      { source: 'en' },
+    );
+
+    expect(rulesOf(report)).toEqual([]);
+  });
+
+  it('takes the exact branches of an ICU plural as the forms whose integers they hold', async () => {
+    const report = await check(
+      {
+        'locales/en/common.json': {
+          items: '{count, plural, =1 {one item} other {# items}}',
+          gifts: '{count, plural, =1 {one gift} other {# gifts}}',
+        },
+        'locales/de/common.json': {
+          items: '{count, plural, =1 {ein Artikel} other {# Artikel}}',
+          gifts: '{count, plural, =1 {ein Geschenk} other {# Geschenke}}',
+        },
+        'locales/fr/common.json': {
+          items: '{count, plural, =0 {aucun article} =1 {un article} other {# articles}}',
+          gifts: '{count, plural, =1 {un cadeau} other {# cadeaux}}',
+        },
+        'locales/it/common.json': {
+          items: '{count, plural, =1 {un articolo} many {# di articoli} other {# articoli}}',
+          gifts: '{count, plural, one {un regalo} other {# regali}}',
+        },
+      },
+      { source: 'en' },
+    );
+
+    expect(report.problems.map(({ rule, language, key, message }) => `${rule} ${language} ${key} ${message}`)).toEqual([
+      'icu-plural-forms fr common:gifts common:gifts: the plural {count} has no one.',
+    ]);
+  });
+
   it('reads a key that ends with _other as a plain key, unless the source has one plural form only', async () => {
     const plain = await check(
       {

@@ -52,7 +52,10 @@ from `Intl.PluralRules`: a form that the language needs and that the
 translation does not write, or a form that the language never uses, is a
 warning of [`icu-plural-forms`](../reference/rules/icu-plural-forms.md). A
 Polish plural needs `one`, `few`, `many` and `other`. An exact branch such as
-`=0` is always allowed. [i18next JSON](./i18next.md#plurals) gives the forms of
+`=0` is always allowed. Exact branches that hold all the numbers of a form
+replace it: `=1` replaces `one` in English, but not in French, where `one` is 0
+and 1. A form that only a number past 9999 takes, such as the `many` of
+French, is allowed and not needed. [i18next JSON](./i18next.md#plurals) gives the forms of
 some languages.
 
 ## Not supported

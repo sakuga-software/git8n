@@ -184,11 +184,12 @@ const addIcuArguments = (text: string, found: Set<string>): void => {
   }
 };
 
-/** An ICU `plural` or `selectordinal` of a text, and the categories that its branches name. */
+/** An ICU `plural` or `selectordinal` of a text, the categories that its branches name, and its exact branches. */
 interface IcuPlural {
   name: string;
   type: Intl.PluralRuleType;
   categories: string[];
+  exact: number[];
 }
 
 /** The ICU plurals of a text, also inside the branches of a choice. `=0` is an exact branch, not a category. */
@@ -205,6 +206,7 @@ export const icuPluralsOf = (text: string): IcuPlural[] => {
       if (argument?.[2]) {
         const branches = argument[3]!.replace(/^\s*offset:\s*\d+/, '');
         const categories: string[] = [];
+        const exact: number[] = [];
 
         for (let open = branches.indexOf('{'); open !== -1; open = branches.indexOf('{', open)) {
           const branch = groupAt(branches, open);
@@ -214,11 +216,17 @@ export const icuPluralsOf = (text: string): IcuPlural[] => {
           const selector = /(\S+)\s*$/.exec(branches.slice(0, open))?.[1] ?? '';
 
           if (!selector.startsWith('=')) categories.push(selector);
+          else if (/^=\d+$/.test(selector)) exact.push(Number(selector.slice(1)));
           walk(branch.inner);
           open = branch.end;
         }
         if (argument[2] !== 'select') {
-          plurals.push({ name: argument[1]!, type: argument[2] === 'plural' ? 'cardinal' : 'ordinal', categories });
+          plurals.push({
+            name: argument[1]!,
+            type: argument[2] === 'plural' ? 'cardinal' : 'ordinal',
+            categories,
+            exact,
+          });
         }
       }
 
@@ -323,6 +331,56 @@ const pluralFormsOf = (language: string, fallback: string[], type: Intl.PluralRu
   } catch {
     return fallback;
   }
+};
+
+const integersOfForms = new Map<string, Map<string, number[]>>();
+
+/**
+ * The integers from 0 to 9999 that each plural form of a language takes, or `null` for a tag that `Intl`
+ * does not know. Past 9999, a form takes only a number such as 1000000: the `many` of French or Italian.
+ */
+const integersOf = (language: string, type: Intl.PluralRuleType): Map<string, number[]> | null => {
+  const id = `${language}\n${type}`;
+
+  if (!integersOfForms.has(id)) {
+    try {
+      const rules = new Intl.PluralRules(language, { type });
+      const forms = new Map<string, number[]>();
+
+      for (let n = 0; n < 10_000; n += 1) {
+        const form = rules.select(n);
+
+        forms.set(form, [...(forms.get(form) ?? []), n]);
+      }
+      integersOfForms.set(id, forms);
+    } catch {
+      return null;
+    }
+  }
+
+  return integersOfForms.get(id)!;
+};
+
+/**
+ * The plural forms that a translation must write. It is `other`, and each form of the language that an
+ * integer from 0 to 9999 takes, unless the exact branches (`=0`, `=1`) hold all its integers. The other
+ * forms of the language stay allowed: an application with no text for them shows `other`.
+ */
+const requiredFormsOf = (
+  language: string,
+  fallback: string[],
+  type: Intl.PluralRuleType = 'cardinal',
+  exact: number[] = [],
+): string[] => {
+  const integers = integersOf(language, type);
+
+  if (!integers) return fallback;
+
+  return pluralFormsOf(language, fallback, type).filter((form) => {
+    const taken = integers.get(form) ?? [];
+
+    return form === 'other' || (taken.length > 0 && !taken.every((n) => exact.includes(n)));
+  });
 };
 
 /** The count of a plural form can stay implicit: « One item » for `{{count}} items`. */
@@ -596,9 +654,10 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
           }
 
           for (const choice of icuPluralsOf(value)) {
-            const needed = pluralFormsOf(language, choice.categories, choice.type);
+            const needed = requiredFormsOf(language, choice.categories, choice.type, choice.exact);
+            const allowed = pluralFormsOf(language, choice.categories, choice.type);
             const missing = needed.filter((category) => !choice.categories.includes(category));
-            const unused = choice.categories.filter((category) => !needed.includes(category));
+            const unused = choice.categories.filter((category) => !allowed.includes(category));
             const kind = choice.type === 'ordinal' ? 'selectordinal' : 'plural';
 
             if (missing.length > 0 || unused.length > 0) {
@@ -630,9 +689,13 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
       }
 
       for (const [base, forms] of plurals) {
+        const required = requiredFormsOf(language, [...forms.keys()], typeOf(base));
+
         for (const form of pluralFormsOf(language, [...forms.keys()], typeOf(base))) {
           allowed.add(`${base}_${form}`);
-          checkKey(`${base}_${form}`, forms.get(form) ?? forms.get('other')!, form);
+          if (required.includes(form) || target.has(`${base}_${form}`)) {
+            checkKey(`${base}_${form}`, forms.get(form) ?? forms.get('other')!, form);
+          }
         }
       }
 
