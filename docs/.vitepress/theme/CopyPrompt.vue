@@ -75,7 +75,8 @@ onBeforeUnmount(() => clearTimeout(reset));
   background: var(--vp-button-brand-hover-bg);
 }
 
-.copy[data-state='failed'] {
+.copy[data-state='failed'],
+.copy[data-state='failed']:hover:not(:disabled) {
   background: var(--vp-c-danger-1);
 }
 

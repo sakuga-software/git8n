@@ -59,23 +59,25 @@ exist.
 
 ### Add it by hand
 
-Each tab adds the server for the person, in all their projects. With a
-`git8n login` on the same computer, leave out the variables.
+Each tab adds the server for the person, in all their projects. A file in a
+project, such as `.cursor/mcp.json` or `.vscode/mcp.json`, adds it to that
+project only. With a `git8n login` on the same computer, leave out the
+variables.
 
 ::: code-group
 
 ```sh [Claude Code]
 claude mcp add --scope user git8n -- npx -y @git8n/cli mcp
 
-# With an access token and no login:
-claude mcp add --scope user \
+# With an access token and no login. The name comes before --env:
+# --env takes every KEY=value that follows it.
+claude mcp add --scope user git8n \
   --env GIT8N_API_URL=https://git8n.example.com \
   --env GIT8N_API_TOKEN=g8n_… \
-  git8n -- npx -y @git8n/cli mcp
+  -- npx -y @git8n/cli mcp
 ```
 
-```jsonc [Cursor]
-// ~/.cursor/mcp.json, or .cursor/mcp.json for one project
+```json [Cursor]
 {
   "mcpServers": {
     "git8n": {
@@ -84,10 +86,10 @@ claude mcp add --scope user \
       "args": ["-y", "@git8n/cli", "mcp"],
       "env": {
         "GIT8N_API_URL": "https://git8n.example.com",
-        "GIT8N_API_TOKEN": "${env:GIT8N_API_TOKEN}",
-      },
-    },
-  },
+        "GIT8N_API_TOKEN": "${env:GIT8N_API_TOKEN}"
+      }
+    }
+  }
 }
 ```
 
@@ -103,7 +105,6 @@ code --add-mcp '{"name":"git8n","type":"stdio","command":"npx","args":["-y","@gi
 ```
 
 ```toml [Codex]
-# ~/.codex/config.toml, or: codex mcp add git8n -- npx -y @git8n/cli mcp
 [mcp_servers.git8n]
 command = "npx"
 args = ["-y", "@git8n/cli", "mcp"]
@@ -111,9 +112,7 @@ env = { GIT8N_API_URL = "https://git8n.example.com" }
 env_vars = ["GIT8N_API_TOKEN"]
 ```
 
-```jsonc [Claude Desktop]
-// macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
-// Windows: %APPDATA%\Claude\claude_desktop_config.json
+```json [Claude Desktop]
 {
   "mcpServers": {
     "git8n": {
@@ -121,10 +120,10 @@ env_vars = ["GIT8N_API_TOKEN"]
       "args": ["-y", "@git8n/cli", "mcp"],
       "env": {
         "GIT8N_API_URL": "https://git8n.example.com",
-        "GIT8N_API_TOKEN": "g8n_…",
-      },
-    },
-  },
+        "GIT8N_API_TOKEN": "g8n_…"
+      }
+    }
+  }
 }
 ```
 
@@ -137,6 +136,16 @@ env        GIT8N_API_URL    the address of the editor
 ```
 
 :::
+
+The files:
+
+- **Cursor**: `~/.cursor/mcp.json`, or `.cursor/mcp.json` for one project.
+- **VS Code**: `code --add-mcp` writes the configuration of the user profile.
+  `.vscode/mcp.json` is for one workspace.
+- **Codex**: `~/.codex/config.toml`, or `codex mcp add git8n -- npx -y @git8n/cli mcp`.
+- **Claude Desktop**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+  on macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows. Quit and
+  start the app again after a change.
 
 Do not commit a token in a project file. In Cursor, `${env:GIT8N_API_TOKEN}`
 reads it from your shell. In Codex, `env_vars` forwards it from your shell.
