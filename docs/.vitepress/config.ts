@@ -1,8 +1,26 @@
+import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitepress';
 
 const repository = 'https://github.com/sakuga-software/git8n';
+
+/**
+ * Whether git can give each page the date of its last commit.
+ *
+ * The image of `packages/api/Dockerfile` has no git, and its context has no `.git`. A shallow
+ * clone gives every page the date of its one commit. In both cases, no date is shown, because a
+ * false date is worse than none.
+ */
+const hasFullHistory = (): boolean => {
+  const result = spawnSync('git', ['rev-parse', '--is-shallow-repository'], {
+    cwd: dirname(fileURLToPath(import.meta.url)),
+    encoding: 'utf8',
+  });
+
+  return !result.error && result.status === 0 && result.stdout.trim() === 'false';
+};
 
 const titleOf = (markdown: string, page: string): string =>
   markdown.match(/^title:\s*(.+)$/m)?.[1] ?? markdown.match(/^#\s+(.+)$/m)?.[1] ?? page;
@@ -37,9 +55,13 @@ export default defineConfig({
   title: 'git8n',
   description: 'Translate the JSON locale files of a GitHub repository, by hand or with an agent.',
   base: '/docs/',
-  lastUpdated: false,
+  lastUpdated: hasFullHistory(),
   head: [['link', { rel: 'alternate', type: 'text/plain', href: '/docs/llms.txt', title: 'llms.txt' }]],
   themeConfig: {
+    editLink: {
+      pattern: `${repository}/edit/main/docs/:path`,
+      text: 'Edit this page on GitHub',
+    },
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Agents', link: '/agents/mcp' },
@@ -93,5 +115,9 @@ export default defineConfig({
       md.renderer.rules.code_inline = (...args) => render(...args).replace('<code', '<code v-pre');
     },
   },
+  // A page of a dynamic route gets its text from code, not from its `.md` file. Its edit link and
+  // the date of that file would both be wrong.
+  transformPageData: (page) =>
+    page.params ? { lastUpdated: undefined, frontmatter: { ...page.frontmatter, editLink: false } } : undefined,
   buildEnd: (site) => writeRawPages(site.srcDir, site.outDir, site.pages),
 });
