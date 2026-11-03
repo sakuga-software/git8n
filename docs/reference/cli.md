@@ -165,7 +165,9 @@ holds `{count}` only.
 
 A plural follows i18next: `items_one` and `items_other` are the forms of
 `items`. Each language needs the forms of its own rules (`Intl.PluralRules`):
-Polish needs `_few` and `_many`, Japanese only `_other`. A form other than
+Polish needs `_few` and `_many`, Japanese only `_other`. A form that only a
+number past 9999 takes, such as the `_many` of French, is allowed and not
+needed. A form other than
 `_other` can leave out `{{count}}`: « One item ».
 
 The exit status is 1 on an error, or past `--max-warnings`, else 0. A wrong

@@ -88,15 +88,17 @@ Japanese, writes `_other` alone.
 Each target language needs the forms of its own rules, from
 `Intl.PluralRules`:
 
-| Language | Forms                         |
-| -------- | ----------------------------- |
-| `en`     | `one`, `other`                |
-| `fr`     | `one`, `many`, `other`        |
-| `pl`     | `one`, `few`, `many`, `other` |
-| `ja`     | `other`                       |
+| Language | Forms                           |
+| -------- | ------------------------------- |
+| `en`     | `one`, `other`                  |
+| `fr`     | `one`, `other` (`many` allowed) |
+| `pl`     | `one`, `few`, `many`, `other`   |
+| `ja`     | `other`                         |
 
 A form that a language needs and does not have is a warning of
-`git8n check` (`missing-key`). A form other than `_other` can leave out
+`git8n check` (`missing-key`). A form that only a number past 9999 takes is
+allowed and not needed: the `many` of French or Italian is for « 1 million
+d'articles », and with no `_many` i18next shows `_other`. A form other than `_other` can leave out
 `{{count}}`: « One item » is a correct `_one`.
 
 An ordinal, `t('place', { count, ordinal: true })`, writes the forms with

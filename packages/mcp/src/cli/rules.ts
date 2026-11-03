@@ -89,7 +89,7 @@ export const RULES = {
     severity: 'warning',
     title: 'An ICU plural does not have the forms of its language.',
     why: 'An ICU plural picks a branch by the plural rules of the language. A form that the translation does not write shows the text of `other`, so a Polish « 5 elementów » becomes « 5 elementy ». A form that the language never uses is text that nobody reads.',
-    fix: 'Write a branch for each form of the language, and delete the others. Polish needs `one`, `few`, `many` and `other`; Japanese needs `other` only. An exact branch such as `=0` is always allowed.',
+    fix: 'Write a branch for each form of the language, and delete the others. Polish needs `one`, `few`, `many` and `other`; Japanese needs `other` only. An exact branch such as `=0` is always allowed, and exact branches that hold all the numbers of a form replace it: `=1` replaces `one` in English, but not in French, where `one` is 0 and 1. A form that only a number past 9999 takes, such as the `many` of French, is allowed and not needed.',
     invalid: {
       'en/common.json': json({ items: '{count, plural, one {# item} other {# items}}' }),
       'pl/common.json': json({ items: '{count, plural, one {# element} other {# elementu}}' }),
@@ -99,6 +99,7 @@ export const RULES = {
       'pl/common.json': json({
         items: '{count, plural, one {# element} few {# elementy} many {# elementów} other {# elementu}}',
       }),
+      'fr/common.json': json({ items: '{count, plural, =0 {aucun article} =1 {# article} other {# articles}}' }),
     },
   },
   'missing-key': {
