@@ -253,6 +253,9 @@ importers:
 
   docs:
     devDependencies:
+      '@git8n/mcp':
+        specifier: workspace:*
+        version: link:../packages/mcp
       '@git8n/web':
         specifier: workspace:*
         version: link:../packages/web

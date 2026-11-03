@@ -155,19 +155,9 @@ It applies the rules of the editor ([A repository and its files](../guide/reposi
 the dotted keys of i18next, the files that the manifest disables, and the keys
 it marks empty on purpose.
 
-| Rule               | Level   | What it finds                                                                                     |
-| ------------------ | ------- | ------------------------------------------------------------------------------------------------- |
-| `invalid-json`     | error   | A file that does not parse, or whose top is not an object.                                        |
-| `invalid-manifest` | error   | A manifest that does not parse, or a file state that is not `available`, `partial` or `disabled`. |
-| `not-a-string`     | error   | A value that is a number, an array or `null`.                                                     |
-| `placeholders`     | error   | A translation that loses or adds a placeholder of its source.                                     |
-| `missing-key`      | warning | A key of the source that the language does not hold.                                              |
-| `empty-value`      | warning | A translation `""` that the manifest does not mark empty on purpose.                              |
-| `stale-empty`      | warning | A key marked empty on purpose, whose source text changed since the mark.                          |
-| `empty-source`     | warning | A text `""` in the source.                                                                        |
-| `extra-key`        | warning | A key of a language that the source does not hold.                                                |
-| `extra-file`       | warning | A file of a language that the source does not hold.                                               |
-| `skipped-file`     | warning | A file such as `common.v2.json`, which the editor leaves out.                                     |
+[The rules of `check`](./rules/) gives each rule, with its level, an invalid and a valid
+example, and the output of the check on them. Each problem names its rule, and
+the report ends with the address of the page of each rule it found.
 
 A placeholder is `{{name}}`, `{name}`, `$t(…)`, a tag such as `<0>` or `<br/>`,
 or `%s`. The branches of an ICU plural are text: `{count, plural, one {# item}}`
@@ -181,7 +171,7 @@ Polish needs `_few` and `_many`, Japanese only `_other`. A form other than
 The exit status is 1 on an error, or past `--max-warnings`, else 0. A wrong
 setup is `G8N1005`, with the status 2.
 
-`data`: `{ locales, source, languages, files, keys, errors, warnings, maxWarnings, failed, problems: [{ rule, severity, path, language, key, message }] }`
+`data`: `{ locales, source, languages, files, keys, errors, warnings, maxWarnings, failed, problems: [{ rule, severity, path, language, key, message, docs }] }`. `docs` is the address of the page of the rule.
 
 ## JSON
 
@@ -198,7 +188,8 @@ or, when the command fails:
   "error": {
     "code": "G8N3002",
     "message": "Name the repository with --repo <owner/name>.",
-    "details": ["The repositories of this account:", "  acme/app"]
+    "details": ["The repositories of this account:", "  acme/app"],
+    "docs": "https://git8n.sakuga.dev/docs/reference/errors/g8n3002.html"
   }
 }
 ```
@@ -216,19 +207,6 @@ Without `--json`, the answer goes to stdout and an error goes to stderr.
 
 ## Error codes
 
-| Code      | Status | Meaning                                                                       |
-| --------- | ------ | ----------------------------------------------------------------------------- |
-| `G8N1001` | 2      | The command or an option is wrong.                                            |
-| `G8N1002` | 2      | No address of the API: pass `--api` or set `GIT8N_API_URL`.                   |
-| `G8N1003` | 2      | The input of `apply` is not valid.                                            |
-| `G8N1004` | 2      | The file of the credentials is not valid. Delete it and sign in again.        |
-| `G8N1005` | 2      | `check` cannot find the locales, the manifest or the source language.         |
-| `G8N2001` | 3      | No account is signed in, or the API refused the token.                        |
-| `G8N2002` | 1      | The device code expired before somebody approved it.                          |
-| `G8N2003` | 1      | The person refused the device code.                                           |
-| `G8N3001` | 2      | No repository matches.                                                        |
-| `G8N3002` | 2      | The repository is not clear: pass `--repo`.                                   |
-| `G8N3003` | 2      | The language is not clear, or the account cannot open it: pass `--lang`.      |
-| `G8N3004` | 1      | A key is not a key of the source, or its file has no version in the language. |
-| `G8N4001` | 1      | The API refused the request.                                                  |
-| `G8N4002` | 1      | The API failed, or did not answer.                                            |
+[The error codes](./errors/) gives each code, with its exit status and what to
+do. The CLI prints the address of the page of the code after the error, and
+`--json` gives it as `error.docs`.

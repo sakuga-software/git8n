@@ -88,4 +88,4 @@ that order. It also needs a source language: `--source <language>`, or
 
 Run it from the root of the clone, or pass `--locales <folder>` and
 `--source <language>`. [The CLI reference](../reference/cli.md#check) gives
-every option, and [the error codes](../reference/cli.md#error-codes) every code.
+every option, and [the error codes](../reference/errors/) every code.

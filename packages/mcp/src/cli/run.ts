@@ -23,7 +23,9 @@ import {
   REPORTERS,
   type Entry,
   type Reporter,
+  withDocs,
 } from './check.ts';
+import { errorUrl } from './docs.ts';
 import { credentialsPath, readCredentials, writeCredentials, type Credentials } from './credentials.ts';
 import { asCliError, CliError, EXIT } from './errors.ts';
 import {
@@ -250,12 +252,13 @@ export async function run(argv: string[], io: Io): Promise<number> {
 
     if (json) {
       io.stdout(
-        `${JSON.stringify({ error: { code: failure.code, message: failure.message, details: failure.details } }, null, 2)}\n`,
+        `${JSON.stringify({ error: { code: failure.code, message: failure.message, details: failure.details, docs: errorUrl(failure.code) } }, null, 2)}\n`,
       );
     } else {
       io.stderr(`error ${failure.code}: ${failure.message}\n`);
 
       for (const line of failure.details) io.stderr(`  ${line}\n`);
+      io.stderr(`  See ${errorUrl(failure.code)}\n`);
     }
 
     return failure.exit;
@@ -855,7 +858,7 @@ class Session {
       pretty: () => prettyReport(report),
       github: () => githubReport(report),
       json: () =>
-        `${JSON.stringify({ data: { ...report, maxWarnings, failed: failed(report, maxWarnings) } }, null, 2)}\n`,
+        `${JSON.stringify({ data: { ...withDocs(report), maxWarnings, failed: failed(report, maxWarnings) } }, null, 2)}\n`,
     }[reporter];
 
     this.io.stdout(output());

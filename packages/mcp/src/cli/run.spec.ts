@@ -193,6 +193,7 @@ describe('the repository and the language', () => {
     expect(ran.stderr).toContain('G8N3002');
     expect(ran.stderr).toContain('acme/app');
     expect(ran.stderr).toContain('acme/site');
+    expect(ran.stderr).toContain('See https://git8n.sakuga.dev/docs/reference/errors/g8n3002.html');
   });
 
   it('takes the only language the account can open, and refuses one the repository does not translate', async () => {

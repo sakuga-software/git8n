@@ -12,7 +12,11 @@
     "./api": "./src/api.ts",
     "./cli": "./src/cli/run.ts",
     "./cli/testing": "./src/cli/testing.ts",
-    "./cli/node": "./src/cli/node.ts"
+    "./cli/node": "./src/cli/node.ts",
+    "./cli/check": "./src/cli/check.ts",
+    "./cli/docs": "./src/cli/docs.ts",
+    "./cli/errors": "./src/cli/errors.ts",
+    "./cli/rules": "./src/cli/rules.ts"
   },
   "scripts": {
     "start": "node --experimental-strip-types src/main.ts",

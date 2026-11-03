@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { ruleUrl } from './docs.ts';
+import { type Example, RULES, type Rule, type Severity } from './rules.ts';
 
 /**
  * `git8n check`: the locale files of a folder, read with no server (DB-672).
@@ -9,23 +11,7 @@ import { join } from 'node:path';
  * it reaches the base branch.
  */
 
-export type Severity = 'error' | 'warning';
-
-export const RULES = {
-  'invalid-json': { severity: 'error', title: 'The file is not a JSON object.' },
-  'invalid-manifest': { severity: 'error', title: 'The manifest is not valid.' },
-  'not-a-string': { severity: 'error', title: 'A value is not a string or an object.' },
-  placeholders: { severity: 'error', title: 'The translation does not keep the placeholders of the source.' },
-  'missing-key': { severity: 'warning', title: 'A key of the source has no translation.' },
-  'empty-value': { severity: 'warning', title: 'A translation is empty, and the manifest does not mark it.' },
-  'stale-empty': { severity: 'warning', title: 'A key is empty on purpose, but its source changed since.' },
-  'empty-source': { severity: 'warning', title: 'A text of the source is empty.' },
-  'extra-key': { severity: 'warning', title: 'A key is not in the source.' },
-  'extra-file': { severity: 'warning', title: 'A file has no version in the source.' },
-  'skipped-file': { severity: 'warning', title: 'The editor leaves out a file with this name.' },
-} as const satisfies Record<string, { severity: Severity; title: string }>;
-
-export type Rule = keyof typeof RULES;
+export { RULES, type Rule, type Severity } from './rules.ts';
 
 export interface Problem {
   rule: Rule;
@@ -580,10 +566,24 @@ export const prettyReport = (report: CheckReport): string => {
     lines.push('');
   }
 
+  const rules = [...new Set(report.problems.map((problem) => problem.rule))].sort();
+
+  if (rules.length > 0) {
+    lines.push('Read more:');
+    for (const rule of rules) lines.push(`  ${rule}  ${ruleUrl(rule)}`);
+    lines.push('');
+  }
+
   lines.push(summaryOf(report));
 
   return `${lines.join('\n')}\n`;
 };
+
+/** The report of `--json`: each problem also names the page of its rule. */
+export const withDocs = (report: CheckReport) => ({
+  ...report,
+  problems: report.problems.map((problem) => ({ ...problem, docs: ruleUrl(problem.rule) })),
+});
 
 /** A value of a workflow command, with the characters that GitHub reads escaped. */
 const escapeData = (text: string) => text.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
@@ -598,7 +598,7 @@ export const githubReport = (report: CheckReport): string => {
   const lines = report.problems.map(
     (problem) =>
       `::${problem.severity} file=${escapeProperty(problem.path)},title=${escapeProperty(`i18n ${problem.rule}`)}::` +
-      escapeData(problem.message),
+      escapeData(`${problem.message} ${ruleUrl(problem.rule)}`),
   );
 
   lines.push(summaryOf(report));
@@ -609,3 +609,28 @@ export const githubReport = (report: CheckReport): string => {
 /** Whether the check fails: an error, or more warnings than `maxWarnings` (null: no limit). */
 export const failed = (report: CheckReport, maxWarnings: number | null): boolean =>
   report.errors > 0 || (maxWarnings !== null && report.warnings > maxWarnings);
+
+/** Runs the check on the files of an example: a folder `locales` whose source is `en`. */
+export const checkExample = (example: Example): Promise<CheckReport> => {
+  const files = new Map(Object.entries(example).map(([path, text]) => [join('locales', path), text]));
+
+  return checkLocales(
+    { locales: 'locales', manifest: null, source: 'en', languages: null },
+    {
+      readFile: async (path) => files.get(path) ?? null,
+      readDir: async (path) => {
+        const entries = new Map<string, boolean>();
+
+        for (const file of files.keys()) {
+          if (!file.startsWith(`${path}/`)) continue;
+
+          const [name = '', ...rest] = file.slice(path.length + 1).split('/');
+
+          entries.set(name, rest.length > 0 || entries.get(name) === true);
+        }
+
+        return entries.size === 0 ? null : [...entries].map(([name, directory]) => ({ name, directory }));
+      },
+    },
+  );
+};
