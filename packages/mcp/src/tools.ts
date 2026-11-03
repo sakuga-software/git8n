@@ -61,7 +61,7 @@ export const listSchema = {
 
 export const readSchema = {
   ...languageSchema,
-  file: fileName,
+  file: fileName.describe('The file of the key, for example `common`.'),
   key: z.string().min(1).describe('The dotted path of the key, as i18next reads it.'),
 };
 
@@ -76,9 +76,9 @@ export const proposeSchema = {
   values: z
     .array(
       z.object({
-        file: fileName,
-        key: z.string().min(1),
-        value: z.string(),
+        file: fileName.describe('The file of the key, for example `common`.'),
+        key: z.string().min(1).describe('The dotted path of the key.'),
+        value: z.string().describe('The text in the language of the batch.'),
         empty: z
           .boolean()
           .optional()

@@ -380,6 +380,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
+      oxfmt:
+        specifier: 0.45.0
+        version: 0.45.0
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

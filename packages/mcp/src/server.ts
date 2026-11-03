@@ -49,6 +49,7 @@ export const buildServer = (config: ApiConfig): McpServer => {
       title: 'The repositories to translate',
       description: 'Which repositories the editor translates, their source language and their targets.',
       inputSchema: {},
+      annotations: { readOnlyHint: true },
     },
     () => answering(() => listRepositories(config)),
   );
@@ -60,6 +61,7 @@ export const buildServer = (config: ApiConfig): McpServer => {
       description:
         'The repositories where this account is a member, and in each one its role, the languages it may propose in, and whether it writes the source. A translator writes proposals and does not publish. A reviewer or an owner also publishes.',
       inputSchema: {},
+      annotations: { readOnlyHint: true },
     },
     () => answering(() => whoAmI(config)),
   );
@@ -71,6 +73,7 @@ export const buildServer = (config: ApiConfig): McpServer => {
       description:
         'Every key of the source beside what one language says about it, filtered by state and by file. The answer carries the `commit` the values were read at; a proposal takes it back.',
       inputSchema: listSchema,
+      annotations: { readOnlyHint: true },
     },
     (input) => answering(() => listKeys(config, input, held)),
   );
@@ -82,6 +85,7 @@ export const buildServer = (config: ApiConfig): McpServer => {
       description:
         'One key: what the source says, what the target says, and its state. The file and the dotted path are the context — `analysis.requests_export_hint` says what the string is for, and a translation without it is a wrong translation.',
       inputSchema: readSchema,
+      annotations: { readOnlyHint: true },
     },
     (input) => answering(() => readKey(config, input, held)),
   );
@@ -93,6 +97,7 @@ export const buildServer = (config: ApiConfig): McpServer => {
       description:
         'Writes a whole batch as one commit on the branch of its language. Three hundred keys are one commit, not three hundred. Nothing is published: a reviewer does that.',
       inputSchema: proposeSchema,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
     (input) => answering(() => proposeBatch(config, input)),
   );
@@ -103,6 +108,7 @@ export const buildServer = (config: ApiConfig): McpServer => {
       title: 'What is waiting on a language',
       description: 'The batches the branch of a language holds and the base does not, with who wrote each one.',
       inputSchema: languageSchema,
+      annotations: { readOnlyHint: true },
     },
     (input) => answering(() => listProposals(config, input)),
   );

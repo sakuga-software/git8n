@@ -92,6 +92,8 @@ export default defineConfig({
         text: 'Agents',
         items: [
           { text: 'MCP server', link: '/agents/mcp' },
+          { text: 'Translate with Claude Code', link: '/agents/translate-with-claude-code' },
+          { text: 'Review a batch', link: '/agents/review-a-batch' },
           { text: 'Access tokens', link: '/agents/tokens' },
           { text: 'CLI', link: '/agents/cli' },
         ],
