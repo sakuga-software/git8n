@@ -11,7 +11,7 @@ import { ANSWERS, REFERENCE_PATH, formatted, listedTools, renderReference } from
 
 describe('the reference of the MCP tools', () => {
   it('is the page on disk', async () => {
-    const page = formatted(renderReference(await listedTools()));
+    const page = await formatted(renderReference(await listedTools()));
 
     expect(await readFile(REFERENCE_PATH, 'utf8'), 'Run `pnpm -F @git8n/mcp docs:tools`.').toBe(page);
   }, 30_000);

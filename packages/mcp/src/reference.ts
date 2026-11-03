@@ -1,9 +1,9 @@
-import { execFileSync } from 'node:child_process';
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import { format, type FormatConfig } from 'oxfmt';
 import { buildServer } from './server.ts';
 
 /**
@@ -215,17 +215,23 @@ export const renderReference = (tools: readonly Tool[]): string => {
 };
 
 /**
- * The page as `pnpm format` writes it.
+ * The page as `pnpm format` writes it, with the settings of `.oxfmtrc.json`.
  *
  * CI runs `oxfmt --check` on every Markdown file. A page that oxfmt changes fails it, and a page
  * changed by oxfmt is no longer the page of `renderReference`.
  */
-export const formatted = (markdown: string): string =>
-  execFileSync(`${ROOT}node_modules/.bin/oxfmt`, ['--stdin-filepath', 'docs/reference/mcp-tools.md'], {
-    cwd: ROOT,
-    input: markdown,
-    encoding: 'utf8',
-  });
+export const formatted = async (markdown: string): Promise<string> => {
+  const { ignorePatterns: _, ...config } = JSON.parse(
+    await readFile(`${ROOT}.oxfmtrc.json`, 'utf8'),
+  ) as FormatConfig & {
+    ignorePatterns?: string[];
+  };
+  const { code, errors } = await format('mcp-tools.md', markdown, config);
+
+  if (errors.length > 0) throw new Error(`oxfmt cannot format the page: ${JSON.stringify(errors)}`);
+
+  return code;
+};
 
 /** The tools of a server, as a client lists them. No call reaches the API. */
 export const listedTools = async (): Promise<Tool[]> => {
@@ -242,4 +248,4 @@ export const listedTools = async (): Promise<Tool[]> => {
   return tools;
 };
 
-if (import.meta.main) await writeFile(REFERENCE_PATH, formatted(renderReference(await listedTools())));
+if (import.meta.main) await writeFile(REFERENCE_PATH, await formatted(renderReference(await listedTools())));

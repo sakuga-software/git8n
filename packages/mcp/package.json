@@ -27,6 +27,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "oxfmt": "0.45.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
