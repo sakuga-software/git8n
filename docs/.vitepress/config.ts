@@ -81,6 +81,15 @@ export default defineConfig({
         ],
       },
       {
+        text: 'Formats',
+        items: [
+          { text: 'Overview', link: '/formats/' },
+          { text: 'i18next JSON', link: '/formats/i18next' },
+          { text: 'ICU MessageFormat', link: '/formats/icu' },
+          { text: 'Libraries', link: '/formats/libraries' },
+        ],
+      },
+      {
         text: 'Operate',
         items: [
           { text: 'Run it locally', link: '/operate/self-host' },
