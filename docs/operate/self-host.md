@@ -1,3 +1,7 @@
+---
+description: 'Run the editor on your own computer: the packages, the commands and the checks.'
+---
+
 # Run it locally
 
 This page is for a person who runs the editor on their own computer: to try

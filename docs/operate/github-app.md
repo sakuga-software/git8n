@@ -1,3 +1,7 @@
+---
+description: Create the GitHub App of the editor, its permissions and webhook, and connect a repository.
+---
+
 # The GitHub App
 
 The editor uses one GitHub App for two things:

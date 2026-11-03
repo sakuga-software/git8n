@@ -1,3 +1,7 @@
+---
+description: 'The i18next JSON files that git8n reads and writes: layout, keys, plurals, placeholders, and limits.'
+---
+
 # i18next JSON
 
 The JSON files of [i18next](https://www.i18next.com), as react-i18next and

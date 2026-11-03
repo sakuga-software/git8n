@@ -1,3 +1,7 @@
+---
+description: The file formats and placeholder syntaxes that git8n reads, and the ones it does not.
+---
+
 # Formats
 
 git8n reads and writes **JSON locale files**, one folder for each language.

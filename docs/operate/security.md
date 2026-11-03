@@ -1,3 +1,7 @@
+---
+description: The threats around tokens, agents and the GitHub App, each with its risk and its mitigation.
+---
+
 # Security
 
 This page lists what can go wrong around the tokens, the agents and the

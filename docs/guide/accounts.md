@@ -1,3 +1,7 @@
+---
+description: Admins, the roles of a member in a repository, what each role and an agent can do.
+---
+
 # Accounts and rights
 
 A person signs in with GitHub, or with a link by email. The first sign-in

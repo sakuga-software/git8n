@@ -1,3 +1,7 @@
+---
+description: Read a batch of translations that an agent proposed, and publish what is right.
+---
+
 # Review and publish a batch
 
 An agent proposes, and a person publishes. This page is the half of a

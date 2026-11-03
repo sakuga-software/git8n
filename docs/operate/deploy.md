@@ -1,3 +1,7 @@
+---
+description: 'Deploy the editor: the two images, the order of a deployment, and every variable.'
+---
+
 # Deploy the editor
 
 A deployment has two images. Build both from the root of the repository: pnpm

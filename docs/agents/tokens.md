@@ -1,3 +1,7 @@
+---
+description: Create, scope and revoke the access tokens that an agent, a script or the CLI uses.
+---
+
 # Access tokens
 
 An agent, a script or the CLI acts as an account. It sends a token of that

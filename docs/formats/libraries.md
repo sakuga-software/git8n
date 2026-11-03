@@ -1,3 +1,7 @@
+---
+description: How react-i18next, vue-i18n, next-intl and other libraries fit the files that git8n edits.
+---
+
 # Libraries
 
 git8n reads [i18next JSON](./i18next.md) files, in one folder for each
