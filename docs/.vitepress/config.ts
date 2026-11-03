@@ -78,6 +78,8 @@ export default defineConfig({
           { text: 'Accounts and rights', link: '/guide/accounts' },
           { text: 'A repository and its files', link: '/guide/repositories' },
           { text: 'Troubleshooting', link: '/guide/troubleshooting' },
+          { text: 'Compare git8n', link: '/guide/compare' },
+          { text: 'Migrate from Crowdin', link: '/guide/migrate-from-crowdin' },
         ],
       },
       {
