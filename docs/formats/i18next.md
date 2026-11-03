@@ -99,6 +99,12 @@ A form that a language needs and does not have is a warning of
 `git8n check` (`missing-key`). A form other than `_other` can leave out
 `{{count}}`: « One item » is a correct `_one`.
 
+An ordinal, `t('place', { count, ordinal: true })`, writes the forms with
+`_ordinal_`: `place_ordinal_one`, `place_ordinal_two`, `place_ordinal_few`,
+`place_ordinal_other`. Each target language needs the forms of its ordinal
+rules, which are not those of its cardinal rules: English needs `one`, `two`,
+`few` and `other`, French `one` and `other`, Polish `other` only.
+
 The editor does not know plurals. It shows `items_one` and `items_other` as two
 keys, and it does not list a form that the source does not have, such as the
 `_few` of Polish. Only `git8n check` asks for it.
@@ -115,8 +121,5 @@ key for git8n. Each one is translated on its own.
   them as ordinary keys: `git8n check` does not ask for the forms of each
   language.
 - Values that are not strings: arrays, numbers, objects as values.
-- Ordinal plurals (`_ordinal_one`, `_ordinal_two`…): `git8n check` reads them
-  with the rules of cardinal plurals, so it can ask for a form that the
-  language does not use for ordinals.
 - The formats of [Formats](./index.md#not-supported): YAML, gettext, XLIFF,
   ARB.

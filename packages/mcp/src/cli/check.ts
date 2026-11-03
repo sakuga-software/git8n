@@ -101,6 +101,43 @@ const groupAt = (text: string, open: number): { inner: string; end: number } | n
 const ICU_CHOICE = /\{\s*[A-Za-z_][\w.]*\s*,\s*(?:plural|select|selectordinal)\s*,/;
 
 /**
+ * The text with the literal parts of ICU quoting replaced by a space:
+ *
+ * - `''` is one apostrophe;
+ * - `'{name}'` is literal text, also in a text with no choice;
+ * - in a text with a choice, a `'` before `{`, `}` or `#` starts literal text up to the next `'`, as ICU reads it.
+ *
+ * `'{{name}}'` stays an interpolation of i18next: « Delete '{{name}}'? » quotes a value, not a syntax.
+ */
+const unquoted = (text: string): string => {
+  const choice = ICU_CHOICE.test(text);
+  let out = '';
+
+  for (let at = 0; at < text.length; at += 1) {
+    const next = text[at + 1];
+
+    if (text[at] !== "'") {
+      out += text[at];
+    } else if (next === "'") {
+      out += "'";
+      at += 1;
+    } else if (next === '{' && text[at + 2] !== '{' && text[groupAt(text, at + 1)?.end ?? -1] === "'") {
+      out += ' ';
+      at = groupAt(text, at + 1)!.end;
+    } else if (choice && (next === '{' || next === '}' || next === '#')) {
+      const close = text.indexOf("'", at + 1);
+
+      out += ' ';
+      at = close === -1 ? text.length : close;
+    } else {
+      out += text[at];
+    }
+  }
+
+  return out;
+};
+
+/**
  * The inside of a group `{{name}}` of i18next, in a text that also holds an ICU choice.
  *
  * A branch `one {{who}}` is read first as the branch, so its inside `{who}` stays an ICU argument.
@@ -147,6 +184,53 @@ const addIcuArguments = (text: string, found: Set<string>): void => {
   }
 };
 
+/** An ICU `plural` or `selectordinal` of a text, and the categories that its branches name. */
+interface IcuPlural {
+  name: string;
+  type: Intl.PluralRuleType;
+  categories: string[];
+}
+
+/** The ICU plurals of a text, also inside the branches of a choice. `=0` is an exact branch, not a category. */
+export const icuPluralsOf = (text: string): IcuPlural[] => {
+  const plurals: IcuPlural[] = [];
+  const walk = (part: string) => {
+    for (let at = part.indexOf('{'); at !== -1; at = part.indexOf('{', at)) {
+      const group = groupAt(part, at);
+
+      if (!group) return;
+
+      const argument = ICU_ARGUMENT.exec(group.inner);
+
+      if (argument?.[2]) {
+        const branches = argument[3]!.replace(/^\s*offset:\s*\d+/, '');
+        const categories: string[] = [];
+
+        for (let open = branches.indexOf('{'); open !== -1; open = branches.indexOf('{', open)) {
+          const branch = groupAt(branches, open);
+
+          if (!branch) break;
+
+          const selector = /(\S+)\s*$/.exec(branches.slice(0, open))?.[1] ?? '';
+
+          if (!selector.startsWith('=')) categories.push(selector);
+          walk(branch.inner);
+          open = branch.end;
+        }
+        if (argument[2] !== 'select') {
+          plurals.push({ name: argument[1]!, type: argument[2] === 'plural' ? 'cardinal' : 'ordinal', categories });
+        }
+      }
+
+      at = group.end;
+    }
+  };
+
+  if (ICU_CHOICE.test(text)) walk(unquoted(text));
+
+  return plurals;
+};
+
 /**
  * The placeholders of a text, sorted, with no duplicate:
  *
@@ -157,7 +241,7 @@ const addIcuArguments = (text: string, found: Set<string>): void => {
  */
 export const placeholdersOf = (text: string): string[] => {
   const found = new Set<string>();
-  let rest = text;
+  let rest = unquoted(text);
 
   // An ICU choice writes `one {{who}}` for a branch that holds `{who}`. Such a message is not i18next.
   if (!ICU_CHOICE.test(rest)) {
@@ -227,10 +311,13 @@ const pluralOf = (key: string): { base: string; form: string } | null => {
   return match ? { base: match[1]!, form: match[2]! } : null;
 };
 
+/** `place_ordinal_one` is a form of an ordinal, as i18next names the forms of `t(key, { ordinal: true })`. */
+const typeOf = (base: string): Intl.PluralRuleType => (base.endsWith('_ordinal') ? 'ordinal' : 'cardinal');
+
 /** The plural forms that a language needs. A tag that `Intl` does not know needs the forms of the source. */
-const pluralFormsOf = (language: string, fallback: string[]): string[] => {
+const pluralFormsOf = (language: string, fallback: string[], type: Intl.PluralRuleType = 'cardinal'): string[] => {
   try {
-    const forms = new Intl.PluralRules(language).resolvedOptions().pluralCategories as string[];
+    const forms = new Intl.PluralRules(language, { type }).resolvedOptions().pluralCategories as string[];
 
     return PLURAL_FORMS.filter((form) => forms.includes(form));
   } catch {
@@ -467,10 +554,10 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
       }
       // A base counts as a plural with its form `other` and one more form. A source language with one
       // form only (`ja`) writes `_other` alone, so there `_other` alone is a plural too.
-      const sourceHasOneForm = pluralFormsOf(source, ['one', 'other']).length === 1;
+      const sourceHasOneForm = (base: string) => pluralFormsOf(source, ['one', 'other'], typeOf(base)).length === 1;
 
       for (const [base, forms] of plurals) {
-        if (!forms.has('other') || (forms.size === 1 && !sourceHasOneForm)) plurals.delete(base);
+        if (!forms.has('other') || (forms.size === 1 && !sourceHasOneForm(base))) plurals.delete(base);
       }
 
       const checkKey = (key: string, text: string, form: string | null) => {
@@ -507,6 +594,31 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
               message: `${id}: ${describeDifference(expected, found)}.`,
             });
           }
+
+          for (const choice of icuPluralsOf(value)) {
+            const needed = pluralFormsOf(language, choice.categories, choice.type);
+            const missing = needed.filter((category) => !choice.categories.includes(category));
+            const unused = choice.categories.filter((category) => !needed.includes(category));
+            const kind = choice.type === 'ordinal' ? 'selectordinal' : 'plural';
+
+            if (missing.length > 0 || unused.length > 0) {
+              report({
+                rule: 'icu-plural-forms',
+                path,
+                language,
+                key: id,
+                message:
+                  `${id}: the ${kind} {${choice.name}} ` +
+                  [
+                    missing.length > 0 ? `has no ${missing.join(' ')}` : '',
+                    unused.length > 0 ? `has ${unused.join(' ')}, which ${language} never uses` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(', and ') +
+                  '.',
+              });
+            }
+          }
         }
       };
 
@@ -518,7 +630,7 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
       }
 
       for (const [base, forms] of plurals) {
-        for (const form of pluralFormsOf(language, [...forms.keys()])) {
+        for (const form of pluralFormsOf(language, [...forms.keys()], typeOf(base))) {
           allowed.add(`${base}_${form}`);
           checkKey(`${base}_${form}`, forms.get(form) ?? forms.get('other')!, form);
         }
