@@ -25,11 +25,15 @@ const hasFullHistory = (): boolean => {
 const titleOf = (markdown: string, page: string): string =>
   markdown.match(/^title:\s*(.+)$/m)?.[1] ?? markdown.match(/^#\s+(.+)$/m)?.[1] ?? page;
 
-/** The `description` of the frontmatter, on one line. A quoted value is YAML, and also JSON. */
+/** The `description` of the frontmatter, on one line, without the quotes of YAML. */
 const descriptionOf = (markdown: string): string | undefined => {
   const value = markdown.match(/^---\n[\s\S]*?^description:\s*(.+)$[\s\S]*?^---$/m)?.[1]?.trim();
 
-  return value?.startsWith('"') ? (JSON.parse(value) as string) : value;
+  if (value?.startsWith('"')) return JSON.parse(value) as string;
+  // oxfmt writes a value with `: ` in single quotes. YAML writes a quote in it as `''`.
+  if (value?.startsWith("'")) return value.slice(1, -1).replaceAll("''", "'");
+
+  return value;
 };
 
 /**
