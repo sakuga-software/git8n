@@ -100,6 +100,9 @@ tool.
 5. `i18n_proposals`: check that the batch waits on the language. A reviewer
    then publishes it in the editor.
 
+[Translate a new language with Claude Code](./translate-with-claude-code.md)
+and [Review and publish a batch](./review-a-batch.md) go through it step by step.
+
 ## Two rules
 
 **Carry the `commit` back.** `i18n_keys` and `i18n_key` answer the revision

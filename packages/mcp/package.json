@@ -18,7 +18,8 @@
     "start": "node --experimental-strip-types src/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "cli": "node --experimental-strip-types src/cli/main.ts"
+    "cli": "node --experimental-strip-types src/cli/main.ts",
+    "docs:tools": "node --experimental-strip-types src/reference.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1",
