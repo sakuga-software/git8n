@@ -1,3 +1,7 @@
+---
+description: What git8n understands of ICU MessageFormat in a text, and what it does not.
+---
+
 # ICU MessageFormat
 
 A text in the files can use the syntax of

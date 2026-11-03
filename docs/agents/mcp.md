@@ -1,3 +1,7 @@
+---
+description: 'Connect an agent to the git8n MCP server in each client: what it reads, what it proposes, and what it never does.'
+---
+
 # MCP server
 
 `packages/mcp` holds an MCP server. With it, an agent reads the translations

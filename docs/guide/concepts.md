@@ -1,3 +1,7 @@
+---
+description: The parts of git8n, and what each action writes in git, from a proposal to a publication.
+---
+
 # Concepts
 
 This page names the parts of the editor and follows a text from the source to

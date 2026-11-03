@@ -25,9 +25,55 @@ const hasFullHistory = (): boolean => {
 const titleOf = (markdown: string, page: string): string =>
   markdown.match(/^title:\s*(.+)$/m)?.[1] ?? markdown.match(/^#\s+(.+)$/m)?.[1] ?? page;
 
+/** The `description` of the frontmatter, on one line. A quoted value is YAML, and also JSON. */
+const descriptionOf = (markdown: string): string | undefined => {
+  const value = markdown.match(/^---\n[\s\S]*?^description:\s*(.+)$[\s\S]*?^---$/m)?.[1]?.trim();
+
+  return value?.startsWith('"') ? (JSON.parse(value) as string) : value;
+};
+
 /**
- * Writes each page again as Markdown under `raw/`, and lists them in `llms.txt`.
- * An agent reads these files. They do not need the HTML or its scripts.
+ * The page again, for a reader of `/docs/raw/`.
+ *
+ * A link that starts with `/` names a page of the site, and the site lives under `/docs/`. A link
+ * to a folder names its `index.md`, the only file that `/docs/raw/` holds for it. The lines of a
+ * code block stay as they are.
+ */
+const rawOf = (markdown: string): string => {
+  let fence = false;
+
+  return markdown
+    .split('\n')
+    .map((line) => {
+      if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+      if (fence) return line;
+
+      return line
+        .replace(/\]\(\/(?!docs\/)([^)]*)\)/g, '](/docs/$1)')
+        .replace(/\]\((\.{1,2}\/[^)#]*\/)(#[^)]*)?\)/g, ']($1index.md$2)');
+    })
+    .join('\n');
+};
+
+/** The limits of git8n, for an agent that reads `llms.txt` before anything else. */
+const KEY_FACTS = [
+  '## Key facts',
+  '',
+  '- The files of a GitHub repository are the storage. The database holds the repositories, the accounts and their rights, and no text.',
+  '- JSON locale files only, in one folder for each language. No YAML, `.po`, XLIFF or ARB.',
+  '- GitHub only, through a GitHub App. No GitLab or Bitbucket.',
+  '- No translation memory, no glossary, and no machine translation on the server.',
+  '- The MCP server and the CLI propose. They never publish: a person with the right reviews and publishes.',
+  '- A proposal is a commit on the branch `i18n/<language>`. A publication is a commit on the base branch, or a pull request.',
+  '- `git8n check` checks the locale files of a clone with no server and no token.',
+];
+
+/**
+ * Writes each page again as Markdown under `raw/`, all of them in `llms-full.txt`, and lists
+ * them in `llms.txt`. An agent reads these files. They do not need the HTML or its scripts.
+ *
+ * WARNING: the build fails if a page has no `description` in its frontmatter. `llms.txt` gives it
+ * beside each link.
  */
 const writeRawPages = async (
   srcDir: string,
@@ -42,25 +88,39 @@ const writeRawPages = async (
     '',
     '> An editor for the JSON locale files of a GitHub repository, with an MCP server for agents.',
     '',
-    'To connect an agent to git8n, read [the setup prompt](/docs/agent-prompt.md).',
+    'To connect an agent to git8n, read [the setup prompt](/docs/agent-prompt.md). Every page below is also in [llms-full.txt](/docs/llms-full.txt).',
+    '',
+    ...KEY_FACTS,
     '',
     '## Pages',
     '',
   ];
+  const full: string[] = [];
+  const undescribed: string[] = [];
 
   for (const page of [...pages].sort()) {
     const route = dynamic.get(page);
     const markdown = route
       ? (await readFile(join(srcDir, route.route), 'utf8')).replace('<!-- @content -->', route.content ?? '')
       : await readFile(join(srcDir, page), 'utf8');
+    const raw = rawOf(markdown);
     const target = join(outDir, 'raw', page);
+    const description = descriptionOf(markdown);
+
+    if (!description) undescribed.push(page);
 
     await mkdir(dirname(target), { recursive: true });
-    await writeFile(target, markdown);
-    lines.push(`- [${titleOf(markdown, page)}](/docs/raw/${page})`);
+    await writeFile(target, raw);
+    lines.push(`- [${titleOf(markdown, page)}](/docs/raw/${page}): ${description}`);
+    full.push(`<!-- /docs/raw/${page} -->\n\n${raw.trim()}`);
+  }
+
+  if (undescribed.length > 0) {
+    throw new Error(`These pages have no \`description\` in their frontmatter: ${undescribed.join(', ')}`);
   }
 
   await writeFile(join(outDir, 'llms.txt'), `${lines.join('\n')}\n`);
+  await writeFile(join(outDir, 'llms-full.txt'), `${full.join('\n\n')}\n`);
 };
 
 export default defineConfig({
@@ -70,7 +130,10 @@ export default defineConfig({
   // `public/agent-prompt.md` is a file that an agent reads as it is, and not a page.
   srcExclude: ['public/**'],
   lastUpdated: hasFullHistory(),
-  head: [['link', { rel: 'alternate', type: 'text/plain', href: '/docs/llms.txt', title: 'llms.txt' }]],
+  head: [
+    ['link', { rel: 'alternate', type: 'text/plain', href: '/docs/llms.txt', title: 'llms.txt' }],
+    ['link', { rel: 'alternate', type: 'text/plain', href: '/docs/llms-full.txt', title: 'llms-full.txt' }],
+  ],
   themeConfig: {
     editLink: {
       pattern: `${repository}/edit/main/docs/:path`,

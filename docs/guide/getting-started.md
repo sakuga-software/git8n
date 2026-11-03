@@ -1,3 +1,7 @@
+---
+description: 'From the first sign-in to the first commit: connect a repository, translate, publish.'
+---
+
 # Getting started
 
 git8n edits the JSON locale files of a GitHub repository. A translator

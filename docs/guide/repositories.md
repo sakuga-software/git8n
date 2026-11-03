@@ -1,3 +1,7 @@
+---
+description: The locale files of a repository, its settings, its manifest, and how a publication reaches the base branch.
+---
+
 # A repository and its locale files
 
 The editor translates the JSON locale files of a GitHub repository. These files

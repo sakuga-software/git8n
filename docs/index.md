@@ -1,4 +1,5 @@
 ---
+description: git8n translates the JSON locale files of a GitHub repository, by hand or with an agent.
 layout: home
 title: git8n
 

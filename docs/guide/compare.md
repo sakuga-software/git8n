@@ -1,3 +1,7 @@
+---
+description: git8n compared with Fink, Tolgee, Crowdin and Weblate, and what git8n does not do.
+---
+
 # Compare git8n
 
 This page compares git8n with four tools that also translate the locale files

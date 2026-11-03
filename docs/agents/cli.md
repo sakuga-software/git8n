@@ -1,3 +1,7 @@
+---
+description: Install the git8n CLI, sign in, read and propose translations from a terminal, a script or CI.
+---
+
 # CLI
 
 `git8n` is a command line client of the API. It reads and proposes

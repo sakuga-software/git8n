@@ -1,3 +1,7 @@
+---
+description: Every command, option, environment variable and exit status of the git8n CLI.
+---
+
 # CLI reference
 
 ```

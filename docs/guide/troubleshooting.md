@@ -1,3 +1,7 @@
+---
+description: Fixes for the usual problems, one symptom for each title.
+---
+
 # Troubleshooting
 
 Each title is a symptom. Find yours, then follow the link to the page that

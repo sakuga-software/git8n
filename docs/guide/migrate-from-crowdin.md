@@ -1,3 +1,7 @@
+---
+description: Move the translations of a GitHub repository from Crowdin to git8n, step by step.
+---
+
 # Migrate from Crowdin
 
 This page moves the translations of a GitHub repository from Crowdin to git8n.

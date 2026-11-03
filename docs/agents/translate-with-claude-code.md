@@ -1,3 +1,7 @@
+---
+description: Take a new language from nothing to a proposal with Claude Code and the MCP server.
+---
+
 # Translate a new language with Claude Code
 
 This page takes a language from nothing to a proposal, with Claude Code and the
