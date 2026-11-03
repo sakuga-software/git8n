@@ -64,6 +64,13 @@
       "when": 1793186902475,
       "tag": "0008_access_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793732792181,
+      "tag": "0009_token_scope",
+      "breakpoints": true
     }
   ]
 }

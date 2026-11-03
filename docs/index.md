@@ -5,7 +5,7 @@ title: git8n
 hero:
   name: git8n
   text: Translate the locale files of a GitHub repository
-  tagline: Translators propose, reviewers publish, and each publication is a commit. Agents work through an MCP server, with the same rights as a person.
+  tagline: Translators propose, reviewers publish, and each publication is a commit. Agents work through an MCP server, with no more rights than a person, and a token can give them less.
   actions:
     - theme: brand
       text: Getting started

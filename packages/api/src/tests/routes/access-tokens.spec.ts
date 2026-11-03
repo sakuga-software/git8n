@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { accessTokens, authDeviceCodes, i18nRepositories, newId } from '@git8n/db';
+import { accessTokens, authDeviceCodes, i18nRepositories, members, newId } from '@git8n/db';
 import app from '@/app';
 import { CLI_CLIENT_ID } from '@/auth';
 import { authHeaders, cookieHeaders, grant, insertAccount, insertOrganization } from '../db/fixtures';
@@ -42,6 +42,79 @@ const translator = async () => {
 
 const makeToken = async (headers: Record<string, string>, body: unknown = { name: 'CI', expiresInDays: 30 }) =>
   send('/i18n/tokens', { method: 'POST', headers, body });
+
+/** An owner who may do everything in a new repository, so that only the scope of a token can refuse. */
+const owner = async () => {
+  const { userId, repositoryId } = await translator();
+
+  await db().delete(members).where(eq(members.userId, userId));
+  await grant(userId, repositoryId, { role: 'owner', languages: ['fr', 'en'], writesSource: true });
+
+  return { userId, repositoryId };
+};
+
+/**
+ * The answer to one call of each kind. The body is empty on purpose: a call that the scope lets
+ * through gets the 400 of its validation, and a call that the scope refuses gets a 403 first.
+ */
+const callsOf = (headers: Record<string, string>, repositoryId: string) => ({
+  read: () => send('/i18n/me', { headers }),
+  propose: () => send('/i18n/proposals', { method: 'POST', headers, body: {} }),
+  publish: () => send('/i18n/publications', { method: 'POST', headers, body: {} }),
+  member: () => send(`/i18n/repositories/${repositoryId}/members`, { method: 'POST', headers, body: {} }),
+});
+
+const refusedByScope = async (res: Response): Promise<boolean> =>
+  res.status === 403 && ((await res.json()) as { reason?: string }).reason === 'token_scope';
+
+describe('the scope of an access token (G8N-114)', () => {
+  const cases = {
+    read: { read: true, propose: false, publish: false, member: false },
+    propose: { read: true, propose: true, publish: false, member: false },
+    full: { read: true, propose: true, publish: true, member: true },
+  } as const;
+
+  for (const [scope, allowed] of Object.entries(cases)) {
+    it(`lets a token « ${scope} » call only what its scope allows`, async () => {
+      const { userId, repositoryId } = await owner();
+      const { token } = await dataOf<{ token: string }>(
+        await makeToken(await cookieHeaders(userId), { name: scope, scope, expiresInDays: 30 }),
+      );
+      const calls = callsOf({ authorization: `Bearer ${token}` }, repositoryId);
+
+      for (const [kind, call] of Object.entries(calls)) {
+        expect({ kind, refused: await refusedByScope(await call()) }).toEqual({
+          kind,
+          refused: !allowed[kind as keyof typeof allowed],
+        });
+      }
+    });
+  }
+
+  it('makes a token « propose » when the request names no scope, and lists the scope', async () => {
+    const { userId } = await translator();
+    const headers = await cookieHeaders(userId);
+
+    const made = await dataOf<{ scope: string }>(await makeToken(headers));
+    const listed = await dataOf<{ scope: string }[]>(await send('/i18n/tokens', { headers }));
+
+    expect(made.scope).toBe('propose');
+    expect(listed.map(({ scope }) => scope)).toEqual(['propose']);
+  });
+
+  it('refuses a scope that does not exist', async () => {
+    const headers = await cookieHeaders((await translator()).userId);
+
+    expect((await makeToken(headers, { name: 'CI', scope: 'admin', expiresInDays: 30 })).status).toBe(400);
+  });
+
+  it('keeps every right of the account for a session of git8n login', async () => {
+    const { userId, repositoryId } = await owner();
+    const calls = callsOf(await authHeaders(userId), repositoryId);
+
+    for (const call of Object.values(calls)) expect(await refusedByScope(await call())).toBe(false);
+  });
+});
 
 describe('the access tokens', () => {
   it('shows a token once, keeps only its hash, and lists it with no secret', async () => {

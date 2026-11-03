@@ -124,6 +124,19 @@ export const authDeviceCodes = pgTable(
   ],
 );
 
+export const TOKEN_SCOPES = ['read', 'propose', 'full'] as const;
+
+export type TokenScope = (typeof TOKEN_SCOPES)[number];
+
+/**
+ * What an access token may do, inside the rights of its account (G8N-114).
+ *
+ * - `read`: the routes that only read;
+ * - `propose`: those, and a proposal;
+ * - `full`: every right of the account.
+ */
+export const tokenScope = pgEnum('token_scope', TOKEN_SCOPES);
+
 /**
  * The access tokens of an account, for an agent or a CI job (DB-669).
  *
@@ -141,6 +154,7 @@ export const accessTokens = pgTable(
     tokenHash: text('token_hash').notNull(),
     /** The first characters of the token, so that a person can tell their tokens apart. */
     start: text('start').notNull(),
+    scope: tokenScope('scope').notNull(),
     /** Null when the token does not expire. */
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),

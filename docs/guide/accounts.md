@@ -58,12 +58,13 @@ A dash means that the column does not decide it: the right comes from another
 column. An admin who connects a repository becomes its owner, and then also has
 the rights of the column « Owner » there.
 
-**An access token** acts as its account, with the same rights, through the API.
-It cannot create, list or revoke the access tokens, and cannot approve a
+**An access token** acts as its account through the API, inside its scope:
+`read`, `propose` (the default) or `full`, the rights of the account. A `propose`
+token of a reviewer cannot publish. It cannot create, list or revoke the access tokens, and cannot approve a
 device code: only the session of the browser does that. Through the
 [MCP server](../agents/mcp.md), an agent can only read and propose:
 `i18n_propose` is the only tool that writes. To keep an agent from
-publishing, give its account the role of translator.
+publishing, give it a `propose` token.
 [Access tokens](../agents/tokens.md) gives the details.
 
 **On GitHub**, a member needs nothing: no GitHub account if they sign in with

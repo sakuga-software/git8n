@@ -704,12 +704,21 @@ export const removeInvitation = (config: ApiConfig, repository: string, invitati
 export const sendInvitationLink = (config: ApiConfig, repository: string, invitationId: string) =>
   ask<null>(config, `${membersPath(repository)}/invitations/${encodeURIComponent(invitationId)}/link`, {});
 
+/**
+ * What an access token may do inside the rights of its account (G8N-114):
+ * - `read`: read only;
+ * - `propose`: read and propose;
+ * - `full`: every right of the account.
+ */
+export type TokenScope = 'read' | 'propose' | 'full';
+
 /** An access token of the signed-in account (DB-669). The list never holds the token itself. */
 export interface AccessToken {
   id: string;
   name: string;
   /** The first characters of the token, to tell the tokens apart. */
   start: string;
+  scope: TokenScope;
   /** Null when the token does not expire. */
   expiresAt: string | null;
   lastUsedAt: string | null;
@@ -720,8 +729,10 @@ export interface AccessToken {
 export const accessTokens = (config: ApiConfig) => ask<AccessToken[]>(config, '/i18n/tokens');
 
 /** The answer holds `token`. It is the only time that the token is readable. */
-export const createAccessToken = (config: ApiConfig, token: { name: string; expiresInDays: number | null }) =>
-  ask<AccessToken & { token: string }>(config, '/i18n/tokens', token);
+export const createAccessToken = (
+  config: ApiConfig,
+  token: { name: string; scope: TokenScope; expiresInDays: number | null },
+) => ask<AccessToken & { token: string }>(config, '/i18n/tokens', token);
 
 export const revokeAccessToken = (config: ApiConfig, id: string) =>
   ask<null>(config, `/i18n/tokens/${encodeURIComponent(id)}`, undefined, 'DELETE');

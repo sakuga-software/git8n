@@ -153,6 +153,18 @@ describe('the arguments', () => {
     expect(denied.exit).toBe(1);
     expect(denied.json().error).toMatchObject({ code: 'G8N4001', message: '403 — Not a member' });
   });
+
+  it('tells a refusal of the scope of the token from a right that the account does not have (G8N-114)', async () => {
+    const scoped = await signedIn({
+      'GET /i18n/me': () =>
+        jsonResponse({ message: 'The scope « read » does not allow it.', reason: 'token_scope' }, 403),
+    });
+
+    const ran = await scoped.cli.run('keys', '--json');
+
+    expect(ran.exit).toBe(1);
+    expect(ran.json().error).toMatchObject({ code: 'G8N2004', message: '403 — The scope « read » does not allow it.' });
+  });
 });
 
 describe('the repository and the language', () => {

@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
-import { accessTokens, newId, users } from '@git8n/db';
+import { accessTokens, newId, type TokenScope, users } from '@git8n/db';
 import { db } from '@/db';
 
 /** Every access token starts with this prefix. `withAuth` reads it to tell a token from a session. */
@@ -16,6 +16,7 @@ export interface AccessToken {
   id: string;
   name: string;
   start: string;
+  scope: TokenScope;
   expiresAt: string | null;
   lastUsedAt: string | null;
   createdAt: string;
@@ -27,6 +28,7 @@ const shapeOf = (row: typeof accessTokens.$inferSelect): AccessToken => ({
   id: row.id,
   name: row.name,
   start: row.start,
+  scope: row.scope,
   expiresAt: row.expiresAt?.toISOString() ?? null,
   lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
   createdAt: row.createdAt.toISOString(),
@@ -46,7 +48,7 @@ export async function listAccessTokens(userId: string): Promise<AccessToken[]> {
 /** Makes a token for an account. The answer holds the token: this is the only time it is readable. */
 export async function createAccessToken(
   userId: string,
-  { name, expiresInDays }: { name: string; expiresInDays: number | null },
+  { name, scope, expiresInDays }: { name: string; scope: TokenScope; expiresInDays: number | null },
   now = new Date(),
 ): Promise<AccessToken & { token: string }> {
   const token = `${ACCESS_TOKEN_PREFIX}${randomBytes(32).toString('base64url')}`;
@@ -59,6 +61,7 @@ export async function createAccessToken(
       name,
       tokenHash: hashOf(token),
       start: token.slice(0, SHOWN_START),
+      scope,
       expiresAt: expiresInDays === null ? null : new Date(now.getTime() + expiresInDays * 24 * 60 * 60 * 1000),
       createdAt: now,
     })
@@ -77,12 +80,13 @@ export async function revokeAccessToken(userId: string, id: string): Promise<boo
   return deleted.length > 0;
 }
 
-/** The account of a token that exists and did not expire, or null. */
+/** The account of a token that exists and did not expire, with the scope of the token, or null. */
 export async function accountOfAccessToken(token: string, now = new Date()) {
   const [found] = await db()
     .select({
       id: accessTokens.id,
       lastUsedAt: accessTokens.lastUsedAt,
+      scope: accessTokens.scope,
       user: { id: users.id, name: users.name, email: users.email, emailVerified: users.emailVerified },
     })
     .from(accessTokens)
@@ -101,5 +105,5 @@ export async function accountOfAccessToken(token: string, now = new Date()) {
     await db().update(accessTokens).set({ lastUsedAt: now }).where(eq(accessTokens.id, found.id));
   }
 
-  return found.user;
+  return { ...found.user, scope: found.scope };
 }

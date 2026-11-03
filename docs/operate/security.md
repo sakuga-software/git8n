@@ -25,12 +25,15 @@ write a repository.
 **Attack.** Somebody copies an access token `g8n_…` from a CI log, a shell
 history or an agent configuration. Or they copy the file of `git8n login`.
 
-**Risks.** The token acts as its account, with all its rights, until it
-expires or somebody revokes it:
+**Risks.** The token acts as its account, inside its scope, until it expires
+or somebody revokes it:
 
-- a translator's token proposes texts in the languages of that translator;
-- a reviewer's token also publishes to the base branch;
-- an owner's token also adds and removes members.
+- a `read` token reads the catalogue and the proposals of the account;
+- a `propose` token also proposes texts in the languages of the account;
+- a `full` token does all that the account does: for a reviewer, publish to
+  the base branch; for an owner, add and remove members.
+
+A session of `git8n login` has every right of its account, as a `full` token.
 
 A token cannot create, list or revoke a token, and cannot approve a device
 code. Only the session of the browser can. So a stolen token cannot make
@@ -38,6 +41,9 @@ another token that outlives it.
 
 **Mitigation.**
 
+- **Give a token the smallest scope**: `read` for an agent that only reads,
+  `propose` (the default) for an agent that translates. Keep `full` for a job
+  that must publish.
 - **Give each agent its own account**, with the smallest role that does the
   job. An agent that only proposes needs a translator, in its languages only.
   A token of your own account carries your role.
