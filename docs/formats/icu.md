@@ -32,18 +32,29 @@ A text can mix the two syntaxes. When it holds an ICU choice, `{{` starts a
 branch and not an interpolation of i18next: `one {{who}}` is the branch `one`
 that holds `{who}`.
 
+## Quoted text
+
+An apostrophe quotes text, as ICU reads it:
+
+- `''` writes one apostrophe: `It''s {name}` holds `{name}`.
+- `'{name}'` writes `{name}` literally. It is text, not an argument.
+- In a text with a choice, an apostrophe before `{`, `}` or `#` starts literal
+  text, up to the next apostrophe: `one {'#' sold}` writes `#`.
+
+`'{{name}}'` stays an interpolation of i18next: « Delete '{{name}}'? » quotes
+the value. An apostrophe that quotes nothing, as in `l'{name}`, is text.
+
 ## Plurals
 
-An ICU plural is one key. `git8n check` does not compare its branches with the
-plural rules of the language: a Polish translation with only `one` and `other`
-passes, and needs `few` and `many` to be right. Write a plural of i18next, one
-key for each form, for `git8n check` to ask for each form. [i18next
-JSON](./i18next.md#plurals) gives the rules.
+An ICU plural is one key. In each translation, `git8n check` compares the
+branches of each `plural` and `selectordinal` with the rules of the language,
+from `Intl.PluralRules`: a form that the language needs and that the
+translation does not write, or a form that the language never uses, is a
+warning of [`icu-plural-forms`](../reference/rules/icu-plural-forms.md). A
+Polish plural needs `one`, `few`, `many` and `other`. An exact branch such as
+`=0` is always allowed. [i18next JSON](./i18next.md#plurals) gives the forms of
+some languages.
 
 ## Not supported
 
-- **Quoted text.** `'{name}'` writes `{name}` literally in ICU, but
-  `git8n check` reads it as an argument. A translation that leaves it out is
-  an error.
-- **The branches of a plural**, against the rules of the language: see above.
 - An argument whose name starts with a digit, such as `{0}`: it is not read.

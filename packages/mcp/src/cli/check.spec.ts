@@ -72,6 +72,14 @@ describe('placeholdersOf', () => {
     expect(placeholdersOf('{count, plural, other {Hi {{name}}}}')).toEqual(['{count}', '{{name}}']);
   });
 
+  it('reads quoted ICU text as text, and keeps a quoted interpolation of i18next', () => {
+    expect(placeholdersOf("Write '{name}' to show a name")).toEqual([]);
+    expect(placeholdersOf("It''s {name}")).toEqual(['{name}']);
+    expect(placeholdersOf("{n, plural, one {'#' and '{x}'} other {# {y}}}")).toEqual(['{n}', '{y}']);
+    expect(placeholdersOf("Delete '{{name}}'?")).toEqual(['{{name}}']);
+    expect(placeholdersOf("l'{name}")).toEqual(['{name}']);
+  });
+
   it('reads a text with no placeholder as none, and a lone brace as text', () => {
     expect(placeholdersOf('3 < 4 and 50% off {')).toEqual([]);
   });
@@ -146,6 +154,49 @@ describe('checkLocales', () => {
     );
 
     expect(rulesOf(report)).toEqual(['missing-key de common:items_one']);
+  });
+
+  it('asks an ordinal for the ordinal forms of its language', async () => {
+    const report = await check(
+      {
+        'locales/en/common.json': {
+          place_ordinal_one: '{{count}}st',
+          place_ordinal_two: '{{count}}nd',
+          place_ordinal_few: '{{count}}rd',
+          place_ordinal_other: '{{count}}th',
+        },
+        'locales/fr/common.json': { place_ordinal_other: '{{count}}e' },
+        'locales/de/common.json': { place_ordinal_other: '{{count}}.' },
+      },
+      { source: 'en' },
+    );
+
+    expect(rulesOf(report)).toEqual(['missing-key fr common:place_ordinal_one']);
+  });
+
+  it('asks an ICU plural for the forms of its language, in each choice', async () => {
+    const report = await check(
+      {
+        'locales/en/common.json': {
+          items: '{count, plural, one {# item} other {# items}}',
+          place: '{n, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}',
+        },
+        'locales/pl/common.json': {
+          items: '{count, plural, =0 {nic} one {# element} other {# elementu}}',
+          place: '{n, selectordinal, other {#.}}',
+        },
+        'locales/ja/common.json': {
+          items: '{count, plural, one {# 個} other {# 個}}',
+          place: '{n, selectordinal, other {#番目}}',
+        },
+      },
+      { source: 'en' },
+    );
+
+    expect(report.problems.map(({ rule, language, key, message }) => `${rule} ${language} ${key} ${message}`)).toEqual([
+      'icu-plural-forms ja common:items common:items: the plural {count} has one, which ja never uses.',
+      'icu-plural-forms pl common:items common:items: the plural {count} has no few many.',
+    ]);
   });
 
   it('reads a key that ends with _other as a plain key, unless the source has one plural form only', async () => {
