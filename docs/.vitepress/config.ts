@@ -55,6 +55,7 @@ export default defineConfig({
           { text: 'Concepts', link: '/guide/concepts' },
           { text: 'Accounts and rights', link: '/guide/accounts' },
           { text: 'A repository and its files', link: '/guide/repositories' },
+          { text: 'Troubleshooting', link: '/guide/troubleshooting' },
         ],
       },
       {
