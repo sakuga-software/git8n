@@ -153,3 +153,10 @@ read slow, and use the rate limit of the App on GitHub.
   `404`. The editor then shows a change made on GitHub after the five minutes
   of its cache.
 - Use a long random secret. The API refuses one shorter than 16 characters.
+
+## Report a vulnerability
+
+Do not open a public issue. Report it in private on GitHub:
+<https://github.com/sakuga-software/git8n/security/advisories/new>.
+[SECURITY.md](https://github.com/sakuga-software/git8n/blob/main/SECURITY.md)
+says what to include, the supported versions, and how soon we answer.
