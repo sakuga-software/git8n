@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitepress';
 
@@ -22,19 +22,36 @@ const hasFullHistory = (): boolean => {
   return !result.error && result.status === 0 && result.stdout.trim() === 'false';
 };
 
-const titleOf = (markdown: string, page: string): string =>
-  markdown.match(/^title:\s*(.+)$/m)?.[1] ?? markdown.match(/^#\s+(.+)$/m)?.[1] ?? page;
+/** The frontmatter block at the top of a page, or nothing. A `---` further down is a rule. */
+const frontmatterOf = (markdown: string): string => {
+  if (!markdown.startsWith('---\n')) return '';
 
-/** The `description` of the frontmatter, on one line, without the quotes of YAML. */
-const descriptionOf = (markdown: string): string | undefined => {
-  const value = markdown.match(/^---\n[\s\S]*?^description:\s*(.+)$[\s\S]*?^---$/m)?.[1]?.trim();
+  const end = markdown.indexOf('\n---\n', 3);
 
-  if (value?.startsWith('"')) return JSON.parse(value) as string;
-  // oxfmt writes a value with `: ` in single quotes. YAML writes a quote in it as `''`.
-  if (value?.startsWith("'")) return value.slice(1, -1).replaceAll("''", "'");
+  return end === -1 ? '' : markdown.slice(4, end);
+};
+
+/**
+ * A scalar of the frontmatter, on one line, without the quotes of YAML.
+ *
+ * oxfmt writes a value that holds `: ` in single quotes, and YAML writes a quote in it as `''`.
+ * A block scalar (`>` or `|`) is refused: `llms.txt` gives the value on one line.
+ */
+const fieldOf = (markdown: string, page: string, field: string): string | undefined => {
+  const value = frontmatterOf(markdown)
+    .match(new RegExp(`^${field}:[ \\t]*(.*)$`, 'm'))?.[1]
+    ?.trim();
+
+  if (!value) return undefined;
+  if (/^[>|]/.test(value)) throw new Error(`The ${field} of ${page} must be on one line.`);
+  if (value.startsWith('"')) return JSON.parse(value) as string;
+  if (value.startsWith("'")) return value.slice(1, -1).replaceAll("''", "'");
 
   return value;
 };
+
+const titleOf = (markdown: string, page: string): string =>
+  fieldOf(markdown, page, 'title') ?? markdown.match(/^#\s+(.+)$/m)?.[1] ?? page;
 
 /**
  * The page again, for a reader of `/docs/raw/`.
@@ -59,6 +76,35 @@ const rawOf = (markdown: string): string => {
     .join('\n');
 };
 
+/** The local links of a page, outside its code blocks. */
+const linksOf = (markdown: string): string[] => {
+  let fence = false;
+
+  return markdown.split('\n').flatMap((line) => {
+    if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+    if (fence) return [];
+
+    return [...line.matchAll(/\]\(([^)\s]+)\)/g)]
+      .map((match) => match[1]!.split('#')[0]!)
+      .filter((link) => link !== '' && !/^[a-z]+:/.test(link));
+  });
+};
+
+/** Whether a link of the raw copy of `page` reaches a file of the build. */
+const reaches = async (outDir: string, page: string, link: string): Promise<boolean> => {
+  const path = link.startsWith('/docs/') ? link.slice('/docs/'.length) : posix.join('raw', posix.dirname(page), link);
+  const candidates = path === '' || path.endsWith('/') ? [`${path}index.html`] : [path, `${path}.html`];
+
+  for (const candidate of candidates) {
+    try {
+      await access(join(outDir, candidate));
+      return true;
+    } catch {}
+  }
+
+  return false;
+};
+
 /** The limits of git8n, for an agent that reads `llms.txt` before anything else. */
 const KEY_FACTS = [
   '## Key facts',
@@ -76,8 +122,8 @@ const KEY_FACTS = [
  * Writes each page again as Markdown under `raw/`, all of them in `llms-full.txt`, and lists
  * them in `llms.txt`. An agent reads these files. They do not need the HTML or its scripts.
  *
- * WARNING: the build fails if a page has no `description` in its frontmatter. `llms.txt` gives it
- * beside each link.
+ * WARNING: the build fails if a page has no `description` in its frontmatter, which `llms.txt`
+ * gives beside each link, or if a link of a raw copy reaches no file of the build.
  */
 const writeRawPages = async (
   srcDir: string,
@@ -101,6 +147,7 @@ const writeRawPages = async (
   ];
   const full: string[] = [];
   const undescribed: string[] = [];
+  const written: Array<{ page: string; raw: string }> = [];
 
   for (const page of [...pages].sort()) {
     const route = dynamic.get(page);
@@ -109,7 +156,7 @@ const writeRawPages = async (
       : await readFile(join(srcDir, page), 'utf8');
     const raw = rawOf(markdown);
     const target = join(outDir, 'raw', page);
-    const description = descriptionOf(markdown);
+    const description = fieldOf(markdown, page, 'description');
 
     if (!description) undescribed.push(page);
 
@@ -117,6 +164,7 @@ const writeRawPages = async (
     await writeFile(target, raw);
     lines.push(`- [${titleOf(markdown, page)}](/docs/raw/${page}): ${description}`);
     full.push(`<!-- /docs/raw/${page} -->\n\n${raw.trim()}`);
+    written.push({ page, raw });
   }
 
   if (undescribed.length > 0) {
@@ -125,6 +173,17 @@ const writeRawPages = async (
 
   await writeFile(join(outDir, 'llms.txt'), `${lines.join('\n')}\n`);
   await writeFile(join(outDir, 'llms-full.txt'), `${full.join('\n\n')}\n`);
+
+  // The HTML pages exist before `buildEnd`, and the raw copies now exist too.
+  const broken: string[] = [];
+
+  for (const { page, raw } of written) {
+    for (const link of linksOf(raw)) {
+      if (!(await reaches(outDir, page, link))) broken.push(`${page} → ${link}`);
+    }
+  }
+
+  if (broken.length > 0) throw new Error(`These links of /docs/raw/ reach no file:\n${broken.join('\n')}`);
 };
 
 export default defineConfig({
