@@ -2,6 +2,7 @@
 import DefaultTheme from 'vitepress/theme';
 import DemoShowcase from './DemoShowcase.vue';
 import HeroFlow from './HeroFlow.vue';
+import PageActions from './PageActions.vue';
 
 const { Layout } = DefaultTheme;
 </script>
@@ -13,6 +14,9 @@ const { Layout } = DefaultTheme;
     </template>
     <template #home-hero-after>
       <DemoShowcase />
+    </template>
+    <template #doc-before>
+      <PageActions />
     </template>
   </Layout>
 </template>
