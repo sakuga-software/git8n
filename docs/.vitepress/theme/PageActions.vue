@@ -61,8 +61,10 @@ const close = (returnFocus = false) => {
   if (returnFocus) toggle.value?.focus();
 };
 
+// The path of the event is fixed when the event starts. A target that leaves the DOM after
+// the click, or the click that opens the list, still counts as inside.
 const onDocumentClick = (event: MouseEvent) => {
-  if (root.value && !root.value.contains(event.target as Node)) close();
+  if (root.value && !event.composedPath().includes(root.value)) close();
 };
 
 const onKeydown = (event: KeyboardEvent) => {
