@@ -60,6 +60,7 @@ export default defineConfig({
       {
         text: 'Operate',
         items: [
+          { text: 'Run it locally', link: '/operate/self-host' },
           { text: 'Deploy', link: '/operate/deploy' },
           { text: 'The GitHub App', link: '/operate/github-app' },
         ],

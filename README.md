@@ -10,8 +10,10 @@ an MCP server, with the rights of an account.
 [`docs/`](docs/). Every page is also plain Markdown for an agent:
 [`llms.txt`](https://git8n.sakuga.dev/docs/llms.txt) lists them.
 
-- [Getting started](docs/guide/getting-started.md): run it locally and connect
-  a repository.
+- [Getting started](docs/guide/getting-started.md): from the first sign-in to
+  the first commit of a translation.
+- [Run it locally](docs/operate/self-host.md): the packages, and the editor on
+  your computer.
 - [Concepts](docs/guide/concepts.md): the catalogue, a proposal, a publication.
 - [Accounts and rights](docs/guide/accounts.md)
 - [A repository and its files](docs/guide/repositories.md)
