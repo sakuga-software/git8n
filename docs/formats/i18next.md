@@ -41,11 +41,14 @@ reads it:
 
 gives the keys `cart.title` and `cart.empty`.
 
-- Write **nested objects**. A key whose name holds a dot, such as
-  `{ "cart.empty": "…" }` (i18next with `keySeparator: false`), is read. But
-  the editor writes a key as nested objects: a translation of `cart.empty`
-  adds `{ "cart": { "empty": "…" } }` beside the dotted key, and the dotted key
-  stays as it was.
+- A key can be **nested** (`{ "cart": { "empty": "…" } }`) or **flat**, with
+  a dot in its name (`{ "cart.empty": "…" }`, i18next with
+  `keySeparator: false`). Both give the key `cart.empty`. The editor changes a
+  key in the shape that the file gives it. A new key is flat in an object whose
+  keys hold dots and that holds no object, and nested everywhere else.
+- If a file holds one key in both shapes, a read keeps the last one in the
+  file. A change of that key writes the new value in both, so that the read
+  sees it.
 - A value is a string. A number, an array or `null` is an error of
   `git8n check` (`not-a-string`). The editor shows such a value as one text
   (`["a", "b"]` shows `a,b`), and a translation replaces it with a string. The
