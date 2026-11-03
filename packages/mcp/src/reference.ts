@@ -157,7 +157,8 @@ const limitsOf = (schema: JsonSchema): string[] => {
 
   if (schema.default !== undefined) limits.push(`Default: \`${JSON.stringify(schema.default)}\`.`);
   if (schema.pattern) limits.push(`Matches \`${schema.pattern}\`.`);
-  if (schema.minLength) limits.push(`At least ${schema.minLength} character.`);
+  if (schema.minLength)
+    limits.push(`At least ${schema.minLength} ${schema.minLength === 1 ? 'character' : 'characters'}.`);
   if (schema.minimum !== undefined && schema.minimum > 0) limits.push(`At least ${schema.minimum}.`);
   if (schema.minItems !== undefined && schema.maxItems !== undefined) {
     limits.push(`From ${schema.minItems} to ${schema.maxItems} items.`);

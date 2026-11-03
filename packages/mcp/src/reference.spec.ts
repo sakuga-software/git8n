@@ -41,4 +41,22 @@ describe('the reference of the MCP tools', () => {
 
     expect(undescribed).toEqual([]);
   });
+
+  it('counts the characters of a minimum length', () => {
+    const page = renderReference([
+      {
+        name: 'i18n_me',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            one: { type: 'string', minLength: 1, description: 'One.' },
+            three: { type: 'string', minLength: 3, description: 'Three.' },
+          },
+        },
+      },
+    ]);
+
+    expect(page).toContain('One. At least 1 character.');
+    expect(page).toContain('Three. At least 3 characters.');
+  });
 });
