@@ -1,4 +1,4 @@
-import { MEMBER_ROLES, PUBLISH_MODES } from '@git8n/db';
+import { MEMBER_ROLES, PUBLISH_MODES, TOKEN_SCOPES } from '@git8n/db';
 import { templateProblem, type TemplateKind, type TemplateProblem } from '@git8n/db/messages';
 import { z } from 'zod';
 
@@ -317,5 +317,7 @@ export const ACCESS_TOKEN_MAX_DAYS = 365;
 /** A new access token (DB-669). `expiresInDays: null` makes a token that does not expire. */
 export const newAccessTokenSchema = z.object({
   name: z.string().trim().min(1).max(80),
+  /** A token that only proposes is the default: an agent seldom needs to publish (G8N-114). */
+  scope: z.enum(TOKEN_SCOPES).default('propose'),
   expiresInDays: z.number().int().min(1).max(ACCESS_TOKEN_MAX_DAYS).nullable(),
 });

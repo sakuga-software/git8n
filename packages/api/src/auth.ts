@@ -17,6 +17,7 @@ import {
   members,
   newId,
   organizations,
+  type TokenScope,
   users,
 } from '@git8n/db';
 import { env } from './config/env';
@@ -40,7 +41,18 @@ export interface AuthUser {
    * - `token`: an access token of the « Jetons » page.
    */
   via: 'cookie' | 'bearer' | 'token';
+  /** What the request may do inside the rights of the account. Only an access token has less than `full`. */
+  scope: TokenScope;
 }
+
+/** The writes that a `propose` token may do (G8N-114). Every other write needs `full`. */
+const PROPOSE_WRITES: ReadonlySet<string> = new Set(['POST /i18n/proposals']);
+
+const READ_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/** Whether the scope of a request lets it call `method path`. The rights of the account still apply after. */
+export const scopeAllows = (scope: TokenScope, method: string, path: string): boolean =>
+  scope === 'full' || READ_METHODS.has(method) || (scope === 'propose' && PROPOSE_WRITES.has(`${method} ${path}`));
 
 /** The `client_id` that the command line sends to ask for a device code. The plugin refuses any other. */
 export const CLI_CLIENT_ID = 'git8n-cli';
@@ -220,7 +232,15 @@ async function accountOf(headers: Headers): Promise<AuthUser | null> {
   if (bearerToken?.startsWith(ACCESS_TOKEN_PREFIX)) {
     const user = await accountOfAccessToken(bearerToken);
 
-    return user && { id: user.id, name: user.name, admin: isAdmin(user, env.ADMIN_EMAILS), via: 'token' };
+    return (
+      user && {
+        id: user.id,
+        name: user.name,
+        admin: isAdmin(user, env.ADMIN_EMAILS),
+        via: 'token',
+        scope: user.scope,
+      }
+    );
   }
 
   const session = await auth().api.getSession({ headers });
@@ -234,6 +254,8 @@ async function accountOf(headers: Headers): Promise<AuthUser | null> {
     name: user.name,
     admin: isAdmin(user, env.ADMIN_EMAILS),
     via: bearerToken ? 'bearer' : 'cookie',
+    // A session, of the browser or of `git8n login`, acts as the person.
+    scope: 'full',
   };
 }
 
@@ -243,6 +265,18 @@ export function withAuth(): MiddlewareHandler {
     const user = await accountOf(c.req.raw.headers);
 
     if (!user) throw new HTTPException(401, { message: 'Unauthorized' });
+
+    if (!scopeAllows(user.scope, c.req.method, c.req.path)) {
+      // `reason` lets the command line tell this refusal from a right that the account does not have.
+      return c.json(
+        {
+          message: `This access token has the scope « ${user.scope} », which does not allow ${c.req.method} ${c.req.path}. Make a token with a wider scope on the page « Jetons d'accès ».`,
+          reason: 'token_scope',
+          scope: user.scope,
+        },
+        403,
+      );
+    }
 
     c.set('user', user);
     await next();

@@ -5,6 +5,7 @@ import {
   createAccessToken,
   revokeAccessToken,
   type AccessToken,
+  type TokenScope,
 } from '@git8n/mcp/api';
 import { useState } from 'react';
 import { Link } from 'react-router';
@@ -15,7 +16,7 @@ import { MembersSkeleton } from '~/editor/skeleton';
 import { Failure } from '~/editor/states';
 import { Busy, Choice } from '~/editor/ui';
 import { readErrorOf, useRead, type ReadError } from '~/editor/use-read';
-import { daysOf, detailOf, LIFE_ITEMS } from './rules';
+import { daysOf, detailOf, LIFE_ITEMS, SCOPE_HINTS, SCOPE_ITEMS, scopeLabelOf } from './rules';
 
 /** The access tokens of the signed-in account, for an agent or a CI job (DB-669). */
 export default function TokensScreen() {
@@ -31,8 +32,9 @@ function Tokens() {
         <div className="flex flex-col gap-1">
           <h1 className="text-[22px] font-semibold tracking-[-0.01em]">Jetons d'accès</h1>
           <p className="text-sub max-w-2xl text-sm leading-normal">
-            Un jeton permet à un agent (serveur MCP) ou à un job de CI d'agir en votre nom : il ouvre les mêmes dépôts,
-            les mêmes langues et le même rôle que votre compte. Il ne peut pas créer d'autre jeton.
+            Un jeton permet à un agent (serveur MCP) ou à un job de CI d'agir en votre nom, dans les dépôts et les
+            langues de votre compte. Sa portée limite ce qu'il peut faire : lire, proposer, ou tout ce que votre compte
+            peut faire. Il ne peut pas créer d'autre jeton.
           </p>
         </div>
         <Link to="/" viewTransition className="text-sub text-[13px] underline">
@@ -65,6 +67,7 @@ function Tokens() {
 function NewToken({ onCreated }: { onCreated: () => void }) {
   const [name, setName] = useState('');
   const [life, setLife] = useState<string>('90');
+  const [scope, setScope] = useState<TokenScope>('propose');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ReadError | null>(null);
   const [made, setMade] = useState<{ name: string; token: string } | null>(null);
@@ -79,7 +82,7 @@ function NewToken({ onCreated }: { onCreated: () => void }) {
     setError(null);
 
     try {
-      const created = await createAccessToken(api, { name: name.trim(), expiresInDays: daysOf(life) });
+      const created = await createAccessToken(api, { name: name.trim(), scope, expiresInDays: daysOf(life) });
 
       setMade({ name: created.name, token: created.token });
       setName('');
@@ -110,6 +113,18 @@ function NewToken({ onCreated }: { onCreated: () => void }) {
           </div>
           <div className="flex flex-col gap-1.5">
             <span className="text-muted text-xs font-medium" aria-hidden="true">
+              Portée
+            </span>
+            <Choice
+              label="Portée"
+              value={scope}
+              items={SCOPE_ITEMS}
+              onChange={(value) => setScope(value as TokenScope)}
+              className="w-56"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-muted text-xs font-medium" aria-hidden="true">
               Durée
             </span>
             <Choice label="Durée" value={life} items={LIFE_ITEMS} onChange={setLife} className="w-44" />
@@ -125,6 +140,7 @@ function NewToken({ onCreated }: { onCreated: () => void }) {
             )}
           </Button>
         </div>
+        <p className="text-muted text-xs">{SCOPE_HINTS[scope]}</p>
         {made && (
           <p className="text-muted text-xs">
             Copiez d'abord le jeton affiché ci-dessous, puis fermez-le pour en créer un autre.
@@ -205,7 +221,10 @@ function TokenRow({ token, onRevoked }: { token: AccessToken; onRevoked: () => v
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <div className="flex min-w-0 flex-col">
           <span className="truncate text-sm font-medium">
-            {token.name} <span className="text-muted font-mono text-xs font-normal">{token.start}…</span>
+            {token.name} <span className="text-muted font-mono text-xs font-normal">{token.start}…</span>{' '}
+            <span className="bg-panel text-sub rounded-[4px] px-1.5 py-0.5 text-[11px] font-normal">
+              {scopeLabelOf(token.scope)}
+            </span>
           </span>
           <span className="text-muted truncate text-xs">{detailOf(token)}</span>
         </div>

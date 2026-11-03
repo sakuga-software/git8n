@@ -57,6 +57,11 @@ export const ERRORS = {
     title: 'The person refused the device code.',
     fix: 'Run `git8n login` again, and choose « Approuver » if the code is the one of the terminal.',
   },
+  G8N2004: {
+    exit: EXIT.failed,
+    title: 'The scope of the access token does not allow the request.',
+    fix: "A token « Lecture seule » only reads, and a token « Proposer » reads and proposes. Make a token with the scope that the job needs on the page « Jetons d'accès », then set `GIT8N_API_TOKEN` to it.",
+  },
   G8N3001: {
     exit: EXIT.usage,
     title: 'No repository matches.',
@@ -107,17 +112,19 @@ export class CliError extends Error {
   }
 }
 
-/** The message of the API, without the JSON envelope it comes in. */
-const messageOf = (said: string): string => {
+/** The message of the API without the JSON envelope it comes in, and the reason the API gives, if any. */
+const answerOf = (said: string): { message: string; reason?: string } => {
   try {
-    const parsed = JSON.parse(said) as { message?: unknown };
+    const parsed = JSON.parse(said) as { message?: unknown; reason?: unknown };
 
-    if (typeof parsed.message === 'string') return parsed.message;
+    if (typeof parsed.message === 'string') {
+      return { message: parsed.message, ...(typeof parsed.reason === 'string' && { reason: parsed.reason }) };
+    }
   } catch {
     // The API answered text, not JSON.
   }
 
-  return said;
+  return { message: said };
 };
 
 /** Any failure of a command, as a `CliError`. */
@@ -125,9 +132,11 @@ export const asCliError = (error: unknown): CliError => {
   if (error instanceof CliError) return error;
 
   if (error instanceof ApiError) {
-    const message = `${error.status} — ${messageOf(error.message)}`;
+    const answer = answerOf(error.message);
+    const message = `${error.status} — ${answer.message}`;
 
     if (error.status === 401) return new CliError('G8N2001', `${message}. Run git8n login.`);
+    if (error.status === 403 && answer.reason === 'token_scope') return new CliError('G8N2004', message);
 
     return new CliError(error.status < 500 ? 'G8N4001' : 'G8N4002', message);
   }

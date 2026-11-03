@@ -8,7 +8,8 @@ Authorization: Bearer <token>
 ```
 
 The API checks the rights of the account on each call: its repositories, its
-languages and its role. A token gives no more than its account has.
+languages and its role. A token gives no more than its account has, and an
+access token can give less: see [Its scope](#its-scope).
 
 There are two ways to get a token.
 
@@ -18,19 +19,43 @@ For an agent, a CI job or the [MCP server](./mcp.md).
 
 1. In the editor, open the account menu at the top right.
 2. Choose **Jetons d'accès**.
-3. Give the token a name, for example « Agent de traduction ». Choose its life:
-   30 days, 90 days, one year, or no end.
+3. Give the token a name, for example « Agent de traduction ». Choose its
+   scope (« Proposer » by default) and its life: 30 days, 90 days, one year, or
+   no end.
 4. Choose **Créer le jeton**, and copy the token.
 
 The page shows a new token one time only. The editor keeps its SHA-256 and the
 first characters, `g8n_` and four more, so that you can tell your tokens
 apart. If you lose a token, revoke it and create another one.
 
-The list shows when each token was created, when it ends, and when it last
-served. **Révoquer** deletes a token: the API refuses it at once.
+The list shows the scope of each token, when it was created, when it ends, and
+when it last served. **Révoquer** deletes a token: the API refuses it at once.
 
 An access token starts with `g8n_`. The API reads that prefix and finds the
 account of the token. A token that expired, or that was revoked, gets `401`.
+
+## Its scope
+
+The scope of an access token limits what it can do inside the rights of its
+account. The API checks the scope before the rights.
+
+| Scope                                  | What the token can call                                                        |
+| -------------------------------------- | ------------------------------------------------------------------------------ |
+| `read` (« Lecture seule »)             | The routes that only read: `GET` and `HEAD`.                                   |
+| `propose` (« Proposer »), the default  | Those, and `POST /i18n/proposals`: a proposal. No publication, review or key.  |
+| `full` (« Tous les droits du compte ») | Every route that the account can call: publish, add a key, change the members. |
+
+A call outside the scope gets `403` with `"reason": "token_scope"`, and the
+[CLI](./cli.md) stops with [`G8N2004`](../reference/errors/g8n2004.md). The
+scope cannot change: to widen it, create a new token and revoke the old one.
+
+Give an agent that reads the catalogue a `read` token, and an agent that
+translates a `propose` token. A `full` token of a reviewer can publish, and a
+`full` token of an owner can change the members.
+
+A token made before scopes existed has the scope `full`: it keeps what it could
+do. A session of `git8n login` is not an access token, and has every right of
+its account.
 
 ## A sign-in from a terminal
 
