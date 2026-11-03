@@ -197,6 +197,12 @@ describe('a locale file', () => {
       );
     });
 
+    it('refuses a key that passes through a flat translation', () => {
+      expect(() => LocaleFile.parse('{\n  "cart.empty": "Empty"\n}').set('cart.empty.sub', 'x')).toThrow(
+        'cart.empty.sub passes through cart.empty, which the file holds as a value.',
+      );
+    });
+
     it('changes both shapes when the file holds the key twice, so that the read sees the change', () => {
       const before = '{\n  "cart.empty": "Flat",\n  "cart": {\n    "empty": "Nested"\n  }\n}\n';
       const after = edited(before, 'cart.empty', 'New');
