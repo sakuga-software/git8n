@@ -313,11 +313,13 @@ export class LocaleFile {
       index = step.next;
     }
 
-    const blocking = memberOf(node, parts[index]);
+    for (let end = index + 1; end < parts.length; end += 1) {
+      const name = parts.slice(index, end).join('.');
 
-    if (blocking) {
-      // Writing here would replace a translation that is already in the file.
-      throw new UnwritableKeyError(`${key} passes through ${parts[index]}, which the file holds as a value.`);
+      if (memberOf(node, name)) {
+        // Writing here would replace a translation that is already in the file.
+        throw new UnwritableKeyError(`${key} passes through ${name}, which the file holds as a value.`);
+      }
     }
 
     const rest = parts.slice(index);
