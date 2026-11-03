@@ -92,6 +92,33 @@ To keep it writes a commit with one `Reviewed:` trailer for each key, and no
 change to a file. The editor computes these states from the history of the base
 branch. No table holds them.
 
+## What each action writes in git
+
+Every action that changes a text is a commit on GitHub, made by the GitHub App.
+No action writes a text in the database: it holds the repositories, the
+accounts and the rights only. After each write, the API drops what it holds of
+the repository, so the next read shows the new commit.
+
+| Action                                                   | Branch                                                               | Commit                                                                                        | Author of the commit                             | Pull request                                                                         |
+| -------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| Propose texts: the page, `git8n apply` or `i18n_propose` | `i18n/<language>`. The first proposal makes it from the base branch. | One commit for the batch, with a `Read-at:` trailer                                           | The account that proposes                        | None                                                                                 |
+| Propose a key again, before its publication              | `i18n/<language>`                                                    | One more commit. The last batch that changed a key is the one a reviewer reads and publishes. | The account that proposes                        | None                                                                                 |
+| Leave a key empty on purpose                             | `i18n/<language>`                                                    | The commit of the proposal also writes the mark in the manifest of the branch                 | The account that proposes                        | None                                                                                 |
+| Publish, in the mode `commit`                            | The base branch                                                      | One commit with the approved keys                                                             | The reviewer                                     | None                                                                                 |
+| Publish, in the mode `pull_request`                      | `i18n/publish`                                                       | One commit with the approved keys                                                             | The reviewer                                     | The App opens one pull request `i18n/publish` → base branch, or updates the open one |
+| Keep a translation after its source changed              | Where a publication goes                                             | One commit with one `Reviewed:` trailer for each key, and no change to a file                 | The reviewer                                     | As for a publication                                                                 |
+| Change a source text                                     | `i18n/<source>`, then where a publication goes                       | A proposal, then a publication, as for a target language                                      | The account that writes the source, at each step | As for a publication                                                                 |
+| Add a key with « Nouvelle clé »                          | Where a publication goes, with no proposal                           | One commit that adds the key to the source                                                    | The account that writes the source               | As for a publication                                                                 |
+
+The author is the name of the account and an address that does not reach the
+person: [the author of a commit](./repositories.md#the-author-of-a-commit).
+
+**No action rejects or deletes a proposal.** A batch stays on
+`i18n/<language>`. A reviewer publishes the keys they approve, and the others
+stay proposed. A new proposal of a key replaces the text that waits. In the
+mode `pull_request`, a pull request closed without a merge drops what it
+carried: its keys are proposals again.
+
 ## What the editor holds, and for how long
 
 GitHub is the source of truth, so the API reads GitHub and holds the answers
