@@ -119,7 +119,7 @@ export const RULES = {
   'plural-branches': {
     severity: 'warning',
     title: 'A plural of vue-i18n does not have the branches of the source.',
-    why: 'vue-i18n picks a branch of `no car | one car | {count} cars` by the number of its branches: with 2, the first is for 1; with 3, the first is for 0 and the second for 1. A translation with other branches shows the wrong one, and a `|` that the source does not write cuts the text.',
+    why: 'vue-i18n picks a branch of `no car | one car | {count} cars` by the number of its branches: with 2, the first is for 1; with 3, the first is for 0 and the second for 1. A translation with other branches shows the wrong one. Only a source with branches is read as a plural, and a text with `{{name}}`, `$t(…)` or an ICU choice is never one.',
     fix: "Write as many branches as the source, separated by `|`. Write `{'|'}` for a `|` that is text. If the application sets `pluralRules` for this language, its number of branches can differ: `--max-warnings` lets a number of warnings pass.",
     invalid: {
       'en/common.json': json({ cars: 'no car | one car | {count} cars' }),

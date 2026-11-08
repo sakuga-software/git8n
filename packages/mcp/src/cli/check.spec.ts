@@ -124,6 +124,8 @@ describe('pluralBranchesOf', () => {
     expect(pluralBranchesOf("a {'|'} b")).toBe(1);
     expect(pluralBranchesOf('a \\| b')).toBe(1);
     expect(pluralBranchesOf('{n, plural, one {a | b} other {c}} | d')).toBe(1);
+    expect(pluralBranchesOf('Hi {{name}} | Acme')).toBe(1);
+    expect(pluralBranchesOf('$t(common:app) | Home')).toBe(1);
   });
 });
 
@@ -333,20 +335,29 @@ describe('checkLocales', () => {
   it('warns on a plural of vue-i18n whose translation has other branches than the source', async () => {
     const report = await check(
       {
-        'locales/en/common.json': { cars: 'no car | one car | {count} cars', apples: 'apple | apples', title: 'Home' },
+        'locales/en/common.json': {
+          cars: 'no car | one car | {count} cars',
+          apples: 'apple | apples',
+          pears: 'pear | pears',
+          title: 'Home',
+          greeting: 'Hi {{name}} | Acme',
+        },
         'locales/fr/common.json': {
           cars: 'une voiture | {count} voitures',
           apples: 'pomme | pommes',
+          pears: 'poires',
           title: 'Accueil | Acme',
+          greeting: 'Salut {{name}}',
         },
       },
       { source: 'en' },
     );
 
-    expect(rulesOf(report)).toEqual(['plural-branches fr common:cars', 'plural-branches fr common:title']);
+    // A `|` that the translation adds to a plain text, and the `|` of an i18next text, are text.
+    expect(rulesOf(report)).toEqual(['plural-branches fr common:cars', 'plural-branches fr common:pears']);
     expect(report.problems.map((problem) => problem.message)).toEqual([
       'common:cars: 2 branches, and the source has 3.',
-      'common:title: 2 branches, and the source has 1.',
+      'common:pears: 1 branch, and the source has 2.',
     ]);
     expect(report.warnings).toBe(2);
   });

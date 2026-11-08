@@ -37,7 +37,9 @@ The texts of vue-i18n fit, with limits:
   another does not.
 - The key of a link names a key of a file of the source language: `ok`, as one
   object of a language holds it once you merge the files, or `common.ok` for
-  the key `ok` of `common.json`. A key that no file holds is an error of
+  the key `ok` of `common.json`. git8n does not know how your application
+  merges the files, so it takes both forms: a link that only one of them
+  resolves passes. A key that no file holds is an error of
   [`unknown-link`](../reference/rules/unknown-link.md). vue-i18n ends the key
   only at a space, `{`, `(`, `)`, `|` or `@`: in `@:nav.home!`, the key is
   `nav.home!`. Write `@:nav.home{'!'}`.
@@ -46,8 +48,10 @@ The texts of vue-i18n fit, with limits:
   warning of [`plural-branches`](../reference/rules/plural-branches.md). An
   application that sets `pluralRules` for a language can need other numbers:
   `--max-warnings` lets them pass.
-- These forms are read in every text, whatever the library: a `|` in an
-  i18next text is a branch too. The `|` of a text with an ICU choice is text.
+- These forms are read in every text, whatever the library. A `|` is a branch
+  only in a source that has branches, and only in a text with no ICU choice,
+  no `{{name}}` and no `$t(…)`: a `|` that a translation adds to a plain text
+  is text. A plain source such as `Home | Acme` is still read as two branches.
 
 The layout is the other limit. A vue-i18n project often keeps one file for
 each language (`locales/en.json`), or its messages in JavaScript. git8n reads

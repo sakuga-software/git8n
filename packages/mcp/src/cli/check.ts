@@ -266,10 +266,11 @@ export const linksOf = (text: string): string[] =>
 /**
  * The number of branches of a plural of vue-i18n: `no car | one car | {count} cars` has 3.
  *
- * A `|` in braces (`{'|'}`) and `\|` are text. A text with an ICU choice is one branch: there, `|` is text.
+ * A `|` in braces (`{'|'}`) and `\|` are text. A text with an ICU choice, or with the `{{name}}` or `$t(…)` of
+ * i18next, is one branch: these formats have no plural of vue-i18n, so there `|` is text.
  */
 export const pluralBranchesOf = (text: string): number => {
-  if (ICU_CHOICE.test(text)) return 1;
+  if (ICU_CHOICE.test(text) || /\{\{|\$t\(/.test(text)) return 1;
 
   let depth = 0;
   let branches = 1;
@@ -726,13 +727,14 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
           const branches = pluralBranchesOf(text);
           const translated = pluralBranchesOf(value);
 
-          if (branches !== translated) {
+          // Only a source with branches is a plural. A `|` that a translation adds to a plain text is text.
+          if (branches > 1 && branches !== translated) {
             report({
               rule: 'plural-branches',
               path,
               language,
               key: id,
-              message: `${id}: ${translated} branches, and the source has ${branches}.`,
+              message: `${id}: ${translated} ${translated === 1 ? 'branch' : 'branches'}, and the source has ${branches}.`,
             });
           }
 
