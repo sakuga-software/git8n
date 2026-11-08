@@ -97,8 +97,15 @@ const groupAt = (text: string, open: number): { inner: string; end: number } | n
   return null;
 };
 
+/**
+ * The name of an argument: `{name}`, or the index of a list, `{0}`.
+ *
+ * vue-i18n also writes `-` and `$` in a name: `{user-id}`, `{total$}`.
+ */
+const NAME = String.raw`(?:[A-Za-z_][\w.$-]*|\d+)`;
+
 /** A text with an ICU `plural`, `select` or `selectordinal`. */
-const ICU_CHOICE = /\{\s*[A-Za-z_][\w.]*\s*,\s*(?:plural|select|selectordinal)\s*,/;
+const ICU_CHOICE = new RegExp(String.raw`\{\s*${NAME}\s*,\s*(?:plural|select|selectordinal)\s*,`);
 
 /**
  * The text with the literal parts of ICU quoting replaced by a space:
@@ -145,7 +152,9 @@ const unquoted = (text: string): string => {
 const I18NEXT_GROUP = /^\{\s*([^{},]+?)\s*(?:,[^{}]*)?\}$/;
 
 /** `name, plural, …`: an ICU argument. A choice holds its branches after the second comma. */
-const ICU_ARGUMENT = /^\s*([A-Za-z_][\w.]*)\s*(?:,\s*(plural|select|selectordinal)\s*,([\s\S]*))?(?:,[^{}]*)?$/;
+const ICU_ARGUMENT = new RegExp(
+  String.raw`^\s*(${NAME})\s*(?:,\s*(plural|select|selectordinal)\s*,([\s\S]*))?(?:,[^{}]*)?$`,
+);
 
 /**
  * Adds the ICU arguments of a text: `{name}`, and the variable of a choice.
@@ -240,10 +249,47 @@ export const icuPluralsOf = (text: string): IcuPlural[] => {
 };
 
 /**
+ * A linked message of vue-i18n: `@:key`, `@.lower:key`, `@:{'key'}`, or `@:{name}` (a key from a value).
+ *
+ * The key ends at a space, `{`, `(`, `)`, `|`, `@` or the end of the text, as vue-i18n reads it. So in
+ * `@:nav.home!` the key is `nav.home!`. `\@` is text.
+ */
+const LINK = new RegExp(
+  String.raw`(?<!\\)@(?:\.[\w$]+)?:(?:\{\s*'([^']*)'\s*\}|(\{\s*${NAME}\s*\})|([^ {()|@]+))`,
+  'g',
+);
+
+/** The keys that the linked messages of a text name. A key from a value, `@:{name}`, is not one. */
+export const linksOf = (text: string): string[] =>
+  [...unquoted(text).matchAll(LINK)].flatMap((match) => (match[2] === undefined ? [match[1] ?? match[3]!] : []));
+
+/**
+ * The number of branches of a plural of vue-i18n: `no car | one car | {count} cars` has 3.
+ *
+ * A `|` in braces (`{'|'}`) and `\|` are text. A text with an ICU choice is one branch: there, `|` is text.
+ */
+export const pluralBranchesOf = (text: string): number => {
+  if (ICU_CHOICE.test(text)) return 1;
+
+  let depth = 0;
+  let branches = 1;
+
+  for (let at = 0; at < text.length; at += 1) {
+    if (text[at] === '\\') at += 1;
+    else if (text[at] === '{') depth += 1;
+    else if (text[at] === '}') depth = Math.max(0, depth - 1);
+    else if (text[at] === '|' && depth === 0) branches += 1;
+  }
+
+  return branches;
+};
+
+/**
  * The placeholders of a text, sorted, with no duplicate:
  *
  * - i18next: `{{name}}`, `{{count, number}}` (as `{{count}}`), `$t(key)`;
  * - ICU: `{name}`, `{count, plural, …}` (as `{count}`);
+ * - vue-i18n: the list `{0}`, and the linked message `@:key` or `@.lower:key` (as `@:key`);
  * - tags of `<Trans>`: `<0>`, `</0>`, `<strong>`, `<br/>`;
  * - printf: `%s`, `%d`, `%1$s`.
  */
@@ -261,6 +307,12 @@ export const placeholdersOf = (text: string): string[] => {
   }
   rest = rest.replace(/\$t\([^)]*\)/g, (match) => {
     found.add(match.replace(/\s+/g, ''));
+
+    return ' ';
+  });
+  // A modifier changes the case of the linked text, which a language can need or not: it is not compared.
+  rest = rest.replace(LINK, (_, literal: string | undefined, value: string | undefined, key: string | undefined) => {
+    found.add(`@:${literal ?? value?.replace(/\s+/g, '') ?? key}`);
 
     return ' ';
   });
@@ -553,6 +605,8 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
 
   const sourceFiles = await filesOf(source);
   const sources = new Map<string, Map<string, string>>();
+  /** The keys that a linked message can name: `ok`, as one object of a language holds it, or `common.ok`. */
+  const sourceKeys = new Set<string>();
   let files = sourceFiles.length;
   let keys = 0;
 
@@ -565,6 +619,7 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
     keys += strings.size;
 
     for (const [key, text] of strings) {
+      sourceKeys.add(key).add(`${file}.${key}`);
       if (text === '') {
         report({
           rule: 'empty-source',
@@ -572,6 +627,21 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
           language: source,
           key: `${file}:${key}`,
           message: `${file}:${key} is empty in the source.`,
+        });
+      }
+    }
+  }
+
+  // A translation keeps the links of its source (rule `placeholders`), so only the links of the source are read here.
+  for (const [file, strings] of sources) {
+    for (const [key, text] of strings) {
+      for (const link of linksOf(text).filter((name) => !sourceKeys.has(name))) {
+        report({
+          rule: 'unknown-link',
+          path: pathOf(source, file),
+          language: source,
+          key: `${file}:${key}`,
+          message: `${file}:${key} links to @:${link}, which is a key of no file of ${source}.`,
         });
       }
     }
@@ -650,6 +720,19 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
               language,
               key: id,
               message: `${id}: ${describeDifference(expected, found)}.`,
+            });
+          }
+
+          const branches = pluralBranchesOf(text);
+          const translated = pluralBranchesOf(value);
+
+          if (branches !== translated) {
+            report({
+              rule: 'plural-branches',
+              path,
+              language,
+              key: id,
+              message: `${id}: ${translated} branches, and the source has ${branches}.`,
             });
           }
 

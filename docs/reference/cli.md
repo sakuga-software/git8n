@@ -163,8 +163,8 @@ it marks empty on purpose.
 example, and the output of the check on them. Each problem names its rule, and
 the report ends with the address of the page of each rule it found.
 
-A placeholder is `{{name}}`, `{name}`, `$t(…)`, a tag such as `<0>` or `<br/>`,
-or `%s`. The branches of an ICU plural are text: `{count, plural, one {# item}}`
+A placeholder is `{{name}}`, `{name}`, `{0}`, `$t(…)`, a linked message of
+vue-i18n such as `@:common.ok`, a tag such as `<0>` or `<br/>`, or `%s`. The branches of an ICU plural are text: `{count, plural, one {# item}}`
 holds `{count}` only.
 
 A plural follows i18next: `items_one` and `items_other` are the forms of

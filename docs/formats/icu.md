@@ -62,6 +62,8 @@ and 1. A form that only a number past 9999 takes, such as the `many` of
 French, is allowed and not needed. [i18next JSON](./i18next.md#plurals) gives the forms of
 some languages.
 
-## Not supported
+## Numbered arguments
 
-- An argument whose name starts with a digit, such as `{0}`: it is not read.
+An argument can be a number, as in `{0} of {1}`: ICU reads it as the
+argument at that place of the list, and vue-i18n as a list argument.
+`{0}` is an argument as `{name}` is.
