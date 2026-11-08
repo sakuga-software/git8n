@@ -21,8 +21,10 @@ import {
   githubReport,
   prettyReport,
   REPORTERS,
+  SYNTAXES,
   type Entry,
   type Reporter,
+  type Syntax,
   withDocs,
 } from './check.ts';
 import { errorUrl } from './docs.ts';
@@ -84,7 +86,7 @@ const COMMANDS: Record<string, readonly string[]> = {
   proposals: ['repo', 'lang'],
   prompt: ['repo', 'lang', 'to', 'state', 'file', 'limit', 'cursor'],
   mcp: [],
-  check: ['locales', 'manifest', 'source', 'lang', 'reporter', 'max-warnings'],
+  check: ['locales', 'manifest', 'source', 'lang', 'syntax', 'reporter', 'max-warnings'],
 };
 
 const OPTIONS = {
@@ -107,6 +109,7 @@ const OPTIONS = {
   locales: { type: 'string' },
   manifest: { type: 'string' },
   source: { type: 'string' },
+  syntax: { type: 'string' },
   reporter: { type: 'string' },
   'max-warnings': { type: 'string' },
 } as const;
@@ -131,6 +134,7 @@ type Options = Partial<{
   locales: string;
   manifest: string;
   source: string;
+  syntax: string;
   reporter: string;
   'max-warnings': string;
 }>;
@@ -159,7 +163,7 @@ Agents
   mcp                The MCP server, on stdin and stdout
 
 CI, with no server
-  check              Check the locale files of this folder (--locales, --reporter, --max-warnings)
+  check              Check the locale files of this folder (--locales, --syntax, --reporter, --max-warnings)
 
 Options
   --api <url>        The address of the editor. Default: the last login
@@ -823,6 +827,10 @@ class Session {
     if (!REPORTERS.includes(reporter))
       throw new CliError('G8N1001', `--reporter takes one of ${REPORTERS.join(', ')}.`);
 
+    const syntax = (this.options.syntax ?? 'i18next') as Syntax;
+
+    if (!SYNTAXES.includes(syntax)) throw new CliError('G8N1001', `--syntax takes one of ${SYNTAXES.join(', ')}.`);
+
     const maxWarnings =
       this.options['max-warnings'] === undefined
         ? null
@@ -842,6 +850,7 @@ class Session {
           manifest: this.options.manifest ?? null,
           source: this.options.source ?? null,
           languages: languages && languages.length > 0 ? languages : null,
+          syntax,
         },
         {
           readDir: (path) => this.io.readDir(inCwd(path)),

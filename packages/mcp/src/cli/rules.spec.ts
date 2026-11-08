@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkExample, RULES, type Rule } from './check.ts';
+import type { RuleEntry } from './rules.ts';
 import { errorUrl, ruleUrl } from './docs.ts';
 import { ERRORS, type ErrorCode } from './errors.ts';
 
@@ -11,10 +12,11 @@ import { ERRORS, type ErrorCode } from './errors.ts';
  */
 
 const rules = Object.keys(RULES) as Rule[];
+const syntaxOf = (rule: Rule) => (RULES[rule] as RuleEntry).syntax;
 
 describe('the rules of check', () => {
   it.each(rules)('%s: the invalid example finds this rule, and only this rule', async (rule) => {
-    const report = await checkExample(RULES[rule].invalid);
+    const report = await checkExample(RULES[rule].invalid, syntaxOf(rule));
 
     expect(report.problems.length).toBeGreaterThan(0);
     expect(new Set(report.problems.map((problem) => problem.rule))).toEqual(new Set([rule]));
@@ -22,8 +24,15 @@ describe('the rules of check', () => {
   });
 
   it.each(rules)('%s: the valid example finds nothing', async (rule) => {
-    expect((await checkExample(RULES[rule].valid)).problems).toEqual([]);
+    expect((await checkExample(RULES[rule].valid, syntaxOf(rule))).problems).toEqual([]);
   });
+
+  it.each(rules.filter((rule) => syntaxOf(rule) !== undefined))(
+    '%s: finds nothing in its invalid example with no --syntax',
+    async (rule) => {
+      expect((await checkExample(RULES[rule].invalid)).problems).toEqual([]);
+    },
+  );
 
   it.each(rules)('%s: has a page of the documentation', (rule) => {
     expect(RULES[rule].why).not.toBe('');

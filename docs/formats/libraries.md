@@ -22,15 +22,17 @@ Both pages apply.
 
 ## vue-i18n
 
-The texts of vue-i18n fit, with limits:
+The texts of vue-i18n fit, with limits. Run `git8n check --syntax vue-i18n`:
+with no `--syntax`, the linked messages and the `|` plurals are text, as they
+are for i18next.
 
-| vue-i18n                                   | git8n                                         |
-| ------------------------------------------ | --------------------------------------------- |
-| Named `{name}`, `{user-id}`                | Read, as an ICU argument                      |
-| List `{0}`                                 | Read, as an ICU argument                      |
-| Plural `no car \| one car \| {count} cars` | The branches are counted, `{count}` is read   |
-| Linked `@:common.ok`, `@.lower:common.ok`  | Read as `@:common.ok`, and its key must exist |
-| Literal `{'@'}`, escaped `\@` and `\|`     | Text                                          |
+| vue-i18n                                   | git8n                                                              |
+| ------------------------------------------ | ------------------------------------------------------------------ |
+| Named `{name}`, `{user-id}`                | Read, as an ICU argument                                           |
+| List `{0}`                                 | Read, as an ICU argument                                           |
+| Plural `no car \| one car \| {count} cars` | `--syntax vue-i18n`: the branches are counted, `{count}` is read   |
+| Linked `@:common.ok`, `@.lower:common.ok`  | `--syntax vue-i18n`: read as `@:common.ok`, and its key must exist |
+| Literal `{'@'}`, escaped `\@` and `\|`     | Text                                                               |
 
 - A translation keeps the links of its source. The modifier, `.lower` in
   `@.lower:common.ok`, can change: a language can need a capital where
@@ -48,10 +50,9 @@ The texts of vue-i18n fit, with limits:
   warning of [`plural-branches`](../reference/rules/plural-branches.md). An
   application that sets `pluralRules` for a language can need other numbers:
   `--max-warnings` lets them pass.
-- These forms are read in every text, whatever the library. A `|` is a branch
-  only in a source that has branches, and only in a text with no ICU choice,
-  no `{{name}}` and no `$t(…)`: a `|` that a translation adds to a plain text
-  is text. A plain source such as `Home | Acme` is still read as two branches.
+- A `|` is a branch only in a source that has branches, and only in a text
+  with no ICU choice: a `|` that a translation adds to a plain text is text.
+- `{0}` and the names `{user-id}`, `{total$}` are read with any `--syntax`.
 
 The layout is the other limit. A vue-i18n project often keeps one file for
 each language (`locales/en.json`), or its messages in JavaScript. git8n reads

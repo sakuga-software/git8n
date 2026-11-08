@@ -7,6 +7,11 @@
 
 export type Severity = 'error' | 'warning';
 
+/** The syntaxes of the texts that `check` reads. `i18next` also reads ICU MessageFormat. */
+export const SYNTAXES = ['i18next', 'vue-i18n'] as const;
+
+export type Syntax = (typeof SYNTAXES)[number];
+
 /** Locale files by their path under `locales/`. The source language is `en`. */
 export type Example = Record<string, string>;
 
@@ -22,6 +27,8 @@ export interface RuleEntry {
   invalid: Example;
   /** The same files, fixed. `check` finds nothing in them. */
   valid: Example;
+  /** The `--syntax` that the rule needs. Default: `i18next`. */
+  syntax?: Syntax;
 }
 
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
@@ -75,7 +82,7 @@ export const RULES = {
     severity: 'error',
     title: 'The translation does not keep the placeholders of the source.',
     why: 'The application fills each placeholder with a value. A translation that loses one hides the value, and a translation that adds one shows the raw placeholder.',
-    fix: 'Keep every placeholder of the source in the translation: `{{name}}`, `{name}`, `{0}`, `$t(…)`, `@:key`, a tag such as `<0>` or `<br/>`, and `%s`. The branches of an ICU plural are text: translate them. The modifier of a linked message, `@.lower:key`, can change.',
+    fix: 'Keep every placeholder of the source in the translation: `{{name}}`, `{name}`, `{0}`, `$t(…)`, a tag such as `<0>` or `<br/>`, `%s`, and with `--syntax vue-i18n` a linked message `@:key`. The branches of an ICU plural are text: translate them. The modifier of a linked message, `@.lower:key`, can change.',
     invalid: {
       'en/common.json': json({ greeting: 'Hello {{name}}' }),
       'fr/common.json': json({ greeting: 'Bonjour' }),
@@ -104,8 +111,9 @@ export const RULES = {
   },
   'unknown-link': {
     severity: 'error',
+    syntax: 'vue-i18n',
     title: 'A linked message of vue-i18n names a key that does not exist.',
-    why: 'vue-i18n writes the text of the key in place of `@:key`. A key that no file holds shows the key itself, and vue-i18n warns in the console. The key ends only at a space, `{`, `(`, `)`, `|` or `@`, so in `@:nav.home!` the key is `nav.home!`.',
+    why: 'vue-i18n writes the text of the key in place of `@:key`. The rule runs with `--syntax vue-i18n` only. A key that no file holds shows the key itself, and vue-i18n warns in the console. The key ends only at a space, `{`, `(`, `)`, `|` or `@`, so in `@:nav.home!` the key is `nav.home!`.',
     fix: "Name a key of the source: `ok` or `common.ok` for the key `ok` of `common.json`. Put a space or a literal, `{'!'}`, between the key and the text that follows it.",
     invalid: {
       'en/common.json': json({ ok: 'OK', confirm: 'Press @:common.okay' }),
@@ -118,8 +126,9 @@ export const RULES = {
   },
   'plural-branches': {
     severity: 'warning',
+    syntax: 'vue-i18n',
     title: 'A plural of vue-i18n does not have the branches of the source.',
-    why: 'vue-i18n picks a branch of `no car | one car | {count} cars` by the number of its branches: with 2, the first is for 1; with 3, the first is for 0 and the second for 1. A translation with other branches shows the wrong one. Only a source with branches is read as a plural, and a text with `{{name}}`, `$t(…)` or an ICU choice is never one.',
+    why: 'vue-i18n picks a branch of `no car | one car | {count} cars` by the number of its branches: with 2, the first is for 1; with 3, the first is for 0 and the second for 1. A translation with other branches shows the wrong one. Only a source with branches is read as a plural, and a text with an ICU choice is never one. The rule runs with `--syntax vue-i18n` only.',
     fix: "Write as many branches as the source, separated by `|`. Write `{'|'}` for a `|` that is text. If the application sets `pluralRules` for this language, its number of branches can differ: `--max-warnings` lets a number of warnings pass.",
     invalid: {
       'en/common.json': json({ cars: 'no car | one car | {count} cars' }),

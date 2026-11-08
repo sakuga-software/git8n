@@ -99,17 +99,23 @@ describe('placeholdersOf', () => {
   });
 
   it('reads a linked message of vue-i18n as its key, with no modifier', () => {
-    expect(placeholdersOf('@:message.dio @:message.the_world !!!!')).toEqual(['@:message.dio', '@:message.the_world']);
-    expect(placeholdersOf('Press @.lower:common.ok to go on')).toEqual(['@:common.ok']);
-    expect(placeholdersOf("@.snakeCase:{'message.snake'}")).toEqual(['@:message.snake']);
-    expect(placeholdersOf('@:{target} now')).toEqual(['@:{target}']);
+    const vue = (text: string) => placeholdersOf(text, 'vue-i18n');
+
+    expect(vue('@:message.dio @:message.the_world !!!!')).toEqual(['@:message.dio', '@:message.the_world']);
+    expect(vue('Press @.lower:common.ok to go on')).toEqual(['@:common.ok']);
+    expect(vue("@.snakeCase:{'message.snake'}")).toEqual(['@:message.snake']);
+    expect(vue('@:{target} now')).toEqual(['@:{target}']);
     // vue-i18n ends a key only at a space, `{`, `(`, `)`, `|`, `@` or the end: `!` is part of the key.
-    expect(placeholdersOf('Go to @:nav.home!')).toEqual(['@:nav.home!']);
+    expect(vue('Go to @:nav.home!')).toEqual(['@:nav.home!']);
   });
 
   it('reads an address, `@` alone and an escaped `\\@:` as text', () => {
-    expect(placeholdersOf('Write to team@example.com or @team')).toEqual([]);
-    expect(placeholdersOf('Type \\@:key to link')).toEqual([]);
+    expect(placeholdersOf('Write to team@example.com or @team', 'vue-i18n')).toEqual([]);
+    expect(placeholdersOf('Type \\@:key to link', 'vue-i18n')).toEqual([]);
+  });
+
+  it('reads `@:` as text with no syntax vue-i18n', () => {
+    expect(placeholdersOf('Ping @:smile: and @:common.ok')).toEqual([]);
   });
 });
 
@@ -124,8 +130,6 @@ describe('pluralBranchesOf', () => {
     expect(pluralBranchesOf("a {'|'} b")).toBe(1);
     expect(pluralBranchesOf('a \\| b')).toBe(1);
     expect(pluralBranchesOf('{n, plural, one {a | b} other {c}} | d')).toBe(1);
-    expect(pluralBranchesOf('Hi {{name}} | Acme')).toBe(1);
-    expect(pluralBranchesOf('$t(common:app) | Home')).toBe(1);
   });
 });
 
@@ -294,7 +298,7 @@ describe('checkLocales', () => {
         'locales/en/common.json': { ok: 'OK', page: 'Page {0} of {1}', confirm: 'Press @:common.ok to go on' },
         'locales/fr/common.json': { ok: 'OK', page: 'Page {0}', confirm: 'Appuyez sur OK' },
       },
-      { source: 'en' },
+      { source: 'en', syntax: 'vue-i18n' },
     );
 
     expect(report.problems.map((problem) => problem.message).sort()).toEqual([
@@ -321,7 +325,7 @@ describe('checkLocales', () => {
           lost: 'Appuyez sur @:common.okay',
         },
       },
-      { source: 'en' },
+      { source: 'en', syntax: 'vue-i18n' },
     );
 
     expect(rulesOf(report)).toEqual(['unknown-link en home:broken', 'unknown-link en home:lost']);
@@ -340,26 +344,36 @@ describe('checkLocales', () => {
           apples: 'apple | apples',
           pears: 'pear | pears',
           title: 'Home',
-          greeting: 'Hi {{name}} | Acme',
         },
         'locales/fr/common.json': {
           cars: 'une voiture | {count} voitures',
           apples: 'pomme | pommes',
           pears: 'poires',
           title: 'Accueil | Acme',
-          greeting: 'Salut {{name}}',
         },
       },
-      { source: 'en' },
+      { source: 'en', syntax: 'vue-i18n' },
     );
 
-    // A `|` that the translation adds to a plain text, and the `|` of an i18next text, are text.
+    // A `|` that the translation adds to a plain text is text.
     expect(rulesOf(report)).toEqual(['plural-branches fr common:cars', 'plural-branches fr common:pears']);
     expect(report.problems.map((problem) => problem.message)).toEqual([
       'common:cars: 2 branches, and the source has 3.',
       'common:pears: 1 branch, and the source has 2.',
     ]);
     expect(report.warnings).toBe(2);
+  });
+
+  it('reads no link and no `|` plural with no syntax vue-i18n', async () => {
+    const report = await check(
+      {
+        'locales/en/common.json': { ping: 'Ping @:smile:', title: 'Save | Cancel' },
+        'locales/fr/common.json': { ping: 'Ping @:smile:', title: 'Enregistrer' },
+      },
+      { source: 'en' },
+    );
+
+    expect(report.problems).toEqual([]);
   });
 
   it('reads a key that ends with _other as a plain key, unless the source has one plural form only', async () => {
@@ -527,5 +541,29 @@ describe('git8n check', () => {
       docs: 'https://git8n.sakuga.dev/docs/reference/errors/g8n1005.html',
     });
     expect((await cli.run('check', '--reporter', 'xml')).exit).toBe(2);
+  });
+
+  it('reads the links of vue-i18n with --syntax vue-i18n, and refuses another syntax', async () => {
+    const cli = await cliIn({
+      'locales/en/common.json': { ok: 'OK', confirm: 'Press @:common.ok' },
+      'locales/fr/common.json': { ok: 'OK', confirm: 'Appuyez sur OK' },
+    });
+
+    expect((await cli.run('check', '--source', 'en')).exit).toBe(0);
+
+    const vue = await cli.run('check', '--source', 'en', '--syntax', 'vue-i18n', '--json');
+
+    expect(vue.exit).toBe(1);
+    expect(vue.json().data.problems).toMatchObject([
+      { rule: 'placeholders', message: 'common:confirm: lost @:common.ok.' },
+    ]);
+
+    const refused = await cli.run('check', '--source', 'en', '--syntax', 'vue', '--json');
+
+    expect(refused.exit).toBe(2);
+    expect(refused.json().error).toMatchObject({
+      code: 'G8N1001',
+      message: '--syntax takes one of i18next, vue-i18n.',
+    });
   });
 });

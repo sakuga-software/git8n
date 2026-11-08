@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { ruleUrl } from './docs.ts';
-import { type Example, RULES, type Rule, type Severity } from './rules.ts';
+import { type Example, RULES, type Rule, type Severity, type Syntax } from './rules.ts';
 
 /**
  * `git8n check`: the locale files of a folder, read with no server (DB-672).
@@ -11,7 +11,7 @@ import { type Example, RULES, type Rule, type Severity } from './rules.ts';
  * it reaches the base branch.
  */
 
-export { RULES, type Rule, type Severity } from './rules.ts';
+export { RULES, SYNTAXES, type Rule, type Severity, type Syntax } from './rules.ts';
 
 export interface Problem {
   rule: Rule;
@@ -266,11 +266,10 @@ export const linksOf = (text: string): string[] =>
 /**
  * The number of branches of a plural of vue-i18n: `no car | one car | {count} cars` has 3.
  *
- * A `|` in braces (`{'|'}`) and `\|` are text. A text with an ICU choice, or with the `{{name}}` or `$t(…)` of
- * i18next, is one branch: these formats have no plural of vue-i18n, so there `|` is text.
+ * A `|` in braces (`{'|'}`) and `\|` are text. A text with an ICU choice is one branch: there, `|` is text.
  */
 export const pluralBranchesOf = (text: string): number => {
-  if (ICU_CHOICE.test(text) || /\{\{|\$t\(/.test(text)) return 1;
+  if (ICU_CHOICE.test(text)) return 1;
 
   let depth = 0;
   let branches = 1;
@@ -290,11 +289,12 @@ export const pluralBranchesOf = (text: string): number => {
  *
  * - i18next: `{{name}}`, `{{count, number}}` (as `{{count}}`), `$t(key)`;
  * - ICU: `{name}`, `{count, plural, …}` (as `{count}`);
- * - vue-i18n: the list `{0}`, and the linked message `@:key` or `@.lower:key` (as `@:key`);
+ * - the list `{0}`, as ICU and vue-i18n write it;
  * - tags of `<Trans>`: `<0>`, `</0>`, `<strong>`, `<br/>`;
- * - printf: `%s`, `%d`, `%1$s`.
+ * - printf: `%s`, `%d`, `%1$s`;
+ * - with the syntax `vue-i18n` only: the linked message `@:key` or `@.lower:key` (as `@:key`).
  */
-export const placeholdersOf = (text: string): string[] => {
+export const placeholdersOf = (text: string, syntax: Syntax = 'i18next'): string[] => {
   const found = new Set<string>();
   let rest = unquoted(text);
 
@@ -312,11 +312,13 @@ export const placeholdersOf = (text: string): string[] => {
     return ' ';
   });
   // A modifier changes the case of the linked text, which a language can need or not: it is not compared.
-  rest = rest.replace(LINK, (_, literal: string | undefined, value: string | undefined, key: string | undefined) => {
-    found.add(`@:${literal ?? value?.replace(/\s+/g, '') ?? key}`);
+  if (syntax === 'vue-i18n') {
+    rest = rest.replace(LINK, (_, literal: string | undefined, value: string | undefined, key: string | undefined) => {
+      found.add(`@:${literal ?? value?.replace(/\s+/g, '') ?? key}`);
 
-    return ' ';
-  });
+      return ' ';
+    });
+  }
 
   addIcuArguments(rest, found);
   for (const match of rest.matchAll(/<\/?([A-Za-z0-9][\w-]*)\s*\/?>/g)) found.add(match[0].replace(/\s+/g, ''));
@@ -459,10 +461,14 @@ export interface CheckOptions {
   source: string | null;
   /** Null: every folder of `locales` past the source. */
   languages: string[] | null;
+  /** `vue-i18n` also reads the linked messages and the `|` plurals of vue-i18n. Default: `i18next`. */
+  syntax?: Syntax;
 }
 
 /** Reads every locale file of a folder, and answers what is wrong in them. */
 export const checkLocales = async (options: CheckOptions, reader: LocalesReader): Promise<CheckReport> => {
+  const syntax = options.syntax ?? 'i18next';
+  const vue = syntax === 'vue-i18n';
   const problems: Problem[] = [];
   const report = (problem: Omit<Problem, 'severity'>) =>
     problems.push({ ...problem, severity: RULES[problem.rule].severity });
@@ -634,7 +640,7 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
   }
 
   // A translation keeps the links of its source (rule `placeholders`), so only the links of the source are read here.
-  for (const [file, strings] of sources) {
+  for (const [file, strings] of vue ? sources : []) {
     for (const [key, text] of strings) {
       for (const link of linksOf(text).filter((name) => !sourceKeys.has(name))) {
         report({
@@ -711,8 +717,8 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
           }
         } else {
           const implicitCount = form !== null && form !== 'other';
-          const expected = placeholdersOf(text).filter((item) => !implicitCount || !COUNT.has(item));
-          const found = placeholdersOf(value).filter((item) => !implicitCount || !COUNT.has(item));
+          const expected = placeholdersOf(text, syntax).filter((item) => !implicitCount || !COUNT.has(item));
+          const found = placeholdersOf(value, syntax).filter((item) => !implicitCount || !COUNT.has(item));
 
           if (!sameList(expected, found)) {
             report({
@@ -724,8 +730,8 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
             });
           }
 
-          const branches = pluralBranchesOf(text);
-          const translated = pluralBranchesOf(value);
+          const branches = vue ? pluralBranchesOf(text) : 1;
+          const translated = vue ? pluralBranchesOf(value) : 1;
 
           // Only a source with branches is a plural. A `|` that a translation adds to a plain text is text.
           if (branches > 1 && branches !== translated) {
@@ -871,11 +877,11 @@ export const failed = (report: CheckReport, maxWarnings: number | null): boolean
   report.errors > 0 || (maxWarnings !== null && report.warnings > maxWarnings);
 
 /** Runs the check on the files of an example: a folder `locales` whose source is `en`. */
-export const checkExample = (example: Example): Promise<CheckReport> => {
+export const checkExample = (example: Example, syntax: Syntax = 'i18next'): Promise<CheckReport> => {
   const files = new Map(Object.entries(example).map(([path, text]) => [join('locales', path), text]));
 
   return checkLocales(
-    { locales: 'locales', manifest: null, source: 'en', languages: null },
+    { locales: 'locales', manifest: null, source: 'en', languages: null, syntax },
     {
       readFile: async (path) => files.get(path) ?? null,
       readDir: async (path) => {
