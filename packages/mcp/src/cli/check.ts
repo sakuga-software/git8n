@@ -612,8 +612,12 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
 
   const sourceFiles = await filesOf(source);
   const sources = new Map<string, Map<string, string>>();
-  /** The keys that a linked message can name: `ok`, as one object of a language holds it, or `common.ok`. */
-  const sourceKeys = new Set<string>();
+  /**
+   * The keys that a linked message can name. An application merges the files of a language in one of two
+   * ways: flat, where `@:ok` names the `ok` of any file, or one object for each file, where it is `@:common.ok`.
+   */
+  const flatKeys = new Set<string>();
+  const fileKeys = new Set<string>();
   let files = sourceFiles.length;
   let keys = 0;
 
@@ -626,7 +630,8 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
     keys += strings.size;
 
     for (const [key, text] of strings) {
-      sourceKeys.add(key).add(`${file}.${key}`);
+      flatKeys.add(key);
+      fileKeys.add(`${file}.${key}`);
       if (text === '') {
         report({
           rule: 'empty-source',
@@ -640,17 +645,31 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
   }
 
   // A translation keeps the links of its source (rule `placeholders`), so only the links of the source are read here.
-  for (const [file, strings] of vue ? sources : []) {
-    for (const [key, text] of strings) {
-      for (const link of linksOf(text).filter((name) => !sourceKeys.has(name))) {
-        report({
-          rule: 'unknown-link',
-          path: pathOf(source, file),
-          language: source,
-          key: `${file}:${key}`,
-          message: `${file}:${key} links to @:${link}, which is a key of no file of ${source}.`,
-        });
-      }
+  const links = [...(vue ? sources : [])].flatMap(([file, strings]) =>
+    [...strings].flatMap(([key, text]) => linksOf(text).map((link) => ({ file, key, link }))),
+  );
+  // `check` cannot see how the application merges the files. The links tell it: one merge resolves them all.
+  // When some links resolve in one merge only and others in the other only, the merge of the most links wins.
+  const onlyFlat = links.filter(({ link }) => flatKeys.has(link) && !fileKeys.has(link)).map(({ link }) => link);
+  const onlyFile = links.filter(({ link }) => fileKeys.has(link) && !flatKeys.has(link)).map(({ link }) => link);
+  const merge =
+    onlyFlat.length > 0 && onlyFile.length > 0 ? (onlyFlat.length > onlyFile.length ? 'flat' : 'file') : null;
+
+  for (const { file, key, link } of links) {
+    const id = `${file}:${key}`;
+    const reportLink = (message: string) =>
+      report({ rule: 'unknown-link', path: pathOf(source, file), language: source, key: id, message });
+
+    if (!flatKeys.has(link) && !fileKeys.has(link)) {
+      reportLink(`${id} links to @:${link}, which is a key of no file of ${source}.`);
+    } else if (merge === 'file' && !fileKeys.has(link)) {
+      reportLink(
+        `${id} links to @:${link}, but the other links of ${source} name the file of their key, as @:${onlyFile[0]}.`,
+      );
+    } else if (merge === 'flat' && !flatKeys.has(link)) {
+      reportLink(
+        `${id} links to @:${link}, but the other links of ${source} name a key with no file, as @:${onlyFlat[0]}.`,
+      );
     }
   }
 

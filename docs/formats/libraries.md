@@ -39,9 +39,10 @@ are for i18next.
   another does not.
 - The key of a link names a key of a file of the source language: `ok`, as one
   object of a language holds it once you merge the files, or `common.ok` for
-  the key `ok` of `common.json`. git8n does not know how your application
-  merges the files, so it takes both forms: a link that only one of them
-  resolves passes. A key that no file holds is an error of
+  the key `ok` of `common.json`. git8n reads the merge from the links: one merge must
+  resolve them all. When some links resolve in one merge only and others in
+  the other only, the merge of the most links wins, and the other links are
+  errors. A key that no file holds is an error of
   [`unknown-link`](../reference/rules/unknown-link.md). vue-i18n ends the key
   only at a space, `{`, `(`, `)`, `|` or `@`: in `@:nav.home!`, the key is
   `nav.home!`. Write `@:nav.home{'!'}`.

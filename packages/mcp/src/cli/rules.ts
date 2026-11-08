@@ -114,7 +114,7 @@ export const RULES = {
     syntax: 'vue-i18n',
     title: 'A linked message of vue-i18n names a key that does not exist.',
     why: 'vue-i18n writes the text of the key in place of `@:key`. The rule runs with `--syntax vue-i18n` only. A key that no file holds shows the key itself, and vue-i18n warns in the console. The key ends only at a space, `{`, `(`, `)`, `|` or `@`, so in `@:nav.home!` the key is `nav.home!`.',
-    fix: "Name a key of the source: `ok` or `common.ok` for the key `ok` of `common.json`. Put a space or a literal, `{'!'}`, between the key and the text that follows it.",
+    fix: "Name a key of the source: `ok` or `common.ok` for the key `ok` of `common.json`, the same form in every link: `ok` if the application merges the files of a language in one object, `common.ok` if it keeps one object for each file. Put a space or a literal, `{'!'}`, between the key and the text that follows it.",
     invalid: {
       'en/common.json': json({ ok: 'OK', confirm: 'Press @:common.okay' }),
       'fr/common.json': json({ ok: 'OK', confirm: 'Appuyez sur @:common.okay' }),

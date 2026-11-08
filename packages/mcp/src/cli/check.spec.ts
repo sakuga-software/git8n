@@ -313,14 +313,14 @@ describe('checkLocales', () => {
         'locales/en/common.json': { ok: 'OK', nav: { home: 'Home' } },
         'locales/en/home.json': {
           short: 'Press @:ok',
-          long: 'Press @.upper:common.ok or @:nav.home and @:{page}',
+          long: 'Press @.upper:ok or @:nav.home and @:{page}',
           broken: 'Back to @:nav.home!',
           lost: 'Press @:common.okay',
         },
         'locales/fr/common.json': { ok: 'OK', nav: { home: 'Accueil' } },
         'locales/fr/home.json': {
           short: 'Appuyez sur @:ok',
-          long: 'Appuyez sur @:common.ok ou @:nav.home et @:{page}',
+          long: 'Appuyez sur @:ok ou @:nav.home et @:{page}',
           broken: 'Retour à @:nav.home!',
           lost: 'Appuyez sur @:common.okay',
         },
@@ -334,6 +334,28 @@ describe('checkLocales', () => {
       'home:lost links to @:common.okay, which is a key of no file of en.',
     ]);
     expect(report.errors).toBe(2);
+  });
+
+  it('reports a link that only the other merge of the files resolves', async () => {
+    const files = (links: Record<string, string>) => ({
+      'locales/en/common.json': { ok: 'OK', save: 'Save' },
+      'locales/en/home.json': links,
+      'locales/fr/common.json': { ok: 'OK', save: 'Enregistrer' },
+      'locales/fr/home.json': links,
+    });
+    const linksIn = async (links: Record<string, string>) =>
+      (await check(files(links), { source: 'en', syntax: 'vue-i18n' })).problems.map((problem) => problem.message);
+
+    // One merge resolves every link: flat, or one object for each file.
+    expect(await linksIn({ a: '@:ok', b: '@:save' })).toEqual([]);
+    expect(await linksIn({ a: '@:common.ok', b: '@:common.save' })).toEqual([]);
+    // The two forms mixed: the merge of the most links wins, and the other links are reported.
+    expect(await linksIn({ a: '@:ok', b: '@:common.save', c: '@:common.ok' })).toEqual([
+      'home:a links to @:ok, but the other links of en name the file of their key, as @:common.save.',
+    ]);
+    expect(await linksIn({ a: '@:ok', b: '@:save', c: '@:common.ok' })).toEqual([
+      'home:c links to @:common.ok, but the other links of en name a key with no file, as @:ok.',
+    ]);
   });
 
   it('warns on a plural of vue-i18n whose translation has other branches than the source', async () => {
