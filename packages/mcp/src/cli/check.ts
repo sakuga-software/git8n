@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { ruleUrl } from './docs.ts';
-import { type Example, RULES, type Rule, type Severity } from './rules.ts';
+import { type Example, RULES, type Rule, type Severity, type Syntax } from './rules.ts';
 
 /**
  * `git8n check`: the locale files of a folder, read with no server (DB-672).
@@ -11,7 +11,7 @@ import { type Example, RULES, type Rule, type Severity } from './rules.ts';
  * it reaches the base branch.
  */
 
-export { RULES, type Rule, type Severity } from './rules.ts';
+export { RULES, SYNTAXES, type Rule, type Severity, type Syntax } from './rules.ts';
 
 export interface Problem {
   rule: Rule;
@@ -97,8 +97,15 @@ const groupAt = (text: string, open: number): { inner: string; end: number } | n
   return null;
 };
 
+/**
+ * The name of an argument: `{name}`, or the index of a list, `{0}`.
+ *
+ * vue-i18n also writes `-` and `$` in a name: `{user-id}`, `{total$}`.
+ */
+const NAME = String.raw`(?:[A-Za-z_][\w.$-]*|\d+)`;
+
 /** A text with an ICU `plural`, `select` or `selectordinal`. */
-const ICU_CHOICE = /\{\s*[A-Za-z_][\w.]*\s*,\s*(?:plural|select|selectordinal)\s*,/;
+const ICU_CHOICE = new RegExp(String.raw`\{\s*${NAME}\s*,\s*(?:plural|select|selectordinal)\s*,`);
 
 /**
  * The text with the literal parts of ICU quoting replaced by a space:
@@ -145,7 +152,9 @@ const unquoted = (text: string): string => {
 const I18NEXT_GROUP = /^\{\s*([^{},]+?)\s*(?:,[^{}]*)?\}$/;
 
 /** `name, plural, …`: an ICU argument. A choice holds its branches after the second comma. */
-const ICU_ARGUMENT = /^\s*([A-Za-z_][\w.]*)\s*(?:,\s*(plural|select|selectordinal)\s*,([\s\S]*))?(?:,[^{}]*)?$/;
+const ICU_ARGUMENT = new RegExp(
+  String.raw`^\s*(${NAME})\s*(?:,\s*(plural|select|selectordinal)\s*,([\s\S]*))?(?:,[^{}]*)?$`,
+);
 
 /**
  * Adds the ICU arguments of a text: `{name}`, and the variable of a choice.
@@ -240,14 +249,52 @@ export const icuPluralsOf = (text: string): IcuPlural[] => {
 };
 
 /**
+ * A linked message of vue-i18n: `@:key`, `@.lower:key`, `@:{'key'}`, or `@:{name}` (a key from a value).
+ *
+ * The key ends at a space, `{`, `(`, `)`, `|`, `@` or the end of the text, as vue-i18n reads it. So in
+ * `@:nav.home!` the key is `nav.home!`. `\@` is text.
+ */
+const LINK = new RegExp(
+  String.raw`(?<!\\)@(?:\.[\w$]+)?:(?:\{\s*'([^']*)'\s*\}|(\{\s*${NAME}\s*\})|([^ {()|@]+))`,
+  'g',
+);
+
+/** The keys that the linked messages of a text name. A key from a value, `@:{name}`, is not one. */
+export const linksOf = (text: string): string[] =>
+  [...unquoted(text).matchAll(LINK)].flatMap((match) => (match[2] === undefined ? [match[1] ?? match[3]!] : []));
+
+/**
+ * The number of branches of a plural of vue-i18n: `no car | one car | {count} cars` has 3.
+ *
+ * A `|` in braces (`{'|'}`) and `\|` are text. A text with an ICU choice is one branch: there, `|` is text.
+ */
+export const pluralBranchesOf = (text: string): number => {
+  if (ICU_CHOICE.test(text)) return 1;
+
+  let depth = 0;
+  let branches = 1;
+
+  for (let at = 0; at < text.length; at += 1) {
+    if (text[at] === '\\') at += 1;
+    else if (text[at] === '{') depth += 1;
+    else if (text[at] === '}') depth = Math.max(0, depth - 1);
+    else if (text[at] === '|' && depth === 0) branches += 1;
+  }
+
+  return branches;
+};
+
+/**
  * The placeholders of a text, sorted, with no duplicate:
  *
  * - i18next: `{{name}}`, `{{count, number}}` (as `{{count}}`), `$t(key)`;
  * - ICU: `{name}`, `{count, plural, …}` (as `{count}`);
+ * - the list `{0}`, as ICU and vue-i18n write it;
  * - tags of `<Trans>`: `<0>`, `</0>`, `<strong>`, `<br/>`;
- * - printf: `%s`, `%d`, `%1$s`.
+ * - printf: `%s`, `%d`, `%1$s`;
+ * - with the syntax `vue-i18n` only: the linked message `@:key` or `@.lower:key` (as `@:key`).
  */
-export const placeholdersOf = (text: string): string[] => {
+export const placeholdersOf = (text: string, syntax: Syntax = 'i18next'): string[] => {
   const found = new Set<string>();
   let rest = unquoted(text);
 
@@ -264,6 +311,14 @@ export const placeholdersOf = (text: string): string[] => {
 
     return ' ';
   });
+  // A modifier changes the case of the linked text, which a language can need or not: it is not compared.
+  if (syntax === 'vue-i18n') {
+    rest = rest.replace(LINK, (_, literal: string | undefined, value: string | undefined, key: string | undefined) => {
+      found.add(`@:${literal ?? value?.replace(/\s+/g, '') ?? key}`);
+
+      return ' ';
+    });
+  }
 
   addIcuArguments(rest, found);
   for (const match of rest.matchAll(/<\/?([A-Za-z0-9][\w-]*)\s*\/?>/g)) found.add(match[0].replace(/\s+/g, ''));
@@ -406,10 +461,14 @@ export interface CheckOptions {
   source: string | null;
   /** Null: every folder of `locales` past the source. */
   languages: string[] | null;
+  /** `vue-i18n` also reads the linked messages and the `|` plurals of vue-i18n. Default: `i18next`. */
+  syntax?: Syntax;
 }
 
 /** Reads every locale file of a folder, and answers what is wrong in them. */
 export const checkLocales = async (options: CheckOptions, reader: LocalesReader): Promise<CheckReport> => {
+  const syntax = options.syntax ?? 'i18next';
+  const vue = syntax === 'vue-i18n';
   const problems: Problem[] = [];
   const report = (problem: Omit<Problem, 'severity'>) =>
     problems.push({ ...problem, severity: RULES[problem.rule].severity });
@@ -553,6 +612,12 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
 
   const sourceFiles = await filesOf(source);
   const sources = new Map<string, Map<string, string>>();
+  /**
+   * The keys that a linked message can name. An application merges the files of a language in one of two
+   * ways: flat, where `@:ok` names the `ok` of any file, or one object for each file, where it is `@:common.ok`.
+   */
+  const flatKeys = new Set<string>();
+  const fileKeys = new Set<string>();
   let files = sourceFiles.length;
   let keys = 0;
 
@@ -565,6 +630,8 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
     keys += strings.size;
 
     for (const [key, text] of strings) {
+      flatKeys.add(key);
+      fileKeys.add(`${file}.${key}`);
       if (text === '') {
         report({
           rule: 'empty-source',
@@ -574,6 +641,35 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
           message: `${file}:${key} is empty in the source.`,
         });
       }
+    }
+  }
+
+  // A translation keeps the links of its source (rule `placeholders`), so only the links of the source are read here.
+  const links = [...(vue ? sources : [])].flatMap(([file, strings]) =>
+    [...strings].flatMap(([key, text]) => linksOf(text).map((link) => ({ file, key, link }))),
+  );
+  // `check` cannot see how the application merges the files. The links tell it: one merge resolves them all.
+  // When some links resolve in one merge only and others in the other only, the merge of the most links wins.
+  const onlyFlat = links.filter(({ link }) => flatKeys.has(link) && !fileKeys.has(link)).map(({ link }) => link);
+  const onlyFile = links.filter(({ link }) => fileKeys.has(link) && !flatKeys.has(link)).map(({ link }) => link);
+  const merge =
+    onlyFlat.length > 0 && onlyFile.length > 0 ? (onlyFlat.length > onlyFile.length ? 'flat' : 'file') : null;
+
+  for (const { file, key, link } of links) {
+    const id = `${file}:${key}`;
+    const reportLink = (message: string) =>
+      report({ rule: 'unknown-link', path: pathOf(source, file), language: source, key: id, message });
+
+    if (!flatKeys.has(link) && !fileKeys.has(link)) {
+      reportLink(`${id} links to @:${link}, which is a key of no file of ${source}.`);
+    } else if (merge === 'file' && !fileKeys.has(link)) {
+      reportLink(
+        `${id} links to @:${link}, but the other links of ${source} name the file of their key, as @:${onlyFile[0]}.`,
+      );
+    } else if (merge === 'flat' && !flatKeys.has(link)) {
+      reportLink(
+        `${id} links to @:${link}, but the other links of ${source} name a key with no file, as @:${onlyFlat[0]}.`,
+      );
     }
   }
 
@@ -640,8 +736,8 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
           }
         } else {
           const implicitCount = form !== null && form !== 'other';
-          const expected = placeholdersOf(text).filter((item) => !implicitCount || !COUNT.has(item));
-          const found = placeholdersOf(value).filter((item) => !implicitCount || !COUNT.has(item));
+          const expected = placeholdersOf(text, syntax).filter((item) => !implicitCount || !COUNT.has(item));
+          const found = placeholdersOf(value, syntax).filter((item) => !implicitCount || !COUNT.has(item));
 
           if (!sameList(expected, found)) {
             report({
@@ -650,6 +746,20 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
               language,
               key: id,
               message: `${id}: ${describeDifference(expected, found)}.`,
+            });
+          }
+
+          const branches = vue ? pluralBranchesOf(text) : 1;
+          const translated = vue ? pluralBranchesOf(value) : 1;
+
+          // Only a source with branches is a plural. A `|` that a translation adds to a plain text is text.
+          if (branches > 1 && branches !== translated) {
+            report({
+              rule: 'plural-branches',
+              path,
+              language,
+              key: id,
+              message: `${id}: ${translated} ${translated === 1 ? 'branch' : 'branches'}, and the source has ${branches}.`,
             });
           }
 
@@ -786,11 +896,11 @@ export const failed = (report: CheckReport, maxWarnings: number | null): boolean
   report.errors > 0 || (maxWarnings !== null && report.warnings > maxWarnings);
 
 /** Runs the check on the files of an example: a folder `locales` whose source is `en`. */
-export const checkExample = (example: Example): Promise<CheckReport> => {
+export const checkExample = (example: Example, syntax: Syntax = 'i18next'): Promise<CheckReport> => {
   const files = new Map(Object.entries(example).map(([path, text]) => [join('locales', path), text]));
 
   return checkLocales(
-    { locales: 'locales', manifest: null, source: 'en', languages: null },
+    { locales: 'locales', manifest: null, source: 'en', languages: null, syntax },
     {
       readFile: async (path) => files.get(path) ?? null,
       readDir: async (path) => {

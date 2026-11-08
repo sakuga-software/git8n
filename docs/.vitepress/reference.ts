@@ -1,6 +1,6 @@
 import { checkExample, prettyReport, RULES, type Rule } from '@git8n/mcp/cli/check';
 import { ERRORS, type ErrorCode } from '@git8n/mcp/cli/errors';
-import type { Example } from '@git8n/mcp/cli/rules';
+import type { Example, RuleEntry, Syntax } from '@git8n/mcp/cli/rules';
 
 /**
  * The pages of the rules of `git8n check` and of the error codes, made from the registry of the
@@ -15,14 +15,14 @@ const filesOf = (example: Example) =>
     .join('\n\n');
 
 /** The output of `git8n check` on the example, made by the check itself. */
-const outputOf = async (example: Example) =>
-  `\`\`\`text\n$ git8n check --source en\n${prettyReport(await checkExample(example)).trimEnd()}\n\`\`\``;
+const outputOf = async (example: Example, syntax?: Syntax) =>
+  `\`\`\`text\n$ git8n check --source en${syntax ? ` --syntax ${syntax}` : ''}\n${prettyReport(await checkExample(example, syntax)).trimEnd()}\n\`\`\``;
 
 export const ruleIds = Object.keys(RULES) as Rule[];
 export const errorCodes = Object.keys(ERRORS) as ErrorCode[];
 
 export const rulePage = async (rule: Rule): Promise<string> => {
-  const entry = RULES[rule];
+  const entry: RuleEntry = RULES[rule];
 
   return [
     '---',
@@ -46,13 +46,13 @@ export const rulePage = async (rule: Rule): Promise<string> => {
     '',
     filesOf(entry.invalid),
     '',
-    await outputOf(entry.invalid),
+    await outputOf(entry.invalid, entry.syntax),
     '',
     '## Valid',
     '',
     filesOf(entry.valid),
     '',
-    await outputOf(entry.valid),
+    await outputOf(entry.valid, entry.syntax),
     '',
     '## What to do',
     '',

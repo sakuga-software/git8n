@@ -2,7 +2,14 @@ import { mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { checkLocales, placeholdersOf, sourceHashOf, type CheckOptions, type LocalesReader } from './check.ts';
+import {
+  checkLocales,
+  placeholdersOf,
+  pluralBranchesOf,
+  sourceHashOf,
+  type CheckOptions,
+  type LocalesReader,
+} from './check.ts';
 import { fakeIo } from './testing.ts';
 
 /** A working copy in a temporary folder, with these files. */
@@ -82,6 +89,47 @@ describe('placeholdersOf', () => {
 
   it('reads a text with no placeholder as none, and a lone brace as text', () => {
     expect(placeholdersOf('3 < 4 and 50% off {')).toEqual([]);
+  });
+
+  it('reads the list and named arguments of vue-i18n', () => {
+    expect(placeholdersOf('{0} of {1}, {0} again')).toEqual(['{0}', '{1}']);
+    expect(placeholdersOf('{user-id} has {total$} and { name }')).toEqual(['{name}', '{total$}', '{user-id}']);
+    expect(placeholdersOf('{0, plural, one {# item} other {# items}}')).toEqual(['{0}']);
+    expect(placeholdersOf("{account}{'@'}{domain}")).toEqual(['{account}', '{domain}']);
+  });
+
+  it('reads a linked message of vue-i18n as its key, with no modifier', () => {
+    const vue = (text: string) => placeholdersOf(text, 'vue-i18n');
+
+    expect(vue('@:message.dio @:message.the_world !!!!')).toEqual(['@:message.dio', '@:message.the_world']);
+    expect(vue('Press @.lower:common.ok to go on')).toEqual(['@:common.ok']);
+    expect(vue("@.snakeCase:{'message.snake'}")).toEqual(['@:message.snake']);
+    expect(vue('@:{target} now')).toEqual(['@:{target}']);
+    // vue-i18n ends a key only at a space, `{`, `(`, `)`, `|`, `@` or the end: `!` is part of the key.
+    expect(vue('Go to @:nav.home!')).toEqual(['@:nav.home!']);
+  });
+
+  it('reads an address, `@` alone and an escaped `\\@:` as text', () => {
+    expect(placeholdersOf('Write to team@example.com or @team', 'vue-i18n')).toEqual([]);
+    expect(placeholdersOf('Type \\@:key to link', 'vue-i18n')).toEqual([]);
+  });
+
+  it('reads `@:` as text with no syntax vue-i18n', () => {
+    expect(placeholdersOf('Ping @:smile: and @:common.ok')).toEqual([]);
+  });
+});
+
+describe('pluralBranchesOf', () => {
+  it('counts the branches of a plural of vue-i18n', () => {
+    expect(pluralBranchesOf('no car | one car | {count} cars')).toBe(3);
+    expect(pluralBranchesOf('car | cars')).toBe(2);
+    expect(pluralBranchesOf('Cart')).toBe(1);
+  });
+
+  it('reads a `|` in braces, an escaped `\\|` and the `|` of an ICU text as text', () => {
+    expect(pluralBranchesOf("a {'|'} b")).toBe(1);
+    expect(pluralBranchesOf('a \\| b')).toBe(1);
+    expect(pluralBranchesOf('{n, plural, one {a | b} other {c}} | d')).toBe(1);
   });
 });
 
@@ -242,6 +290,112 @@ describe('checkLocales', () => {
     expect(report.problems.map(({ rule, language, key, message }) => `${rule} ${language} ${key} ${message}`)).toEqual([
       'icu-plural-forms fr common:gifts common:gifts: the plural {count} has no one.',
     ]);
+  });
+
+  it('reports a translation that loses a list argument or a linked message of vue-i18n', async () => {
+    const report = await check(
+      {
+        'locales/en/common.json': { ok: 'OK', page: 'Page {0} of {1}', confirm: 'Press @:common.ok to go on' },
+        'locales/fr/common.json': { ok: 'OK', page: 'Page {0}', confirm: 'Appuyez sur OK' },
+      },
+      { source: 'en', syntax: 'vue-i18n' },
+    );
+
+    expect(report.problems.map((problem) => problem.message).sort()).toEqual([
+      'common:confirm: lost @:common.ok.',
+      'common:page: lost {1}.',
+    ]);
+  });
+
+  it('reports a linked message whose key is in no file of the source', async () => {
+    const report = await check(
+      {
+        'locales/en/common.json': { ok: 'OK', nav: { home: 'Home' } },
+        'locales/en/home.json': {
+          short: 'Press @:ok',
+          long: 'Press @.upper:ok or @:nav.home and @:{page}',
+          broken: 'Back to @:nav.home!',
+          lost: 'Press @:common.okay',
+        },
+        'locales/fr/common.json': { ok: 'OK', nav: { home: 'Accueil' } },
+        'locales/fr/home.json': {
+          short: 'Appuyez sur @:ok',
+          long: 'Appuyez sur @:ok ou @:nav.home et @:{page}',
+          broken: 'Retour à @:nav.home!',
+          lost: 'Appuyez sur @:common.okay',
+        },
+      },
+      { source: 'en', syntax: 'vue-i18n' },
+    );
+
+    expect(rulesOf(report)).toEqual(['unknown-link en home:broken', 'unknown-link en home:lost']);
+    expect(report.problems.map((problem) => problem.message)).toEqual([
+      'home:broken links to @:nav.home!, which is a key of no file of en.',
+      'home:lost links to @:common.okay, which is a key of no file of en.',
+    ]);
+    expect(report.errors).toBe(2);
+  });
+
+  it('reports a link that only the other merge of the files resolves', async () => {
+    const files = (links: Record<string, string>) => ({
+      'locales/en/common.json': { ok: 'OK', save: 'Save' },
+      'locales/en/home.json': links,
+      'locales/fr/common.json': { ok: 'OK', save: 'Enregistrer' },
+      'locales/fr/home.json': links,
+    });
+    const linksIn = async (links: Record<string, string>) =>
+      (await check(files(links), { source: 'en', syntax: 'vue-i18n' })).problems.map((problem) => problem.message);
+
+    // One merge resolves every link: flat, or one object for each file.
+    expect(await linksIn({ a: '@:ok', b: '@:save' })).toEqual([]);
+    expect(await linksIn({ a: '@:common.ok', b: '@:common.save' })).toEqual([]);
+    // The two forms mixed: the merge of the most links wins, and the other links are reported.
+    expect(await linksIn({ a: '@:ok', b: '@:common.save', c: '@:common.ok' })).toEqual([
+      'home:a links to @:ok, but the other links of en name the file of their key, as @:common.save.',
+    ]);
+    expect(await linksIn({ a: '@:ok', b: '@:save', c: '@:common.ok' })).toEqual([
+      'home:c links to @:common.ok, but the other links of en name a key with no file, as @:ok.',
+    ]);
+  });
+
+  it('warns on a plural of vue-i18n whose translation has other branches than the source', async () => {
+    const report = await check(
+      {
+        'locales/en/common.json': {
+          cars: 'no car | one car | {count} cars',
+          apples: 'apple | apples',
+          pears: 'pear | pears',
+          title: 'Home',
+        },
+        'locales/fr/common.json': {
+          cars: 'une voiture | {count} voitures',
+          apples: 'pomme | pommes',
+          pears: 'poires',
+          title: 'Accueil | Acme',
+        },
+      },
+      { source: 'en', syntax: 'vue-i18n' },
+    );
+
+    // A `|` that the translation adds to a plain text is text.
+    expect(rulesOf(report)).toEqual(['plural-branches fr common:cars', 'plural-branches fr common:pears']);
+    expect(report.problems.map((problem) => problem.message)).toEqual([
+      'common:cars: 2 branches, and the source has 3.',
+      'common:pears: 1 branch, and the source has 2.',
+    ]);
+    expect(report.warnings).toBe(2);
+  });
+
+  it('reads no link and no `|` plural with no syntax vue-i18n', async () => {
+    const report = await check(
+      {
+        'locales/en/common.json': { ping: 'Ping @:smile:', title: 'Save | Cancel' },
+        'locales/fr/common.json': { ping: 'Ping @:smile:', title: 'Enregistrer' },
+      },
+      { source: 'en' },
+    );
+
+    expect(report.problems).toEqual([]);
   });
 
   it('reads a key that ends with _other as a plain key, unless the source has one plural form only', async () => {
@@ -409,5 +563,29 @@ describe('git8n check', () => {
       docs: 'https://git8n.sakuga.dev/docs/reference/errors/g8n1005.html',
     });
     expect((await cli.run('check', '--reporter', 'xml')).exit).toBe(2);
+  });
+
+  it('reads the links of vue-i18n with --syntax vue-i18n, and refuses another syntax', async () => {
+    const cli = await cliIn({
+      'locales/en/common.json': { ok: 'OK', confirm: 'Press @:common.ok' },
+      'locales/fr/common.json': { ok: 'OK', confirm: 'Appuyez sur OK' },
+    });
+
+    expect((await cli.run('check', '--source', 'en')).exit).toBe(0);
+
+    const vue = await cli.run('check', '--source', 'en', '--syntax', 'vue-i18n', '--json');
+
+    expect(vue.exit).toBe(1);
+    expect(vue.json().data.problems).toMatchObject([
+      { rule: 'placeholders', message: 'common:confirm: lost @:common.ok.' },
+    ]);
+
+    const refused = await cli.run('check', '--source', 'en', '--syntax', 'vue', '--json');
+
+    expect(refused.exit).toBe(2);
+    expect(refused.json().error).toMatchObject({
+      code: 'G8N1001',
+      message: '--syntax takes one of i18next, vue-i18n.',
+    });
   });
 });

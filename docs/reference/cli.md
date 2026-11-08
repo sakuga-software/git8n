@@ -146,14 +146,15 @@ Reads the locale files of the folder where it runs, with no API and no login,
 and reports what is wrong in them. [In CI](../agents/cli.md#in-ci) shows a
 workflow.
 
-| Option                | What it does                                                                                                               |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `--locales <folder>`  | The folder of the languages. Default: the first of `locales`, `src/locales`, `public/locales`, `src/i18n/locales`, `i18n`. |
-| `--manifest <file>`   | The manifest. Default: `<locales>/manifest.json`, if it exists.                                                            |
-| `--source <language>` | The source language. Default: the `source` of the manifest.                                                                |
-| `--lang <a,b>`        | The languages to check. Default: every folder of `<locales>` past the source.                                              |
-| `--reporter <name>`   | `pretty` (the default), `json` (as `--json`) or `github`: one annotation of GitHub Actions for each problem.               |
-| `--max-warnings <n>`  | Fails past `n` warnings. Default: no limit.                                                                                |
+| Option                | What it does                                                                                                                 |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `--locales <folder>`  | The folder of the languages. Default: the first of `locales`, `src/locales`, `public/locales`, `src/i18n/locales`, `i18n`.   |
+| `--manifest <file>`   | The manifest. Default: `<locales>/manifest.json`, if it exists.                                                              |
+| `--source <language>` | The source language. Default: the `source` of the manifest.                                                                  |
+| `--lang <a,b>`        | The languages to check. Default: every folder of `<locales>` past the source.                                                |
+| `--syntax <name>`     | `i18next` (the default: i18next and ICU MessageFormat) or `vue-i18n`: also the linked messages `@:key` and the `\|` plurals. |
+| `--reporter <name>`   | `pretty` (the default), `json` (as `--json`) or `github`: one annotation of GitHub Actions for each problem.                 |
+| `--max-warnings <n>`  | Fails past `n` warnings. Default: no limit.                                                                                  |
 
 It applies the rules of the editor ([A repository and its files](../guide/repositories.md)):
 the dotted keys of i18next, the files that the manifest disables, and the keys
@@ -163,8 +164,9 @@ it marks empty on purpose.
 example, and the output of the check on them. Each problem names its rule, and
 the report ends with the address of the page of each rule it found.
 
-A placeholder is `{{name}}`, `{name}`, `$t(…)`, a tag such as `<0>` or `<br/>`,
-or `%s`. The branches of an ICU plural are text: `{count, plural, one {# item}}`
+A placeholder is `{{name}}`, `{name}`, `{0}`, `$t(…)`, a tag such as `<0>` or
+`<br/>`, or `%s`. With `--syntax vue-i18n`, a linked message such as
+`@:common.ok` is one too ([vue-i18n](../formats/libraries.md#vue-i18n)). The branches of an ICU plural are text: `{count, plural, one {# item}}`
 holds `{count}` only.
 
 A plural follows i18next: `items_one` and `items_other` are the forms of
