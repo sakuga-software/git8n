@@ -42,7 +42,8 @@ are for i18next.
   the key `ok` of `common.json`. git8n reads the merge from the links: one merge must
   resolve them all. When some links resolve in one merge only and others in
   the other only, the merge of the most links wins, and the other links are
-  errors. A key that no file holds is an error of
+  errors. With as many links in each form, no merge wins, and each of them is
+  an error. A key that no file holds is an error of
   [`unknown-link`](../reference/rules/unknown-link.md). vue-i18n ends the key
   only at a space, `{`, `(`, `)`, `|` or `@`: in `@:nav.home!`, the key is
   `nav.home!`. Write `@:nav.home{'!'}`.

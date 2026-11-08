@@ -650,10 +650,17 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
   );
   // `check` cannot see how the application merges the files. The links tell it: one merge resolves them all.
   // When some links resolve in one merge only and others in the other only, the merge of the most links wins.
+  // With as many links on each side, no merge wins: each link that resolves in one merge only is reported.
   const onlyFlat = links.filter(({ link }) => flatKeys.has(link) && !fileKeys.has(link)).map(({ link }) => link);
   const onlyFile = links.filter(({ link }) => fileKeys.has(link) && !flatKeys.has(link)).map(({ link }) => link);
-  const merge =
-    onlyFlat.length > 0 && onlyFile.length > 0 ? (onlyFlat.length > onlyFile.length ? 'flat' : 'file') : null;
+  const mixed = onlyFlat.length > 0 && onlyFile.length > 0;
+  const merge = !mixed
+    ? null
+    : onlyFlat.length > onlyFile.length
+      ? 'flat'
+      : onlyFile.length > onlyFlat.length
+        ? 'file'
+        : 'tie';
 
   for (const { file, key, link } of links) {
     const id = `${file}:${key}`;
@@ -665,6 +672,10 @@ export const checkLocales = async (options: CheckOptions, reader: LocalesReader)
     } else if (merge === 'file' && !fileKeys.has(link)) {
       reportLink(
         `${id} links to @:${link}, but the other links of ${source} name the file of their key, as @:${onlyFile[0]}.`,
+      );
+    } else if (merge === 'tie' && flatKeys.has(link) !== fileKeys.has(link)) {
+      reportLink(
+        `${id} links to @:${link}, and the links of ${source} name keys in two forms, as @:${onlyFlat[0]} and @:${onlyFile[0]}, as many in each: use one form.`,
       );
     } else if (merge === 'flat' && !flatKeys.has(link)) {
       reportLink(
