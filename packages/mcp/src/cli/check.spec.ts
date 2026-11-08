@@ -356,6 +356,11 @@ describe('checkLocales', () => {
     expect(await linksIn({ a: '@:ok', b: '@:save', c: '@:common.ok' })).toEqual([
       'home:c links to @:common.ok, but the other links of en name a key with no file, as @:ok.',
     ]);
+    // As many links in each form: no merge wins, and each of them is reported.
+    expect(await linksIn({ a: '@:ok', b: '@:common.save' })).toEqual([
+      'home:a links to @:ok, and the links of en name keys in two forms, as @:ok and @:common.save, as many in each: use one form.',
+      'home:b links to @:common.save, and the links of en name keys in two forms, as @:ok and @:common.save, as many in each: use one form.',
+    ]);
   });
 
   it('warns on a plural of vue-i18n whose translation has other branches than the source', async () => {
