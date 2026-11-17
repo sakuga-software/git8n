@@ -6,7 +6,7 @@
 #   docker build -f packages/api/Dockerfile -t git8n .
 
 # Keep NODE_VERSION equal to `.node-version`, which the workflows read.
-ARG NODE_VERSION=26.12.1
+ARG NODE_VERSION=26.13.1
 
 FROM ghcr.io/pnpm/pnpm:12.15.0@sha256:d6148daf3ad2af8fa4ecd1aa06db73da32b2e37f63088987eea2fb375ee7f320 AS pnpm
 
