@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@git8n/db": "workspace:*",
-    "@hono/node-server": "^2.1.1",
+    "@hono/node-server": "^2.1.6",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
     "hono": "^4.13.8",
